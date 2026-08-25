@@ -41,6 +41,13 @@
     error = "Permission requested. Select text and press your shortcut again.";
   }
 
+  async function useOcr() {
+    try {
+      await invoke("request_screen_recording_permission");
+      await invoke("capture_with_ocr");
+    } catch (cause) { error = cause instanceof Error ? cause.message : String(cause); }
+  }
+
   onMount(() => {
     const ready = listen<CaptureCandidate>("capture-ready", ({ payload }) => accept(payload));
     const failed = listen<string>("capture-error", ({ payload }) => { candidate = null; saved = null; error = payload; });
@@ -53,6 +60,8 @@
   {#if error}
     <section class="capture-message"><strong>Capture needs attention</strong><p>{error}</p>
       {#if error.includes("accessibilityPermissionRequired")}<button class="primary" onclick={grantAccessibility}>Allow Accessibility</button>{/if}
+      {#if error.includes("noSelection") || error.includes("noFocusedElement")}<button class="primary" onclick={useOcr}>Use OCR near pointer</button>{/if}
+      {#if error.includes("screenRecordingPermissionRequired")}<button class="primary" onclick={useOcr}>Allow Screen Recording</button>{/if}
     </section>
   {:else if saved}
     <section class="capture-result"><span class="check">✓</span><div><small>Saved</small><h1>{saved.displayForm}</h1><strong>{saved.translation ?? "Translation pending"}</strong><p>“{saved.context}”</p><small>{saved.isExistingWord ? `Seen ${saved.encounterCount} times · New context saved` : "Added to your review queue"}</small></div></section>

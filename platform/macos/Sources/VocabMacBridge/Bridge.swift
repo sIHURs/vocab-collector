@@ -34,6 +34,8 @@ enum BridgeJSON {
     }
 }
 
+private final class AsyncResultBox<Value>: @unchecked Sendable { var result: Result<Value, Error>? }
+
 @_cdecl("vocab_mac_permission_status")
 public func vocabMacPermissionStatus(_ kind: Int32) -> UnsafeMutablePointer<CChar>? {
     let status = kind == 0 ? PermissionService.accessibilityStatus() : PermissionService.screenRecordingStatus()
@@ -50,6 +52,29 @@ public func vocabMacRequestAccessibility() -> UnsafeMutablePointer<CChar>? {
 public func vocabMacCaptureSelection() -> UnsafeMutablePointer<CChar>? {
     do { return BridgeJSON.pointer(for: BridgeResponse<SelectionPayload>.success(try AccessibilityCapture.capture())) }
     catch { return BridgeJSON.pointer(for: BridgeResponse<SelectionPayload>.failure(String(describing: error))) }
+}
+
+@_cdecl("vocab_mac_request_screen_recording")
+public func vocabMacRequestScreenRecording() -> UnsafeMutablePointer<CChar>? {
+    PermissionService.requestScreenRecording()
+    return BridgeJSON.pointer(for: BridgeResponse<String>.success(PermissionService.screenRecordingStatus().rawValue))
+}
+
+@_cdecl("vocab_mac_capture_ocr")
+public func vocabMacCaptureOcr() -> UnsafeMutablePointer<CChar>? {
+    let semaphore = DispatchSemaphore(value: 0)
+    let box = AsyncResultBox<SelectionPayload>()
+    Task.detached {
+        do { box.result = .success(try await OcrCapture.captureNearPointer()) }
+        catch { box.result = .failure(error) }
+        semaphore.signal()
+    }
+    semaphore.wait()
+    switch box.result {
+    case .success(let payload): return BridgeJSON.pointer(for: BridgeResponse<SelectionPayload>.success(payload))
+    case .failure(let error): return BridgeJSON.pointer(for: BridgeResponse<SelectionPayload>.failure(String(describing: error)))
+    case nil: return BridgeJSON.pointer(for: BridgeResponse<SelectionPayload>.failure("ocrUnavailable"))
+    }
 }
 
 @_cdecl("vocab_mac_free_string")

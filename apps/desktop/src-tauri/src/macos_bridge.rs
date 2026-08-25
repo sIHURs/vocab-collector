@@ -10,6 +10,8 @@ unsafe extern "C" {
     fn vocab_mac_permission_status(kind: i32) -> *mut c_char;
     fn vocab_mac_request_accessibility() -> *mut c_char;
     fn vocab_mac_capture_selection() -> *mut c_char;
+    fn vocab_mac_request_screen_recording() -> *mut c_char;
+    fn vocab_mac_capture_ocr() -> *mut c_char;
     fn vocab_mac_free_string(pointer: *mut c_char);
 }
 
@@ -73,6 +75,15 @@ pub fn request_accessibility() -> Result<PermissionStatus, PlatformError> {
 
 pub fn capture_selection() -> Result<CaptureCandidate, PlatformError> {
     decode_owned(unsafe { vocab_mac_capture_selection() })
+}
+
+pub fn request_screen_recording() -> Result<PermissionStatus, PlatformError> {
+    let _: String = decode_owned(unsafe { vocab_mac_request_screen_recording() })?;
+    permission_status(PermissionKind::ScreenRecording)
+}
+
+pub fn capture_ocr() -> Result<CaptureCandidate, PlatformError> {
+    decode_owned(unsafe { vocab_mac_capture_ocr() })
 }
 
 #[cfg(test)]

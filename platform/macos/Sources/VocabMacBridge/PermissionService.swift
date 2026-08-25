@@ -17,4 +17,6 @@ public enum PermissionService {
     public static func screenRecordingStatus() -> NativePermissionStatus {
         CGPreflightScreenCaptureAccess() ? .granted : .notDetermined
     }
+
+    public static func requestScreenRecording() { _ = CGRequestScreenCaptureAccess() }
 }

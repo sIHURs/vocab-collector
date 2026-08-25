@@ -123,6 +123,20 @@ fn capture_selected_text() -> Result<vocab_platform::CaptureCandidate, String> {
     macos_bridge::capture_selection().map_err(|error| error.to_string())
 }
 
+#[cfg(target_os = "macos")]
+#[tauri::command]
+fn request_screen_recording_permission() -> Result<vocab_platform::PermissionStatus, String> {
+    macos_bridge::request_screen_recording().map_err(|error| error.to_string())
+}
+
+#[cfg(target_os = "macos")]
+#[tauri::command]
+fn capture_with_ocr(app: tauri::AppHandle) -> Result<(), String> {
+    let candidate = macos_bridge::capture_ocr().map_err(|error| error.to_string())?;
+    let window = app.get_webview_window("capture").ok_or_else(|| "capture window is unavailable".to_string())?;
+    window.emit("capture-ready", candidate).map_err(|error| error.to_string())
+}
+
 #[tauri::command]
 fn hide_capture_window(app: tauri::AppHandle) -> Result<(), String> {
     app.get_webview_window("capture")
@@ -225,6 +239,10 @@ pub fn run() {
             request_accessibility_permission,
             #[cfg(target_os = "macos")]
             capture_selected_text,
+            #[cfg(target_os = "macos")]
+            request_screen_recording_permission,
+            #[cfg(target_os = "macos")]
+            capture_with_ocr,
             hide_capture_window
         ])
         .run(tauri::generate_context!())
