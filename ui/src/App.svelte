@@ -1,34 +1,60 @@
 <script lang="ts">
-  const productName = "Vocab Collector";
+  type Route = "Today" | "Vocabulary" | "Progress" | "Settings";
+  let route: Route = "Today";
+
+  const navigation: Array<{ label: Route; icon: string }> = [
+    { label: "Today", icon: "◫" },
+    { label: "Vocabulary", icon: "Aa" },
+    { label: "Progress", icon: "↗" },
+    { label: "Settings", icon: "⚙" },
+  ];
 </script>
 
-<main>
-  <h1>{productName}</h1>
-  <p>Local-first application foundation</p>
-</main>
+<div class="window-shell">
+  <aside class="sidebar">
+    <div class="traffic-spacer" aria-hidden="true"></div>
+    <div class="brand">
+      <span class="brand-mark">V</span>
+      <span>Vocab Collector</span>
+    </div>
 
-<style>
-  :global(body) {
-    margin: 0;
-    font-family: Inter, ui-sans-serif, system-ui, sans-serif;
-    background: #f3f4f7;
-    color: rgba(20, 22, 28, 0.87);
-  }
+    <nav aria-label="Main navigation">
+      {#each navigation as item}
+        <button
+          class:active={route === item.label}
+          aria-current={route === item.label ? "page" : undefined}
+          onclick={() => (route = item.label)}
+        >
+          <span class="nav-icon" aria-hidden="true">{item.icon}</span>
+          {item.label}
+        </button>
+      {/each}
+    </nav>
 
-  main {
-    min-height: 100vh;
-    display: grid;
-    place-content: center;
-    text-align: center;
-  }
+    <div class="account-card">
+      <span class="status-dot"></span>
+      <div><strong>Local mode</strong><small>Everything is saved</small></div>
+    </div>
+  </aside>
 
-  h1 {
-    margin: 0;
-    font-size: 28px;
-  }
+  <main>
+    <header class="toolbar">
+      <div>
+        <h1>{route}</h1>
+        <p>{route === "Today" ? "Your quiet learning rhythm" : `Manage your ${route.toLowerCase()}`}</p>
+      </div>
+      <div class="toolbar-actions">
+        <button class="icon-button" aria-label="Search">⌕</button>
+        <button class="avatar" aria-label="Account">YW</button>
+      </div>
+    </header>
 
-  p {
-    color: #7b808a;
-  }
-</style>
-
+    <section class="content" aria-label={`${route} content`}>
+      <div class="placeholder-panel">
+        <span class="eyebrow">{route}</span>
+        <h2>{route === "Today" ? "Ready when you are." : `${route} at a glance`}</h2>
+        <p>The product workflow will appear here in the next implementation milestone.</p>
+      </div>
+    </section>
+  </main>
+</div>

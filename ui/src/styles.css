@@ -1,0 +1,59 @@
+:root {
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  color: #d9dbe5;
+  background: #15161c;
+  font-synthesis: none;
+  --bg: #15161c;
+  --sidebar: rgba(25, 26, 34, 0.94);
+  --panel: #20212a;
+  --panel-raised: #262832;
+  --border: rgba(255, 255, 255, 0.075);
+  --muted: #858997;
+  --text: #e5e7ef;
+  --accent: #7584ef;
+  --accent-soft: rgba(117, 132, 239, 0.16);
+  --success: #78c8a7;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 840px; min-height: 600px; background: var(--bg); }
+button, input, select { font: inherit; }
+button { color: inherit; }
+
+.window-shell { min-height: 100vh; display: grid; grid-template-columns: 224px 1fr; }
+.sidebar {
+  display: flex; flex-direction: column; padding: 0 12px 16px;
+  background: var(--sidebar); border-right: 1px solid var(--border);
+  backdrop-filter: blur(28px); -webkit-backdrop-filter: blur(28px);
+}
+.traffic-spacer { height: 48px; }
+.brand { display: flex; gap: 10px; align-items: center; padding: 8px 10px 22px; font-weight: 650; font-size: 14px; }
+.brand-mark { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 7px; background: var(--accent); color: white; font-size: 13px; box-shadow: 0 6px 18px rgba(82, 98, 215, .3); }
+nav { display: grid; gap: 3px; }
+nav button { border: 0; background: transparent; display: flex; align-items: center; gap: 11px; height: 36px; padding: 0 10px; border-radius: 7px; color: #a4a7b3; cursor: pointer; text-align: left; font-size: 13px; }
+nav button:hover { background: rgba(255,255,255,.045); color: var(--text); }
+nav button.active { color: #eef0ff; background: var(--accent-soft); }
+.nav-icon { width: 20px; text-align: center; color: currentColor; font-size: 14px; font-weight: 600; }
+.account-card { margin-top: auto; display: flex; align-items: center; gap: 9px; border-top: 1px solid var(--border); padding: 15px 9px 0; }
+.account-card div { display: grid; gap: 2px; }
+.account-card strong { font-size: 12px; font-weight: 550; }
+.account-card small { color: var(--muted); font-size: 10px; }
+.status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--success); box-shadow: 0 0 0 3px rgba(120,200,167,.12); }
+main { min-width: 0; background: radial-gradient(circle at 85% 0%, rgba(102,119,232,.07), transparent 32%), var(--bg); }
+.toolbar { height: 96px; display: flex; justify-content: space-between; align-items: flex-end; padding: 22px 32px 18px; border-bottom: 1px solid var(--border); }
+.toolbar h1 { font-size: 22px; line-height: 1.15; margin: 0; letter-spacing: -.025em; }
+.toolbar p { margin: 5px 0 0; color: var(--muted); font-size: 11px; }
+.toolbar-actions { display: flex; gap: 9px; align-items: center; }
+.icon-button, .avatar { border: 1px solid var(--border); background: var(--panel); cursor: pointer; }
+.icon-button { width: 32px; height: 32px; border-radius: 8px; color: var(--muted); }
+.avatar { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(145deg, #8793ef, #5969d6); color: white; font-size: 10px; font-weight: 700; }
+.content { padding: 26px 32px 40px; }
+.placeholder-panel { min-height: 280px; padding: 28px; border: 1px solid var(--border); border-radius: 12px; background: linear-gradient(145deg, var(--panel), rgba(31,32,41,.68)); box-shadow: 0 18px 42px rgba(0,0,0,.13); }
+.placeholder-panel h2 { margin: 9px 0 8px; font-size: 20px; }
+.placeholder-panel p { margin: 0; max-width: 440px; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.eyebrow { color: var(--accent); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; font-weight: 700; }
+
+@media (prefers-reduced-motion: no-preference) {
+  button { transition: color 120ms ease, background 120ms ease, transform 120ms ease; }
+  button:active { transform: scale(.98); }
+}
