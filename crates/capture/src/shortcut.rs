@@ -23,7 +23,6 @@ impl Shortcut {
                 "Alt" => "⌥",
                 "Control" => "⌃",
                 "Shift" => "⇧",
-                "Space" => "Space",
                 _ => "",
             })
             .collect::<Vec<_>>()
@@ -64,7 +63,6 @@ pub fn parse_shortcut(input: &str) -> Result<Shortcut, ShortcutError> {
             "alt" | "option" => Some("Alt"),
             "control" | "ctrl" => Some("Control"),
             "shift" => Some("Shift"),
-            "space" => Some("Space"),
             _ => None,
         };
         if let Some(modifier) = modifier {

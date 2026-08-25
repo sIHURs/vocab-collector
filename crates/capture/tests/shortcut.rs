@@ -23,8 +23,8 @@ impl ShortcutBackend for RecordingBackend {
 #[test]
 fn validates_default_and_rejects_unmodified_or_reserved_shortcuts() {
     assert_eq!(
-        parse_shortcut("Alt+Space+V").unwrap().display_macos(),
-        "⌥ Space V"
+        parse_shortcut("Alt+Shift+V").unwrap().display_macos(),
+        "⌥ ⇧ V"
     );
     assert_eq!(
         parse_shortcut("V").unwrap_err(),
@@ -39,11 +39,11 @@ fn validates_default_and_rejects_unmodified_or_reserved_shortcuts() {
 #[test]
 fn replacement_registers_candidate_before_removing_current() {
     let backend = RecordingBackend::default();
-    let manager = ShortcutManager::new(backend.clone(), "Alt+Space+V").unwrap();
+    let manager = ShortcutManager::new(backend.clone(), "Alt+Shift+V").unwrap();
     manager.replace("Control+Shift+W").unwrap();
     assert_eq!(
         *backend.0.lock().unwrap(),
-        ["register:Control+Shift+W", "unregister:Alt+Space+V"]
+        ["register:Control+Shift+W", "unregister:Alt+Shift+V"]
     );
 }
 
@@ -59,12 +59,12 @@ fn replacement_failure_keeps_the_current_shortcut() {
             panic!("old shortcut removed")
         }
     }
-    let manager = ShortcutManager::new(Rejecting, "Alt+Space+V").unwrap();
+    let manager = ShortcutManager::new(Rejecting, "Alt+Shift+V").unwrap();
     assert_eq!(
         manager.replace("Control+Shift+W"),
         Err(ShortcutError::Unavailable)
     );
-    assert_eq!(manager.current(), "Alt+Space+V");
+    assert_eq!(manager.current(), "Alt+Shift+V");
 }
 
 #[test]

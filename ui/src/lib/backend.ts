@@ -18,7 +18,7 @@ export interface Backend {
 type DemoWord = WordDetail & { due: boolean };
 
 const defaultSettings: Settings = {
-  sourceLanguage: "en", targetLanguage: "de", captureShortcut: "Alt+Space+V",
+  sourceLanguage: "en", targetLanguage: "de", captureShortcut: "Alt+Shift+V",
   reviewTime: "18:00", dailyLimit: 5, launchAtLogin: false, appearance: "system",
   reducedMotion: false,
 };

@@ -5,7 +5,7 @@ import ShortcutRecorder from "./ShortcutRecorder.svelte";
 describe("ShortcutRecorder", () => {
   it("records a modified key and cancels with Escape", async () => {
     const onRecorded = vi.fn();
-    render(ShortcutRecorder, { value: "Alt+Space+V", onRecorded });
+    render(ShortcutRecorder, { value: "Alt+Shift+V", onRecorded });
     await fireEvent.click(screen.getByRole("button", { name: "Record shortcut" }));
     await fireEvent.keyDown(window, { key: "w", ctrlKey: true, shiftKey: true });
     expect(onRecorded).toHaveBeenCalledWith("Control+Shift+W");
@@ -18,7 +18,7 @@ describe("ShortcutRecorder", () => {
 
   it("ignores unmodified keys", async () => {
     const onRecorded = vi.fn();
-    render(ShortcutRecorder, { value: "Alt+Space+V", onRecorded });
+    render(ShortcutRecorder, { value: "Alt+Shift+V", onRecorded });
     await fireEvent.click(screen.getByRole("button", { name: "Record shortcut" }));
     await fireEvent.keyDown(window, { key: "v" });
     expect(onRecorded).not.toHaveBeenCalled();

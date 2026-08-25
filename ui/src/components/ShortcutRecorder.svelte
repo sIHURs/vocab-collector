@@ -3,7 +3,10 @@
   let recording = $state(false);
   let message = $state("");
   let current = $state("");
-  $effect(() => { if (!recording) current = value; });
+  let lastValue = $state("");
+  $effect(() => {
+    if (value !== lastValue) { current = value; lastValue = value; }
+  });
 
   const display = (shortcut: string) => shortcut.split("+").map((part) => ({
     Meta: "⌘", Alt: "⌥", Control: "⌃", Shift: "⇧",
