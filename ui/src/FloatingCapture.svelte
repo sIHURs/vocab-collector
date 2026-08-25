@@ -34,7 +34,7 @@
         translation = result.translatedText;
       } catch { /* The encounter still has value if a language pack is unavailable. */ }
       saved = await api.capture({ selectedText: next.selectedText, sentence: next.sentence,
-        sourceApp: next.sourceApp, translation });
+        sourceApp: next.sourceApp, sourceTitle: next.sourceTitle, sourceUrl: next.sourceUrl, translation });
       dismissTimer = setTimeout(hide, 4_000);
     } catch (cause) { error = cause instanceof Error ? cause.message : String(cause); }
     finally { saving = false; }

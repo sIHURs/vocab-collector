@@ -221,11 +221,11 @@ pub fn run() {
                 .with_handler(|app, _shortcut, event| {
                     if event.state() == ShortcutState::Pressed {
                         #[cfg(target_os = "macos")]
-                        if let Err(error) = present_native_capture(app) {
-                            if let Some(window) = app.get_webview_window("capture") {
-                                let _ = window.show();
-                                let _ = window.emit("capture-error", error);
-                            }
+                        if let Err(error) = present_native_capture(app)
+                            && let Some(window) = app.get_webview_window("capture")
+                        {
+                            let _ = window.show();
+                            let _ = window.emit("capture-error", error);
                         }
                     }
                 })

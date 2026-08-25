@@ -75,6 +75,7 @@ export class DemoBackend implements Backend {
     const encounter: Encounter = {
       id: id(), wordId: detail.item.id, selectedText: input.selectedText.trim(),
       sentence: input.sentence.trim().replace(/\s+/g, " "), sourceApp: input.sourceApp,
+      sourceTitle: input.sourceTitle, sourceUrl: input.sourceUrl,
       capturedAt: now, updatedAt: now,
     };
     detail.encounters.unshift(encounter);
@@ -126,8 +127,8 @@ class TauriBackend implements Backend {
     return invoke<CaptureCard>("capture_word", { request: {
       selectedText: input.selectedText, lemma: input.selectedText, sentence: input.sentence,
       sourceLanguage: "en", targetLanguage: "de", translation: input.translation,
-      partOfSpeech: undefined, sourceApp: input.sourceApp, sourceTitle: undefined,
-      sourceUrl: undefined, capturedAt: new Date().toISOString(),
+      partOfSpeech: undefined, sourceApp: input.sourceApp, sourceTitle: input.sourceTitle,
+      sourceUrl: input.sourceUrl, capturedAt: new Date().toISOString(),
     }});
   }
   undoCapture(encounterId: string) { return invoke<void>("undo_capture", { encounterId }); }

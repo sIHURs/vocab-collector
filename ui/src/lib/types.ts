@@ -17,6 +17,8 @@ export interface CaptureInput {
   sentence: string;
   translation?: string;
   sourceApp?: string;
+  sourceTitle?: string;
+  sourceUrl?: string;
 }
 
 export interface CaptureCard {
