@@ -14,6 +14,7 @@
   let today: TodayView | null = null;
   let words: WordListItem[] = [];
   let settings: Settings | null = null;
+  let savedShortcut = "";
   let search = "";
   let captureOpen = false;
   let reviewOpen = false;
@@ -30,6 +31,7 @@
   async function refresh() {
     try {
       [today, words, settings] = await Promise.all([api.getToday(), api.listWords(), api.getSettings()]);
+      savedShortcut = settings.captureShortcut;
     } catch (cause) { error = cause instanceof Error ? cause.message : String(cause); }
   }
 
@@ -55,7 +57,14 @@
   }
 
   async function showDetail(id: string) { selectedDetail = await api.getWord(id); }
-  async function saveSettings() { if (settings) { await api.updateSettings(settings); await refresh(); } }
+  async function saveSettings() {
+    if (!settings) return;
+    try {
+      if (settings.captureShortcut !== savedShortcut) settings = await api.replaceShortcut(settings.captureShortcut);
+      await api.updateSettings(settings);
+      await refresh();
+    } catch (cause) { error = cause instanceof Error ? cause.message : String(cause); }
+  }
   const relative = (iso: string) => {
     const hours = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 3_600_000));
     return hours < 1 ? "just now" : hours === 1 ? "1 hour ago" : `${hours} hours ago`;

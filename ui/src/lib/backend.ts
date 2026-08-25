@@ -13,6 +13,7 @@ export interface Backend {
   submitReview(wordId: string, rating: ReviewRating): Promise<void>;
   getSettings(): Promise<Settings>;
   updateSettings(settings: Settings): Promise<void>;
+  replaceShortcut(candidate: string): Promise<Settings>;
 }
 
 type DemoWord = WordDetail & { due: boolean };
@@ -117,6 +118,7 @@ export class DemoBackend implements Backend {
   }
   async getSettings() { return { ...this.settings }; }
   async updateSettings(settings: Settings) { this.settings = { ...settings }; }
+  async replaceShortcut(candidate: string) { this.settings.captureShortcut = candidate; return { ...this.settings }; }
 }
 
 class TauriBackend implements Backend {
@@ -135,6 +137,7 @@ class TauriBackend implements Backend {
   submitReview(wordId: string, rating: ReviewRating) { return invoke<void>("submit_review", { wordId, rating }); }
   getSettings() { return invoke<Settings>("get_settings"); }
   updateSettings(settings: Settings) { return invoke<void>("update_settings", { settings }); }
+  replaceShortcut(candidate: string) { return invoke<Settings>("replace_shortcut", { candidate }); }
 }
 
 export const createBackend = (): Backend => "__TAURI_INTERNALS__" in globalThis

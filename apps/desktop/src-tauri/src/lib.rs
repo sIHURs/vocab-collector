@@ -3,7 +3,8 @@
 use std::{fs, sync::Arc};
 
 use chrono::Utc;
-use tauri::{Manager, State};
+use tauri::{Emitter, Manager, State};
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 use uuid::Uuid;
 use vocab_application::{AppService, CaptureRequest};
 use vocab_domain::{CaptureCard, ReviewRating, TodayView, UserSettings, WordDetail, WordListItem};
@@ -70,14 +71,53 @@ fn update_settings(state: State<'_, AppState>, settings: UserSettings) -> Result
         .map_err(|error| error.to_string())
 }
 
+#[tauri::command]
+fn replace_shortcut(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    candidate: String,
+) -> Result<UserSettings, String> {
+    let parsed = vocab_capture::parse_shortcut(&candidate).map_err(|error| error.to_string())?;
+    let mut settings = state.0.get_settings().map_err(|error| error.to_string())?;
+    let previous = settings.capture_shortcut.clone();
+    if previous == parsed.canonical() {
+        return Ok(settings);
+    }
+    app.global_shortcut().register(parsed.canonical()).map_err(|_| "Shortcut unavailable. Try another combination.".to_string())?;
+    settings.capture_shortcut = parsed.canonical().to_string();
+    if let Err(error) = state.0.update_settings(settings.clone()) {
+        let _ = app.global_shortcut().unregister(parsed.canonical());
+        return Err(error.to_string());
+    }
+    if let Err(error) = app.global_shortcut().unregister(previous.as_str()) {
+        let _ = app.global_shortcut().unregister(parsed.canonical());
+        settings.capture_shortcut = previous;
+        let _ = state.0.update_settings(settings.clone());
+        return Err(error.to_string());
+    }
+    Ok(settings)
+}
+
 pub fn run() {
     tauri::Builder::default()
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, _shortcut, event| {
+                    if event.state() == ShortcutState::Pressed {
+                        let _ = app.emit("capture-shortcut-pressed", ());
+                    }
+                })
+                .build(),
+        )
         .setup(|app| {
             let data_dir = app.path().app_data_dir()?;
             fs::create_dir_all(&data_dir)?;
             let store = SqliteStore::open(data_dir.join("guest.db"))
                 .map_err(|error| Box::<dyn std::error::Error>::from(error.to_string()))?;
-            app.manage(AppState(AppService::new(Arc::new(store), Uuid::now_v7())));
+            let service = AppService::new(Arc::new(store), Uuid::now_v7());
+            let shortcut = service.get_settings()?.capture_shortcut;
+            app.global_shortcut().register(shortcut.as_str())?;
+            app.manage(AppState(service));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -88,7 +128,8 @@ pub fn run() {
             get_word,
             submit_review,
             get_settings,
-            update_settings
+            update_settings,
+            replace_shortcut
         ])
         .run(tauri::generate_context!())
         .expect("error while running Vocab Collector");
