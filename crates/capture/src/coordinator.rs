@@ -49,6 +49,14 @@ pub struct CaptureCoordinator {
 }
 
 impl CaptureCoordinator {
+    pub fn is_current(&self, request_id: Uuid) -> bool {
+        self.session
+            .lock()
+            .expect("capture coordinator poisoned")
+            .as_ref()
+            .is_some_and(|session| session.request_id == request_id)
+    }
+
     pub fn start(&self) -> Uuid {
         let request_id = Uuid::now_v7();
         *self.session.lock().expect("capture coordinator poisoned") = Some(Session {

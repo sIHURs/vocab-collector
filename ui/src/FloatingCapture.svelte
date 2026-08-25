@@ -46,8 +46,11 @@
         return;
       }
       if (requestId === activeRequest) await persist(requestId, false);
-    } catch (cause) { error = cause instanceof Error ? cause.message : String(cause); }
-    finally { saving = false; }
+    } catch (cause) {
+      if (requestId === activeRequest) error = cause instanceof Error ? cause.message : String(cause);
+    } finally {
+      if (requestId === activeRequest) saving = false;
+    }
   }
 
   async function persist(requestId = activeRequest, withoutTranslation = false) {

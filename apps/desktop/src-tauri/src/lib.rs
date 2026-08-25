@@ -175,22 +175,20 @@ fn capture_with_ocr(
     state: State<'_, AppState>,
     request_id: Uuid,
 ) -> Result<(), String> {
+    if !state.coordinator.is_current(request_id) {
+        return Err(vocab_capture::CoordinatorError::StaleRequest.to_string());
+    }
     let window = app
         .get_webview_window("capture")
         .ok_or_else(|| "capture window is unavailable".to_string())?;
     window.hide().map_err(|error| error.to_string())?;
-    let candidate = match macos_bridge::capture_ocr() {
-        Ok(candidate) => candidate,
-        Err(error) => {
-            let _ = window.show();
-            return Err(error.to_string());
-        }
-    };
+    let candidate = macos_bridge::capture_ocr();
+    window.show().map_err(|error| error.to_string())?;
+    let candidate = candidate.map_err(|error| error.to_string())?;
     state
         .coordinator
         .set_candidate(request_id, candidate.clone())
         .map_err(|error| error.to_string())?;
-    window.show().map_err(|error| error.to_string())?;
     window
         .emit(
             "ocr-candidate",

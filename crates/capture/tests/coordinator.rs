@@ -35,6 +35,8 @@ fn starting_again_rejects_every_late_result_from_the_previous_request() {
         Err(CoordinatorError::StaleRequest)
     );
     assert_ne!(first, second);
+    assert!(!coordinator.is_current(first));
+    assert!(coordinator.is_current(second));
 }
 
 #[test]
