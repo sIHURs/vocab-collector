@@ -3,12 +3,15 @@
 use std::{fs, sync::Arc};
 
 use chrono::Utc;
-use tauri::{Emitter, Manager, State};
+use tauri::{Emitter, LogicalPosition, Manager, State};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 use uuid::Uuid;
 use vocab_application::{AppService, CaptureRequest};
 use vocab_domain::{CaptureCard, ReviewRating, TodayView, UserSettings, WordDetail, WordListItem};
 use vocab_storage::SqliteStore;
+
+#[cfg(target_os = "macos")]
+mod macos_bridge;
 
 struct AppState(AppService);
 
@@ -83,7 +86,9 @@ fn replace_shortcut(
     if previous == parsed.canonical() {
         return Ok(settings);
     }
-    app.global_shortcut().register(parsed.canonical()).map_err(|_| "Shortcut unavailable. Try another combination.".to_string())?;
+    app.global_shortcut()
+        .register(parsed.canonical())
+        .map_err(|_| "Shortcut unavailable. Try another combination.".to_string())?;
     settings.capture_shortcut = parsed.canonical().to_string();
     if let Err(error) = state.0.update_settings(settings.clone()) {
         let _ = app.global_shortcut().unregister(parsed.canonical());
@@ -98,13 +103,97 @@ fn replace_shortcut(
     Ok(settings)
 }
 
+#[cfg(target_os = "macos")]
+#[tauri::command]
+fn get_permission_status(
+    kind: vocab_platform::PermissionKind,
+) -> Result<vocab_platform::PermissionStatus, String> {
+    macos_bridge::permission_status(kind).map_err(|error| error.to_string())
+}
+
+#[cfg(target_os = "macos")]
+#[tauri::command]
+fn request_accessibility_permission() -> Result<vocab_platform::PermissionStatus, String> {
+    macos_bridge::request_accessibility().map_err(|error| error.to_string())
+}
+
+#[cfg(target_os = "macos")]
+#[tauri::command]
+fn capture_selected_text() -> Result<vocab_platform::CaptureCandidate, String> {
+    macos_bridge::capture_selection().map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn hide_capture_window(app: tauri::AppHandle) -> Result<(), String> {
+    app.get_webview_window("capture")
+        .ok_or_else(|| "capture window is unavailable".to_string())?
+        .hide()
+        .map_err(|error| error.to_string())
+}
+
+#[cfg(target_os = "macos")]
+fn present_native_capture(app: &tauri::AppHandle) -> Result<(), String> {
+    let candidate = macos_bridge::capture_selection().map_err(|error| error.to_string())?;
+    let window = app
+        .get_webview_window("capture")
+        .ok_or_else(|| "capture window is unavailable".to_string())?;
+    let pointer = app.cursor_position().map_err(|error| error.to_string())?;
+    let monitors = app
+        .available_monitors()
+        .map_err(|error| error.to_string())?;
+    let monitor_scale = monitors
+        .iter()
+        .find(|monitor| {
+            let area = monitor.work_area();
+            pointer.x >= f64::from(area.position.x)
+                && pointer.x < f64::from(area.position.x) + f64::from(area.size.width)
+                && pointer.y >= f64::from(area.position.y)
+                && pointer.y < f64::from(area.position.y) + f64::from(area.size.height)
+        })
+        .map_or(1.0, |monitor| monitor.scale_factor());
+    let work_areas = monitors
+        .iter()
+        .map(|monitor| {
+            let area = monitor.work_area();
+            let scale = monitor.scale_factor();
+            vocab_platform::MonitorWorkArea::new(
+                f64::from(area.position.x) / scale,
+                f64::from(area.position.y) / scale,
+                f64::from(area.size.width) / scale,
+                f64::from(area.size.height) / scale,
+                scale,
+            )
+        })
+        .collect::<Vec<_>>();
+    let anchor = candidate.selection_bounds.unwrap_or_default();
+    let position = vocab_capture::place_floating_window(
+        anchor,
+        vocab_platform::ScreenPoint::new(pointer.x / monitor_scale, pointer.y / monitor_scale),
+        &work_areas,
+        vocab_platform::ScreenSize::new(380.0, 280.0),
+    );
+    window
+        .set_position(LogicalPosition::new(position.x, position.y))
+        .map_err(|error| error.to_string())?;
+    window.show().map_err(|error| error.to_string())?;
+    window
+        .emit("capture-ready", candidate)
+        .map_err(|error| error.to_string())
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, _shortcut, event| {
                     if event.state() == ShortcutState::Pressed {
-                        let _ = app.emit("capture-shortcut-pressed", ());
+                        #[cfg(target_os = "macos")]
+                        if let Err(error) = present_native_capture(app) {
+                            if let Some(window) = app.get_webview_window("capture") {
+                                let _ = window.show();
+                                let _ = window.emit("capture-error", error);
+                            }
+                        }
                     }
                 })
                 .build(),
@@ -129,7 +218,14 @@ pub fn run() {
             submit_review,
             get_settings,
             update_settings,
-            replace_shortcut
+            replace_shortcut,
+            #[cfg(target_os = "macos")]
+            get_permission_status,
+            #[cfg(target_os = "macos")]
+            request_accessibility_permission,
+            #[cfg(target_os = "macos")]
+            capture_selected_text,
+            hide_capture_window
         ])
         .run(tauri::generate_context!())
         .expect("error while running Vocab Collector");

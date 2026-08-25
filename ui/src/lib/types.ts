@@ -29,6 +29,16 @@ export interface CaptureCard {
   isExistingWord: boolean;
 }
 
+export interface CaptureCandidate {
+  selectedText: string;
+  sentence: string;
+  sourceApp?: string;
+  sourceTitle?: string;
+  sourceUrl?: string;
+  selectionBounds?: { x: number; y: number; width: number; height: number };
+  origin: "manual" | "accessibility" | "ocr";
+}
+
 export interface Encounter {
   id: string;
   wordId: string;
