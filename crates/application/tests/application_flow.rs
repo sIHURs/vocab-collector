@@ -1,0 +1,95 @@
+use std::sync::Arc;
+
+use chrono::{TimeZone, Utc};
+use uuid::Uuid;
+use vocab_application::{AppService, CaptureRequest};
+use vocab_domain::{ReviewRating, SettingsRepository};
+use vocab_storage::SqliteStore;
+
+fn request(word: &str, translation: &str) -> CaptureRequest {
+    CaptureRequest {
+        selected_text: word.into(),
+        lemma: Some(word.into()),
+        sentence: format!("This sentence contains {word}."),
+        source_language: "en".into(),
+        target_language: "de".into(),
+        translation: Some(translation.into()),
+        part_of_speech: Some("noun".into()),
+        source_app: Some("Safari".into()),
+        source_title: Some("Reading".into()),
+        source_url: Some("https://example.com".into()),
+        captured_at: Utc.with_ymd_and_hms(2026, 8, 25, 12, 0, 0).unwrap(),
+    }
+}
+
+#[test]
+fn capture_today_review_and_vocabulary_flow_share_one_source_of_truth() {
+    let store = Arc::new(SqliteStore::open_in_memory().unwrap());
+    let service = AppService::new(store.clone(), Uuid::now_v7());
+    let card = service
+        .capture(request("Serendipity", "glücklicher Zufall"))
+        .unwrap();
+
+    assert_eq!(card.encounter_count, 1);
+    assert!(!card.is_existing_word);
+
+    let now = Utc.with_ymd_and_hms(2026, 8, 25, 12, 5, 0).unwrap();
+    let today = service.get_today(now).unwrap();
+    assert_eq!(today.due_count, 1);
+    assert_eq!(today.review_queue[0].word_id, card.word_id);
+    assert_eq!(today.recent_captures.len(), 1);
+
+    service
+        .submit_review(card.word_id, ReviewRating::Remembered, now)
+        .unwrap();
+    assert_eq!(service.get_today(now).unwrap().due_count, 0);
+    assert_eq!(service.list_words().unwrap()[0].encounter_count, 1);
+}
+
+#[test]
+fn repeated_capture_and_undo_return_frontend_ready_counts() {
+    let store = Arc::new(SqliteStore::open_in_memory().unwrap());
+    let service = AppService::new(store, Uuid::now_v7());
+    service.capture(request("Serendipity", "Zufall")).unwrap();
+    let repeated = service.capture(request("serendipity", "Zufall")).unwrap();
+
+    assert!(repeated.is_existing_word);
+    assert_eq!(repeated.encounter_count, 2);
+
+    service.undo_capture(repeated.encounter_id).unwrap();
+    assert_eq!(service.list_words().unwrap()[0].encounter_count, 1);
+}
+
+#[test]
+fn settings_update_is_visible_to_today_view() {
+    let store = Arc::new(SqliteStore::open_in_memory().unwrap());
+    let service = AppService::new(store.clone(), Uuid::now_v7());
+    let mut settings = SettingsRepository::get(store.as_ref()).unwrap();
+    settings.target_language = "fr".into();
+
+    service.update_settings(settings.clone()).unwrap();
+
+    let now = Utc.with_ymd_and_hms(2026, 8, 25, 12, 0, 0).unwrap();
+    assert_eq!(service.get_today(now).unwrap().settings, settings);
+}
+
+#[test]
+fn word_detail_contains_the_original_context_timeline() {
+    let store = Arc::new(SqliteStore::open_in_memory().unwrap());
+    let service = AppService::new(store, Uuid::now_v7());
+    let card = service.capture(request("Serendipity", "Zufall")).unwrap();
+
+    let detail = service.get_word(card.word_id).unwrap();
+
+    assert_eq!(detail.lemma, "serendipity");
+    assert_eq!(detail.encounters.len(), 1);
+    assert!(detail.encounters[0].sentence.contains("Serendipity"));
+}
+
+#[test]
+fn unknown_word_detail_is_a_not_found_error() {
+    let store = Arc::new(SqliteStore::open_in_memory().unwrap());
+    let service = AppService::new(store, Uuid::now_v7());
+
+    assert!(service.get_word(Uuid::now_v7()).is_err());
+}

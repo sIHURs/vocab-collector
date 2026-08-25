@@ -13,10 +13,12 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
+chrono.workspace = true
 serde.workspace = true
 tauri = { version = "2", features = [] }
+uuid.workspace = true
+vocab-application = { path = "../../../crates/application" }
 vocab-domain = { path = "../../../crates/domain" }
 vocab-platform = { path = "../../../crates/platform" }
 vocab-storage = { path = "../../../crates/storage" }
 vocab-sync = { path = "../../../crates/sync" }
-
