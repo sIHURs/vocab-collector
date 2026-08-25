@@ -1,10 +1,12 @@
 use std::{
-    ffi::{CStr, c_char},
+    ffi::{CStr, CString, c_char},
     ptr::NonNull,
 };
 
 use serde::Deserialize;
-use vocab_platform::{CaptureCandidate, PermissionKind, PermissionStatus, PlatformError};
+use vocab_platform::{
+    CaptureCandidate, PermissionKind, PermissionStatus, PlatformError, TranslationResult,
+};
 
 unsafe extern "C" {
     fn vocab_mac_permission_status(kind: i32) -> *mut c_char;
@@ -12,6 +14,11 @@ unsafe extern "C" {
     fn vocab_mac_capture_selection() -> *mut c_char;
     fn vocab_mac_request_screen_recording() -> *mut c_char;
     fn vocab_mac_capture_ocr() -> *mut c_char;
+    fn vocab_mac_translate(
+        text: *const c_char,
+        source: *const c_char,
+        target: *const c_char,
+    ) -> *mut c_char;
     fn vocab_mac_free_string(pointer: *mut c_char);
 }
 
@@ -84,6 +91,20 @@ pub fn request_screen_recording() -> Result<PermissionStatus, PlatformError> {
 
 pub fn capture_ocr() -> Result<CaptureCandidate, PlatformError> {
     decode_owned(unsafe { vocab_mac_capture_ocr() })
+}
+
+pub fn translate(
+    text: &str,
+    source: &str,
+    target: &str,
+) -> Result<TranslationResult, PlatformError> {
+    let text = CString::new(text)
+        .map_err(|_| PlatformError::Operation("text contains an invalid null byte".into()))?;
+    let source = CString::new(source)
+        .map_err(|_| PlatformError::Operation("source language is invalid".into()))?;
+    let target = CString::new(target)
+        .map_err(|_| PlatformError::Operation("target language is invalid".into()))?;
+    decode_owned(unsafe { vocab_mac_translate(text.as_ptr(), source.as_ptr(), target.as_ptr()) })
 }
 
 #[cfg(test)]

@@ -23,7 +23,18 @@
     error = "";
     saving = true;
     try {
-      saved = await api.capture({ selectedText: next.selectedText, sentence: next.sentence, sourceApp: next.sourceApp });
+      const settings = await api.getSettings();
+      let translation: string | undefined;
+      try {
+        const result = await invoke<{ translatedText: string }>("translate_text", {
+          text: next.selectedText,
+          sourceLanguage: settings.sourceLanguage,
+          targetLanguage: settings.targetLanguage,
+        });
+        translation = result.translatedText;
+      } catch { /* The encounter still has value if a language pack is unavailable. */ }
+      saved = await api.capture({ selectedText: next.selectedText, sentence: next.sentence,
+        sourceApp: next.sourceApp, translation });
       dismissTimer = setTimeout(hide, 4_000);
     } catch (cause) { error = cause instanceof Error ? cause.message : String(cause); }
     finally { saving = false; }

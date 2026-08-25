@@ -35,6 +35,7 @@ enum BridgeJSON {
 }
 
 private final class AsyncResultBox<Value>: @unchecked Sendable { var result: Result<Value, Error>? }
+private final class AsyncValueBox<Value>: @unchecked Sendable { var value: Value? }
 
 @_cdecl("vocab_mac_permission_status")
 public func vocabMacPermissionStatus(_ kind: Int32) -> UnsafeMutablePointer<CChar>? {
@@ -79,3 +80,26 @@ public func vocabMacCaptureOcr() -> UnsafeMutablePointer<CChar>? {
 
 @_cdecl("vocab_mac_free_string")
 public func vocabMacFreeString(_ pointer: UnsafeMutablePointer<CChar>?) { free(pointer) }
+
+@_cdecl("vocab_mac_translate")
+public func vocabMacTranslate(_ text: UnsafePointer<CChar>, _ source: UnsafePointer<CChar>, _ target: UnsafePointer<CChar>) -> UnsafeMutablePointer<CChar>? {
+    let semaphore = DispatchSemaphore(value: 0)
+    let box = AsyncValueBox<TranslationOutcome>()
+    let input = String(cString: text)
+    let sourceIdentifier = String(cString: source)
+    let targetIdentifier = String(cString: target)
+    Task { @MainActor in
+        TranslationHost.translate(text: input, sourceIdentifier: sourceIdentifier, targetIdentifier: targetIdentifier) { result in
+            box.value = result
+            semaphore.signal()
+        }
+    }
+    guard semaphore.wait(timeout: .now() + 60) == .success else {
+        return BridgeJSON.pointer(for: BridgeResponse<TranslationPayload>.failure("translationTimedOut"))
+    }
+    switch box.value {
+    case .success(let payload): return BridgeJSON.pointer(for: BridgeResponse<TranslationPayload>.success(payload))
+    case .failure(let error): return BridgeJSON.pointer(for: BridgeResponse<TranslationPayload>.failure(error))
+    case nil: return BridgeJSON.pointer(for: BridgeResponse<TranslationPayload>.failure("translationUnavailable"))
+    }
+}

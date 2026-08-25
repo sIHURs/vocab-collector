@@ -133,8 +133,27 @@ fn request_screen_recording_permission() -> Result<vocab_platform::PermissionSta
 #[tauri::command]
 fn capture_with_ocr(app: tauri::AppHandle) -> Result<(), String> {
     let candidate = macos_bridge::capture_ocr().map_err(|error| error.to_string())?;
-    let window = app.get_webview_window("capture").ok_or_else(|| "capture window is unavailable".to_string())?;
-    window.emit("capture-ready", candidate).map_err(|error| error.to_string())
+    let window = app
+        .get_webview_window("capture")
+        .ok_or_else(|| "capture window is unavailable".to_string())?;
+    window
+        .emit("capture-ready", candidate)
+        .map_err(|error| error.to_string())
+}
+
+#[cfg(target_os = "macos")]
+#[tauri::command]
+async fn translate_text(
+    text: String,
+    source_language: String,
+    target_language: String,
+) -> Result<vocab_platform::TranslationResult, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        macos_bridge::translate(&text, &source_language, &target_language)
+    })
+    .await
+    .map_err(|error| error.to_string())?
+    .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -243,6 +262,8 @@ pub fn run() {
             request_screen_recording_permission,
             #[cfg(target_os = "macos")]
             capture_with_ocr,
+            #[cfg(target_os = "macos")]
+            translate_text,
             hide_capture_window
         ])
         .run(tauri::generate_context!())
