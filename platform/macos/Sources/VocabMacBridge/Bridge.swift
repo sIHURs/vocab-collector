@@ -1,4 +1,5 @@
 import Darwin
+import AppKit
 import Foundation
 
 public struct BridgeRect: Codable, Equatable, Sendable {
@@ -102,4 +103,23 @@ public func vocabMacTranslate(_ text: UnsafePointer<CChar>, _ source: UnsafePoin
     case .failure(let error): return BridgeJSON.pointer(for: BridgeResponse<TranslationPayload>.failure(error))
     case nil: return BridgeJSON.pointer(for: BridgeResponse<TranslationPayload>.failure("translationUnavailable"))
     }
+}
+
+@_cdecl("vocab_mac_configure_capture_window")
+public func vocabMacConfigureCaptureWindow() -> UnsafeMutablePointer<CChar>? {
+    if Thread.isMainThread {
+        MainActor.assumeIsolated { configureCaptureWindow() }
+    } else {
+        DispatchQueue.main.sync { MainActor.assumeIsolated { configureCaptureWindow() } }
+    }
+    return BridgeJSON.pointer(for: BridgeResponse<String>.success("configured"))
+}
+
+@MainActor
+private func configureCaptureWindow() {
+    guard let window = NSApplication.shared.windows.first(where: { $0.title == "Capture" }) else { return }
+    window.level = .floating
+    window.hidesOnDeactivate = false
+    window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
+    window.styleMask.insert(.nonactivatingPanel)
 }

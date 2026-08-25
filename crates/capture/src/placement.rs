@@ -18,6 +18,30 @@ pub fn place_floating_window(
             card.height,
             1.0,
         ));
+    if !anchor.is_available() {
+        let x = if pointer.x + 16.0 + card.width <= monitor.x + monitor.width - MARGIN {
+            pointer.x + 16.0
+        } else {
+            pointer.x - card.width - 16.0
+        };
+        let y = if pointer.y + 16.0 + card.height <= monitor.y + monitor.height - MARGIN {
+            pointer.y + 16.0
+        } else {
+            pointer.y - card.height - 16.0
+        };
+        return ScreenPoint::new(
+            clamp(
+                x,
+                monitor.x + MARGIN,
+                monitor.x + monitor.width - card.width - MARGIN,
+            ),
+            clamp(
+                y,
+                monitor.y + MARGIN,
+                monitor.y + monitor.height - card.height - MARGIN,
+            ),
+        );
+    }
     let effective_anchor = if anchor.is_available() {
         anchor
     } else {

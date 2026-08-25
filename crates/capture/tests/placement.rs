@@ -67,7 +67,7 @@ fn uses_pointer_monitor_when_selection_bounds_are_unavailable() {
             &monitors,
             ScreenSize::new(380.0, 220.0),
         ),
-        point(810.0, 268.0)
+        point(1016.0, 516.0)
     );
 }
 

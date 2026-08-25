@@ -20,10 +20,23 @@ public enum OcrCapture {
               let number = display.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID else { throw OcrCaptureError.screenshotUnavailable }
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
         guard let sharedDisplay = content.displays.first(where: { $0.displayID == number }) else { throw OcrCaptureError.screenshotUnavailable }
-        let filter = SCContentFilter(display: sharedDisplay, excludingWindows: [])
+        let ownWindows = content.windows.filter { $0.owningApplication?.bundleIdentifier == Bundle.main.bundleIdentifier }
+        let filter = SCContentFilter(display: sharedDisplay, excludingWindows: ownWindows)
         let configuration = SCStreamConfiguration()
-        configuration.width = sharedDisplay.width
-        configuration.height = sharedDisplay.height
+        let relativeX = pointer.x - display.frame.minX
+        let relativeY = display.frame.maxY - pointer.y
+        let regionWidth = min(900.0, display.frame.width)
+        let regionHeight = min(420.0, display.frame.height)
+        let region = CGRect(
+            x: max(0, min(relativeX - regionWidth / 2, display.frame.width - regionWidth)),
+            y: max(0, min(relativeY - regionHeight / 2, display.frame.height - regionHeight)),
+            width: regionWidth,
+            height: regionHeight
+        )
+        let scale = Double(sharedDisplay.width) / display.frame.width
+        configuration.sourceRect = region
+        configuration.width = Int(region.width * scale)
+        configuration.height = Int(region.height * scale)
         let image = try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration)
 
         let request = VNRecognizeTextRequest()
@@ -31,23 +44,24 @@ public enum OcrCapture {
         request.usesLanguageCorrection = true
         try VNImageRequestHandler(cgImage: image).perform([request])
         let observations = request.results ?? []
-        let localX = (pointer.x - display.frame.minX) / display.frame.width
-        let localY = (pointer.y - display.frame.minY) / display.frame.height
-        guard let observation = observations.min(by: {
+        let localX = (relativeX - region.minX) / region.width
+        let localY = 1 - (relativeY - region.minY) / region.height
+        guard let observation = observations.filter({ $0.confidence >= 0.55 }).min(by: {
             distance($0.boundingBox, x: localX, y: localY) < distance($1.boundingBox, x: localX, y: localY)
-        }), let text = observation.topCandidates(1).first?.string, !text.isEmpty else { throw OcrCaptureError.noTextFound }
-        let bounds = observation.boundingBox
+        }), let recognized = observation.topCandidates(1).first else { throw OcrCaptureError.noTextFound }
+        let (text, bounds) = nearestWord(in: recognized, x: localX, y: localY) ?? (recognized.string, observation.boundingBox)
+        guard !text.isEmpty else { throw OcrCaptureError.noTextFound }
         return SelectionPayload(
             selectedText: text,
-            sentence: text,
+            sentence: recognized.string,
             sourceApp: NSWorkspace.shared.frontmostApplication?.localizedName,
             sourceTitle: nil,
             sourceUrl: nil,
             selectionBounds: BridgeRect(
-                x: display.frame.minX + bounds.minX * display.frame.width,
-                y: display.frame.minY + (1 - bounds.maxY) * display.frame.height,
-                width: bounds.width * display.frame.width,
-                height: bounds.height * display.frame.height
+                x: display.frame.minX + region.minX + bounds.minX * region.width,
+                y: display.frame.minY + region.minY + (1 - bounds.maxY) * region.height,
+                width: bounds.width * region.width,
+                height: bounds.height * region.height
             ),
             origin: "ocr"
         )
@@ -57,5 +71,15 @@ public enum OcrCapture {
         let dx = rect.midX - x
         let dy = rect.midY - y
         return dx * dx + dy * dy
+    }
+
+    private static func nearestWord(in recognized: VNRecognizedText, x: Double, y: Double) -> (String, CGRect)? {
+        let text = recognized.string
+        var candidates: [(String, CGRect)] = []
+        text.enumerateSubstrings(in: text.startIndex..<text.endIndex, options: .byWords) { word, range, _, _ in
+            guard let word, let box = try? recognized.boundingBox(for: range) else { return }
+            candidates.append((word, box.boundingBox))
+        }
+        return candidates.min { distance($0.1, x: x, y: y) < distance($1.1, x: x, y: y) }
     }
 }

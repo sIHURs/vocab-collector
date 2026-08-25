@@ -132,12 +132,20 @@ fn request_screen_recording_permission() -> Result<vocab_platform::PermissionSta
 #[cfg(target_os = "macos")]
 #[tauri::command]
 fn capture_with_ocr(app: tauri::AppHandle) -> Result<(), String> {
-    let candidate = macos_bridge::capture_ocr().map_err(|error| error.to_string())?;
     let window = app
         .get_webview_window("capture")
         .ok_or_else(|| "capture window is unavailable".to_string())?;
+    window.hide().map_err(|error| error.to_string())?;
+    let candidate = match macos_bridge::capture_ocr() {
+        Ok(candidate) => candidate,
+        Err(error) => {
+            let _ = window.show();
+            return Err(error.to_string());
+        }
+    };
+    window.show().map_err(|error| error.to_string())?;
     window
-        .emit("capture-ready", candidate)
+        .emit("ocr-candidate", candidate)
         .map_err(|error| error.to_string())
 }
 
@@ -250,6 +258,8 @@ pub fn run() {
             let shortcut = settings.capture_shortcut;
             app.global_shortcut().register(shortcut.as_str())?;
             app.manage(AppState(service));
+            #[cfg(target_os = "macos")]
+            macos_bridge::configure_capture_window()?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

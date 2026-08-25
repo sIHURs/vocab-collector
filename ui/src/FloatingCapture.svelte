@@ -10,7 +10,12 @@
   let saved: CaptureCard | null = null;
   let error = "";
   let saving = false;
+  let translationFailed = false;
+  let ocrNeedsConfirmation = false;
   let dismissTimer: ReturnType<typeof setTimeout> | undefined;
+  let requestSequence = 0;
+  let activeRequest = 0;
+  const savedRequests = new Set<number>();
 
   async function hide() {
     if (dismissTimer) clearTimeout(dismissTimer);
@@ -18,10 +23,14 @@
   }
 
   async function accept(next: CaptureCandidate) {
+    const request = ++requestSequence;
+    activeRequest = request;
     if (dismissTimer) clearTimeout(dismissTimer);
     candidate = next;
     saved = null;
     error = "";
+    translationFailed = false;
+    ocrNeedsConfirmation = false;
     saving = true;
     try {
       const settings = await api.getSettings();
@@ -33,12 +42,33 @@
           targetLanguage: settings.targetLanguage,
         });
         translation = result.translatedText;
-      } catch { /* The encounter still has value if a language pack is unavailable. */ }
-      saved = await api.capture({ selectedText: next.selectedText, sentence: next.sentence,
-        sourceApp: next.sourceApp, sourceTitle: next.sourceTitle, sourceUrl: next.sourceUrl, translation });
-      dismissTimer = setTimeout(hide, 4_000);
+      } catch {
+        if (request !== activeRequest) return;
+        translationFailed = true;
+        return;
+      }
+      if (request === activeRequest) await persist(next, translation, request);
     } catch (cause) { error = cause instanceof Error ? cause.message : String(cause); }
     finally { saving = false; }
+  }
+
+  async function persist(next: CaptureCandidate, translation?: string, request = activeRequest) {
+    if (request !== activeRequest || savedRequests.has(request)) return;
+    savedRequests.add(request);
+    saved = await api.capture({ selectedText: next.selectedText, sentence: next.sentence,
+      sourceApp: next.sourceApp, sourceTitle: next.sourceTitle, sourceUrl: next.sourceUrl, translation });
+    dismissTimer = setTimeout(hide, 4_000);
+  }
+
+  function offerOcr(next: CaptureCandidate) {
+    activeRequest = ++requestSequence;
+    if (dismissTimer) clearTimeout(dismissTimer);
+    candidate = next;
+    saved = null;
+    error = "";
+    saving = false;
+    translationFailed = false;
+    ocrNeedsConfirmation = true;
   }
 
   async function undo() {
@@ -55,7 +85,11 @@
 
   async function useOcr() {
     try {
-      await invoke("request_screen_recording_permission");
+      const status = await invoke<string>("request_screen_recording_permission");
+      if (status !== "granted") {
+        error = "Screen Recording permission was requested. Enable it in System Settings, then try OCR again.";
+        return;
+      }
       await invoke("capture_with_ocr");
     } catch (cause) { error = cause instanceof Error ? cause.message : String(cause); }
   }
@@ -63,7 +97,8 @@
   onMount(() => {
     const ready = listen<CaptureCandidate>("capture-ready", ({ payload }) => accept(payload));
     const failed = listen<string>("capture-error", ({ payload }) => { candidate = null; saved = null; error = payload; });
-    return () => { ready.then((unlisten) => unlisten()); failed.then((unlisten) => unlisten()); if (dismissTimer) clearTimeout(dismissTimer); };
+    const ocr = listen<CaptureCandidate>("ocr-candidate", ({ payload }) => offerOcr(payload));
+    return () => { ready.then((unlisten) => unlisten()); failed.then((unlisten) => unlisten()); ocr.then((unlisten) => unlisten()); if (dismissTimer) clearTimeout(dismissTimer); };
   });
 </script>
 
@@ -79,7 +114,10 @@
     <section class="capture-result"><span class="check">✓</span><div><small>Saved</small><h1>{saved.displayForm}</h1><strong>{saved.translation ?? "Translation pending"}</strong><p>“{saved.context}”</p><small>{saved.isExistingWord ? `Seen ${saved.encounterCount} times · New context saved` : "Added to your review queue"}</small></div></section>
     <button class="undo" onclick={undo}>Undo</button>
   {:else if candidate}
-    <section class="capture-result"><div><small>{saving ? "Saving…" : "Captured"}</small><h1>{candidate.selectedText}</h1><p>“{candidate.sentence}”</p><small>{candidate.sourceApp ?? "Current application"}</small></div></section>
+    <section class="capture-result"><div><small>{ocrNeedsConfirmation ? "OCR suggestion · Confirm before saving" : saving ? "Translating…" : "Captured"}</small><h1>{candidate.selectedText}</h1><p>“{candidate.sentence}”</p><small>{candidate.sourceApp ?? "Current application"}</small>
+      {#if ocrNeedsConfirmation}<button class="primary" onclick={() => candidate && accept(candidate)}>Use this text</button>
+      {:else if translationFailed}<p>On-device translation is unavailable for this language pair.</p><button class="primary" onclick={() => candidate && persist(candidate)}>Save without translation</button>{/if}
+    </div></section>
   {:else}
     <section class="capture-message"><strong>Ready to capture</strong><p>Select text in another app, then press your shortcut.</p></section>
   {/if}

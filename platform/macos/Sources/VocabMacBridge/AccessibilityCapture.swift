@@ -17,11 +17,11 @@ public enum AccessibilityCapture {
         guard AXUIElementCopyAttributeValue(system, kAXFocusedUIElementAttribute as CFString, &focused) == .success,
               let focused else { throw AccessibilityCaptureError.noFocusedElement }
         let element = focused as! AXUIElement
-        let selected = stringAttribute(element, kAXSelectedTextAttribute)
-        guard let selected, !selected.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw AccessibilityCaptureError.noSelection }
-
         let fullText = stringAttribute(element, kAXValueAttribute)
         let selectedRange = rangeAttribute(element)
+        let selected = stringAttribute(element, kAXSelectedTextAttribute)
+            ?? selectedText(in: fullText, range: selectedRange)
+        guard let selected, !selected.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw AccessibilityCaptureError.noSelection }
         let sentence = context(fullText: fullText, selected: selected, range: selectedRange)
         let app = NSWorkspace.shared.frontmostApplication
         return SelectionPayload(
@@ -64,5 +64,11 @@ public enum AccessibilityCapture {
         guard let fullText, let range,
               let swiftRange = Range(NSRange(location: range.location, length: range.length), in: fullText) else { return selected.trimmingCharacters(in: .whitespacesAndNewlines) }
         return SentenceExtractor.sentence(in: fullText, selection: swiftRange)
+    }
+
+    private static func selectedText(in fullText: String?, range: CFRange?) -> String? {
+        guard let fullText, let range,
+              let swiftRange = Range(NSRange(location: range.location, length: range.length), in: fullText) else { return nil }
+        return String(fullText[swiftRange])
     }
 }

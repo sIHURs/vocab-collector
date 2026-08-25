@@ -19,6 +19,7 @@ unsafe extern "C" {
         source: *const c_char,
         target: *const c_char,
     ) -> *mut c_char;
+    fn vocab_mac_configure_capture_window() -> *mut c_char;
     fn vocab_mac_free_string(pointer: *mut c_char);
 }
 
@@ -105,6 +106,11 @@ pub fn translate(
     let target = CString::new(target)
         .map_err(|_| PlatformError::Operation("target language is invalid".into()))?;
     decode_owned(unsafe { vocab_mac_translate(text.as_ptr(), source.as_ptr(), target.as_ptr()) })
+}
+
+pub fn configure_capture_window() -> Result<(), PlatformError> {
+    let _: String = decode_owned(unsafe { vocab_mac_configure_capture_window() })?;
+    Ok(())
 }
 
 #[cfg(test)]
