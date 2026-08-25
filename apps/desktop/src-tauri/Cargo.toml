@@ -1,0 +1,22 @@
+[package]
+name = "vocab-desktop"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lib]
+name = "vocab_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+serde.workspace = true
+tauri = { version = "2", features = [] }
+vocab-domain = { path = "../../../crates/domain" }
+vocab-platform = { path = "../../../crates/platform" }
+vocab-storage = { path = "../../../crates/storage" }
+vocab-sync = { path = "../../../crates/sync" }
+

@@ -1,0 +1,13 @@
+/target/
+node_modules/
+/.pnpm-store/
+/ui/dist/
+/ui/coverage/
+/apps/desktop/src-tauri/gen/
+*.db
+*.db-shm
+*.db-wal
+.DS_Store
+.env
+.env.*
+!.env.example

@@ -1,0 +1,13 @@
+{
+  "name": "vocab-collector-app",
+  "private": true,
+  "packageManager": "pnpm@11.19.0",
+  "scripts": {
+    "dev": "pnpm --dir ui dev",
+    "build": "pnpm --dir ui build",
+    "test": "pnpm --dir ui test",
+    "check": "pnpm --dir ui check",
+    "tauri": "pnpm --dir apps/desktop tauri"
+  }
+}
+
