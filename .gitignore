@@ -1,6 +1,7 @@
 /target/
 node_modules/
 .worktrees/
+platform/macos/.build/
 /.pnpm-store/
 /ui/dist/
 /ui/coverage/
