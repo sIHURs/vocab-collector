@@ -4,6 +4,15 @@ use uuid::Uuid;
 
 use crate::normalize_context;
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CaptureOrigin {
+    #[default]
+    Manual,
+    Accessibility,
+    Ocr,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum OwnerScope {
@@ -58,6 +67,8 @@ pub struct Encounter {
     pub source_app: Option<String>,
     pub source_title: Option<String>,
     pub source_url: Option<String>,
+    #[serde(default)]
+    pub capture_origin: CaptureOrigin,
     pub captured_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub deleted_at: Option<DateTime<Utc>>,
@@ -79,6 +90,7 @@ impl Encounter {
             source_app,
             source_title: None,
             source_url: None,
+            capture_origin: CaptureOrigin::Manual,
             captured_at,
             updated_at: captured_at,
             deleted_at: None,
@@ -140,7 +152,7 @@ impl Default for UserSettings {
         Self {
             source_language: "en".into(),
             target_language: "de".into(),
-            capture_shortcut: "⌥ Space".into(),
+            capture_shortcut: "Alt+Shift+V".into(),
             review_time: "18:00".into(),
             daily_limit: 5,
             launch_at_login: false,

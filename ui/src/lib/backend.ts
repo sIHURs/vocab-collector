@@ -13,12 +13,13 @@ export interface Backend {
   submitReview(wordId: string, rating: ReviewRating): Promise<void>;
   getSettings(): Promise<Settings>;
   updateSettings(settings: Settings): Promise<void>;
+  replaceShortcut(candidate: string): Promise<Settings>;
 }
 
 type DemoWord = WordDetail & { due: boolean };
 
 const defaultSettings: Settings = {
-  sourceLanguage: "en", targetLanguage: "de", captureShortcut: "⌥ Space",
+  sourceLanguage: "en", targetLanguage: "de", captureShortcut: "Alt+Shift+V",
   reviewTime: "18:00", dailyLimit: 5, launchAtLogin: false, appearance: "system",
   reducedMotion: false,
 };
@@ -47,7 +48,7 @@ export class DemoBackend implements Backend {
     const capturedAt = new Date(Date.now() - this.words.length * 3_600_000).toISOString();
     const encounter: Encounter = {
       id: id(), wordId, selectedText: word, sentence, sourceApp: "Safari",
-      sourceTitle: "Reading notes", capturedAt, updatedAt: capturedAt,
+      sourceTitle: "Reading notes", captureOrigin: "manual", capturedAt, updatedAt: capturedAt,
     };
     this.words.push({
       item: { id: wordId, displayForm: word, translation, status: "learning",
@@ -74,6 +75,8 @@ export class DemoBackend implements Backend {
     const encounter: Encounter = {
       id: id(), wordId: detail.item.id, selectedText: input.selectedText.trim(),
       sentence: input.sentence.trim().replace(/\s+/g, " "), sourceApp: input.sourceApp,
+      sourceTitle: input.sourceTitle, sourceUrl: input.sourceUrl,
+      captureOrigin: input.captureOrigin ?? "manual",
       capturedAt: now, updatedAt: now,
     };
     detail.encounters.unshift(encounter);
@@ -117,6 +120,7 @@ export class DemoBackend implements Backend {
   }
   async getSettings() { return { ...this.settings }; }
   async updateSettings(settings: Settings) { this.settings = { ...settings }; }
+  async replaceShortcut(candidate: string) { this.settings.captureShortcut = candidate; return { ...this.settings }; }
 }
 
 class TauriBackend implements Backend {
@@ -124,8 +128,9 @@ class TauriBackend implements Backend {
     return invoke<CaptureCard>("capture_word", { request: {
       selectedText: input.selectedText, lemma: input.selectedText, sentence: input.sentence,
       sourceLanguage: "en", targetLanguage: "de", translation: input.translation,
-      partOfSpeech: undefined, sourceApp: input.sourceApp, sourceTitle: undefined,
-      sourceUrl: undefined, capturedAt: new Date().toISOString(),
+      partOfSpeech: undefined, sourceApp: input.sourceApp, sourceTitle: input.sourceTitle,
+      sourceUrl: input.sourceUrl, captureOrigin: input.captureOrigin ?? "manual",
+      capturedAt: new Date().toISOString(),
     }});
   }
   undoCapture(encounterId: string) { return invoke<void>("undo_capture", { encounterId }); }
@@ -135,6 +140,7 @@ class TauriBackend implements Backend {
   submitReview(wordId: string, rating: ReviewRating) { return invoke<void>("submit_review", { wordId, rating }); }
   getSettings() { return invoke<Settings>("get_settings"); }
   updateSettings(settings: Settings) { return invoke<void>("update_settings", { settings }); }
+  replaceShortcut(candidate: string) { return invoke<Settings>("replace_shortcut", { candidate }); }
 }
 
 export const createBackend = (): Backend => "__TAURI_INTERNALS__" in globalThis

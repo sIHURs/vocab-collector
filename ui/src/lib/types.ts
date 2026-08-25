@@ -17,6 +17,9 @@ export interface CaptureInput {
   sentence: string;
   translation?: string;
   sourceApp?: string;
+  sourceTitle?: string;
+  sourceUrl?: string;
+  captureOrigin?: "manual" | "accessibility" | "ocr";
 }
 
 export interface CaptureCard {
@@ -29,6 +32,16 @@ export interface CaptureCard {
   isExistingWord: boolean;
 }
 
+export interface CaptureCandidate {
+  selectedText: string;
+  sentence: string;
+  sourceApp?: string;
+  sourceTitle?: string;
+  sourceUrl?: string;
+  selectionBounds?: { x: number; y: number; width: number; height: number };
+  origin: "manual" | "accessibility" | "ocr";
+}
+
 export interface Encounter {
   id: string;
   wordId: string;
@@ -37,6 +50,7 @@ export interface Encounter {
   sourceApp?: string;
   sourceTitle?: string;
   sourceUrl?: string;
+  captureOrigin: "manual" | "accessibility" | "ocr";
   capturedAt: string;
   updatedAt: string;
   deletedAt?: string;

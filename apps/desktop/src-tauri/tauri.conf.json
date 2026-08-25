@@ -4,14 +4,15 @@
   "version": "0.1.0",
   "identifier": "app.vocabcollector.desktop",
   "build": {
-    "beforeDevCommand": "pnpm --dir ../../../ui dev",
+    "beforeDevCommand": "pnpm --dir ../../ui dev",
     "devUrl": "http://localhost:5173",
-    "beforeBuildCommand": "pnpm --dir ../../../ui build",
+    "beforeBuildCommand": "pnpm --dir ../../ui build",
     "frontendDist": "../../../ui/dist"
   },
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "Vocab Collector",
         "width": 1040,
         "height": 720,
@@ -19,6 +20,20 @@
         "minHeight": 600,
         "titleBarStyle": "Overlay",
         "hiddenTitle": true
+      },
+      {
+        "label": "capture",
+        "title": "Capture",
+        "url": "index.html?window=capture",
+        "width": 380,
+        "height": 280,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "focus": false
       }
     ],
     "security": {
@@ -27,7 +42,9 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all"
+    "targets": "all",
+    "macOS": {
+      "minimumSystemVersion": "15.0"
+    }
   }
 }
-

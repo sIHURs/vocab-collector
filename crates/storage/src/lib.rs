@@ -9,9 +9,9 @@ use rusqlite::{Connection, OptionalExtension, Transaction, params};
 use serde::Serialize;
 use uuid::Uuid;
 use vocab_domain::{
-    Encounter, EncounterRepository, OwnerScope, RepositoryError, ReviewLog, ReviewRepository,
-    ReviewState, SettingsRepository, UserSettings, Word, WordRepository, WordStatus, dedupe_key,
-    normalize_lemma,
+    CaptureOrigin, Encounter, EncounterRepository, OwnerScope, RepositoryError, ReviewLog,
+    ReviewRepository, ReviewState, SettingsRepository, UserSettings, Word, WordRepository,
+    WordStatus, dedupe_key, normalize_lemma,
 };
 
 const MIGRATION_001: &str = r#"
@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS words (
 CREATE TABLE IF NOT EXISTS encounters (
   id TEXT PRIMARY KEY, word_id TEXT NOT NULL REFERENCES words(id), selected_text TEXT NOT NULL,
   sentence TEXT NOT NULL, source_app TEXT, source_title TEXT, source_url TEXT,
+  capture_origin TEXT NOT NULL DEFAULT '"manual"',
   captured_at TEXT NOT NULL, updated_at TEXT NOT NULL, deleted_at TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_encounters_word_captured ON encounters(word_id, captured_at DESC);
@@ -39,7 +40,7 @@ CREATE TABLE IF NOT EXISTS outbox (
   operation TEXT NOT NULL, payload TEXT NOT NULL, created_at TEXT NOT NULL,
   attempt_count INTEGER NOT NULL DEFAULT 0
 );
-PRAGMA user_version = 1;
+PRAGMA user_version = 2;
 "#;
 
 #[derive(Clone, Debug)]
@@ -54,6 +55,7 @@ pub struct CaptureRecord {
     pub source_app: Option<String>,
     pub source_title: Option<String>,
     pub source_url: Option<String>,
+    pub capture_origin: CaptureOrigin,
     pub captured_at: DateTime<Utc>,
 }
 
@@ -84,6 +86,26 @@ impl SqliteStore {
         connection
             .execute_batch(MIGRATION_001)
             .map_err(repo_error)?;
+        let has_origin = {
+            let mut statement = connection
+                .prepare("PRAGMA table_info(encounters)")
+                .map_err(repo_error)?;
+            statement
+                .query_map([], |row| row.get::<_, String>(1))
+                .map_err(repo_error)?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(repo_error)?
+                .iter()
+                .any(|column| column == "capture_origin")
+        };
+        if !has_origin {
+            connection
+                .execute_batch(
+                    "ALTER TABLE encounters ADD COLUMN capture_origin TEXT NOT NULL DEFAULT '\"manual\"';
+                     PRAGMA user_version = 2;",
+                )
+                .map_err(repo_error)?;
+        }
         Ok(Self {
             connection: Mutex::new(connection),
         })
@@ -137,6 +159,7 @@ impl SqliteStore {
         );
         encounter.source_title.clone_from(&input.source_title);
         encounter.source_url.clone_from(&input.source_url);
+        encounter.capture_origin = input.capture_origin;
         insert_encounter(&transaction, &encounter)?;
         enqueue(
             &transaction,
@@ -277,7 +300,7 @@ impl EncounterRepository for SqliteStore {
         let mut statement = connection
             .prepare(
                 "SELECT id, word_id, selected_text, sentence, source_app, source_title,
-                 source_url, captured_at, updated_at, deleted_at FROM encounters
+                 source_url, capture_origin, captured_at, updated_at, deleted_at FROM encounters
                  WHERE word_id = ?1 AND deleted_at IS NULL ORDER BY captured_at DESC",
             )
             .map_err(repo_error)?;
@@ -454,8 +477,8 @@ fn map_word(row: &rusqlite::Row<'_>) -> rusqlite::Result<Word> {
 fn insert_encounter(tx: &Transaction<'_>, encounter: &Encounter) -> Result<(), RepositoryError> {
     tx.execute(
         "INSERT INTO encounters(id, word_id, selected_text, sentence, source_app, source_title,
-         source_url, captured_at, updated_at, deleted_at) VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7,
-         ?8, ?9, ?10) ON CONFLICT(id) DO UPDATE SET sentence=excluded.sentence,
+         source_url, capture_origin, captured_at, updated_at, deleted_at) VALUES(?1, ?2, ?3, ?4,
+         ?5, ?6, ?7, ?8, ?9, ?10, ?11) ON CONFLICT(id) DO UPDATE SET sentence=excluded.sentence,
          updated_at=excluded.updated_at, deleted_at=excluded.deleted_at",
         params![
             encounter.id.to_string(),
@@ -465,6 +488,7 @@ fn insert_encounter(tx: &Transaction<'_>, encounter: &Encounter) -> Result<(), R
             encounter.source_app,
             encounter.source_title,
             encounter.source_url,
+            enum_json(&encounter.capture_origin)?,
             encounter.captured_at.to_rfc3339(),
             encounter.updated_at.to_rfc3339(),
             encounter.deleted_at.map(|time| time.to_rfc3339()),
@@ -483,10 +507,11 @@ fn map_encounter(row: &rusqlite::Row<'_>) -> rusqlite::Result<Encounter> {
         source_app: row.get(4)?,
         source_title: row.get(5)?,
         source_url: row.get(6)?,
-        captured_at: parse_time(row.get::<_, String>(7)?)?,
-        updated_at: parse_time(row.get::<_, String>(8)?)?,
+        capture_origin: parse_json(&row.get::<_, String>(7)?)?,
+        captured_at: parse_time(row.get::<_, String>(8)?)?,
+        updated_at: parse_time(row.get::<_, String>(9)?)?,
         deleted_at: row
-            .get::<_, Option<String>>(9)?
+            .get::<_, Option<String>>(10)?
             .map(parse_time)
             .transpose()?,
     })

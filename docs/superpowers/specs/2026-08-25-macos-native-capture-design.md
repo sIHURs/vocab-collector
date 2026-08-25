@@ -8,7 +8,7 @@ Add the missing system-wide reading workflow to Vocab Collector on macOS. A user
 
 This increment delivers:
 
-1. A global shortcut with default `Alt+Space+V`, displayed as `⌥ Space V`, and a recorder in Settings.
+1. A global shortcut with default `Alt+Shift+V`, displayed as `⌥ ⇧ V`, and a recorder in Settings.
 2. Accessibility permission status, prompting, System Settings navigation, and retry.
 3. Selection capture from the focused macOS application using Accessibility APIs.
 4. A separate, prewarmed, transparent, always-on-top Tauri WebView window for capture states.
@@ -68,6 +68,7 @@ pub struct ScreenRect {
 }
 
 pub enum CaptureOrigin {
+    Manual,
     Accessibility,
     Ocr,
 }
@@ -108,7 +109,7 @@ Every shortcut press creates a request UUID. Events with a superseded request UU
 
 ## Global Shortcut
 
-Tauri’s official global-shortcut plugin registers the shortcut from Rust during application setup. The persisted setting uses the plugin’s canonical syntax, `Alt+Space+V`; the UI separately renders macOS symbols.
+Tauri’s official global-shortcut plugin registers the shortcut from Rust during application setup. The persisted setting uses the plugin’s canonical syntax, `Alt+Shift+V`; the UI separately renders macOS symbols.
 
 Settings replaces the plain text shortcut input with a recorder:
 
@@ -165,7 +166,7 @@ OCR is available when Accessibility returns unsupported element, empty selection
 5. Observations below 0.55 confidence are discarded. Remaining lines retain bounding rectangles.
 6. The provider selects the word whose bounding rectangle contains or is nearest to the pointer. It returns up to five alternatives from the same line.
 7. The floating card displays the best candidate, its line as context, and **Use this word**. Arrow keys move through alternatives; Enter confirms; Escape cancels.
-8. Only the confirmed candidate is translated and saved. The encounter records `origin = ocr` in the sync payload metadata while preserving the existing encounter schema in this increment.
+8. Only the confirmed candidate is translated and saved. The encounter records `capture_origin = ocr` in SQLite and cloud sync payloads; migrated encounters default to `manual`.
 
 If no credible text is found, the card says **No readable text found** and offers **Try another region** or **Close**. Retry uses a crosshair region selector and never captures continuously.
 

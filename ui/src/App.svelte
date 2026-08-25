@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { createBackend } from "./lib/backend";
+  import ShortcutRecorder from "./components/ShortcutRecorder.svelte";
   import type { CaptureCard, ReviewCard, Settings, TodayView, WordDetail, WordListItem } from "./lib/types";
 
   type Route = "Today" | "Vocabulary" | "Progress" | "Settings";
@@ -13,6 +14,7 @@
   let today: TodayView | null = null;
   let words: WordListItem[] = [];
   let settings: Settings | null = null;
+  let savedShortcut = "";
   let search = "";
   let captureOpen = false;
   let reviewOpen = false;
@@ -29,6 +31,7 @@
   async function refresh() {
     try {
       [today, words, settings] = await Promise.all([api.getToday(), api.listWords(), api.getSettings()]);
+      savedShortcut = settings.captureShortcut;
     } catch (cause) { error = cause instanceof Error ? cause.message : String(cause); }
   }
 
@@ -54,7 +57,14 @@
   }
 
   async function showDetail(id: string) { selectedDetail = await api.getWord(id); }
-  async function saveSettings() { if (settings) { await api.updateSettings(settings); await refresh(); } }
+  async function saveSettings() {
+    if (!settings) return;
+    try {
+      if (settings.captureShortcut !== savedShortcut) settings = await api.replaceShortcut(settings.captureShortcut);
+      await api.updateSettings(settings);
+      await refresh();
+    } catch (cause) { error = cause instanceof Error ? cause.message : String(cause); }
+  }
   const relative = (iso: string) => {
     const hours = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 3_600_000));
     return hours < 1 ? "just now" : hours === 1 ? "1 hour ago" : `${hours} hours ago`;
@@ -113,7 +123,7 @@
       {:else if settings}
         <div class="settings-grid"><div class="panel setting-card"><span class="eyebrow">Languages</span><h2>Translation</h2><label>Source language<input value="English" disabled /></label><label>Translate into<select bind:value={settings.targetLanguage}><option value="de">German</option><option value="fr">French</option><option value="es">Spanish</option><option value="zh">Chinese</option></select></label></div>
           <div class="panel setting-card"><span class="eyebrow">Review</span><h2>Daily rhythm</h2><label>Review time<input type="time" bind:value={settings.reviewTime} /></label><label>Daily limit<input type="number" min="1" max="5" bind:value={settings.dailyLimit} /></label></div>
-          <div class="panel setting-card"><span class="eyebrow">Capture</span><h2>Reading flow</h2><label>Global shortcut<input bind:value={settings.captureShortcut} /></label><label class="toggle-row"><span>Launch at login</span><input type="checkbox" bind:checked={settings.launchAtLogin} /></label></div>
+          <div class="panel setting-card"><span class="eyebrow">Capture</span><h2>Reading flow</h2><label>Global shortcut<ShortcutRecorder value={settings.captureShortcut} onRecorded={(shortcut) => { if (settings) settings.captureShortcut = shortcut; }} /></label><label class="toggle-row"><span>Launch at login</span><input type="checkbox" bind:checked={settings.launchAtLogin} /></label></div>
           <div class="panel setting-card"><span class="eyebrow">Appearance</span><h2>Comfort</h2><label>Theme<select bind:value={settings.appearance}><option value="system">System</option><option value="dark">Dark</option><option value="light">Light</option></select></label><label class="toggle-row"><span>Reduce motion</span><input type="checkbox" bind:checked={settings.reducedMotion} /></label></div>
         </div><button class="primary save-settings" onclick={saveSettings}>Save settings</button>
       {/if}
