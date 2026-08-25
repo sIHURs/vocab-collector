@@ -1,4 +1,6 @@
 pub mod placement;
+pub mod shortcut;
 
 pub use placement::place_floating_window;
+pub use shortcut::*;
 pub use vocab_platform::{CaptureOrigin, MonitorWorkArea, ScreenPoint, ScreenRect, ScreenSize};

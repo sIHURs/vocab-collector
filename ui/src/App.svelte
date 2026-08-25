@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { createBackend } from "./lib/backend";
+  import ShortcutRecorder from "./components/ShortcutRecorder.svelte";
   import type { CaptureCard, ReviewCard, Settings, TodayView, WordDetail, WordListItem } from "./lib/types";
 
   type Route = "Today" | "Vocabulary" | "Progress" | "Settings";
@@ -113,7 +114,7 @@
       {:else if settings}
         <div class="settings-grid"><div class="panel setting-card"><span class="eyebrow">Languages</span><h2>Translation</h2><label>Source language<input value="English" disabled /></label><label>Translate into<select bind:value={settings.targetLanguage}><option value="de">German</option><option value="fr">French</option><option value="es">Spanish</option><option value="zh">Chinese</option></select></label></div>
           <div class="panel setting-card"><span class="eyebrow">Review</span><h2>Daily rhythm</h2><label>Review time<input type="time" bind:value={settings.reviewTime} /></label><label>Daily limit<input type="number" min="1" max="5" bind:value={settings.dailyLimit} /></label></div>
-          <div class="panel setting-card"><span class="eyebrow">Capture</span><h2>Reading flow</h2><label>Global shortcut<input bind:value={settings.captureShortcut} /></label><label class="toggle-row"><span>Launch at login</span><input type="checkbox" bind:checked={settings.launchAtLogin} /></label></div>
+          <div class="panel setting-card"><span class="eyebrow">Capture</span><h2>Reading flow</h2><label>Global shortcut<ShortcutRecorder value={settings.captureShortcut} onRecorded={(shortcut) => { if (settings) settings.captureShortcut = shortcut; }} /></label><label class="toggle-row"><span>Launch at login</span><input type="checkbox" bind:checked={settings.launchAtLogin} /></label></div>
           <div class="panel setting-card"><span class="eyebrow">Appearance</span><h2>Comfort</h2><label>Theme<select bind:value={settings.appearance}><option value="system">System</option><option value="dark">Dark</option><option value="light">Light</option></select></label><label class="toggle-row"><span>Reduce motion</span><input type="checkbox" bind:checked={settings.reducedMotion} /></label></div>
         </div><button class="primary save-settings" onclick={saveSettings}>Save settings</button>
       {/if}

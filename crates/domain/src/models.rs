@@ -140,7 +140,7 @@ impl Default for UserSettings {
         Self {
             source_language: "en".into(),
             target_language: "de".into(),
-            capture_shortcut: "⌥ Space".into(),
+            capture_shortcut: "Alt+Space+V".into(),
             review_time: "18:00".into(),
             daily_limit: 5,
             launch_at_login: false,
