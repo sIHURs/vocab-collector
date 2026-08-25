@@ -66,7 +66,7 @@ cargo test --workspace
 pnpm check
 pnpm test
 pnpm build
-pnpm tauri build -- --bundles app
+pnpm tauri build --bundles app
 ```
 
 The `.app` output is created under `target/release/bundle/macos/`. Distribution to other Macs additionally requires an Apple Developer signing identity and notarization.
