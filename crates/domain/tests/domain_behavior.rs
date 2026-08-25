@@ -1,8 +1,9 @@
 use chrono::{Duration, TimeZone, Utc};
 use uuid::Uuid;
 use vocab_domain::{
-    Appearance, Encounter, OwnerScope, ReviewRating, ReviewState, UserSettings, Word, WordStatus,
-    apply_review, build_review_queue, dedupe_key, normalize_context, normalize_lemma,
+    Appearance, CaptureOrigin, Encounter, OwnerScope, ReviewRating, ReviewState, UserSettings,
+    Word, WordStatus, apply_review, build_review_queue, dedupe_key, normalize_context,
+    normalize_lemma,
 };
 
 fn word(lemma: &str, due_offset_hours: i64) -> Word {
@@ -86,6 +87,7 @@ fn encounter_keeps_exact_selection_and_normalized_sentence() {
 
     assert_eq!(encounter.selected_text, "Serendipity");
     assert_eq!(encounter.sentence, "A moment of serendipity.");
+    assert_eq!(encounter.capture_origin, CaptureOrigin::Manual);
 }
 
 #[test]

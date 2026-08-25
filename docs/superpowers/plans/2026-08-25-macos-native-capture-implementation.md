@@ -14,7 +14,7 @@
 
 - Deployment target is macOS 15 or newer; development requires Xcode 16 or newer.
 - Capture runs only after the user presses the configured shortcut.
-- Default canonical shortcut is `Alt+Space+V`; Settings displays `⌥ Space V` and permits atomic replacement.
+- Default canonical shortcut is `Alt+Shift+V`; Settings displays `⌥ ⇧ V` and permits atomic replacement.
 - Accessibility is the primary selection path; OCR requires explicit confirmation after selection capture fails.
 - Capture, OCR, language analysis, and translation remain on device.
 - Selected text, context, translations, URLs, and screenshots never enter logs or telemetry.
@@ -125,16 +125,16 @@ git commit -m "feat(capture): add portable capture contracts and placement"
 ```rust
 #[test]
 fn validates_default_and_rejects_unmodified_or_reserved_shortcuts() {
-    assert_eq!(parse_shortcut("Alt+Space+V").unwrap().display_macos(), "⌥ Space V");
+    assert_eq!(parse_shortcut("Alt+Shift+V").unwrap().display_macos(), "⌥ ⇧ V");
     assert_eq!(parse_shortcut("V").unwrap_err(), ShortcutError::ModifierRequired);
     assert_eq!(parse_shortcut("Meta+Q").unwrap_err(), ShortcutError::Reserved);
 }
 
 #[test]
 fn replacement_registers_candidate_before_removing_current() {
-    let backend = RecordingShortcutBackend::with_registered("Alt+Space+V");
-    ShortcutManager::new(backend.clone(), "Alt+Space+V").replace("Control+Shift+W").unwrap();
-    assert_eq!(backend.operations(), ["register:Control+Shift+W", "unregister:Alt+Space+V"]);
+    let backend = RecordingShortcutBackend::with_registered("Alt+Shift+V");
+    ShortcutManager::new(backend.clone(), "Alt+Shift+V").replace("Control+Shift+W").unwrap();
+    assert_eq!(backend.operations(), ["register:Control+Shift+W", "unregister:Alt+Shift+V"]);
 }
 ```
 
@@ -167,7 +167,7 @@ impl PressGate {
 
 ```ts
 it("records a modified key and cancels with Escape", async () => {
-  render(ShortcutRecorder, { value: "Alt+Space+V" });
+  render(ShortcutRecorder, { value: "Alt+Shift+V" });
   await fireEvent.click(screen.getByRole("button", { name: "Record shortcut" }));
   await fireEvent.keyDown(window, { key: "w", ctrlKey: true, shiftKey: true });
   expect(screen.getByText("⌃ ⇧ W")).toBeVisible();

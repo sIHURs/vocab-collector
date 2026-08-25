@@ -2,10 +2,10 @@
   import { onMount } from "svelte";
   import { listen } from "@tauri-apps/api/event";
   import { invoke } from "@tauri-apps/api/core";
-  import { createBackend } from "./lib/backend";
   import type { CaptureCandidate, CaptureCard } from "./lib/types";
 
-  const api = createBackend();
+  type NativeCaptureEvent = { requestId: string; candidate: CaptureCandidate };
+  type NativeCaptureErrorEvent = { requestId: string; message: string };
   let candidate: CaptureCandidate | null = null;
   let saved: CaptureCard | null = null;
   let error = "";
@@ -13,18 +13,16 @@
   let translationFailed = false;
   let ocrNeedsConfirmation = false;
   let dismissTimer: ReturnType<typeof setTimeout> | undefined;
-  let requestSequence = 0;
-  let activeRequest = 0;
-  const savedRequests = new Set<number>();
+  let activeRequest = "";
 
   async function hide() {
     if (dismissTimer) clearTimeout(dismissTimer);
     await invoke("hide_capture_window");
   }
 
-  async function accept(next: CaptureCandidate) {
-    const request = ++requestSequence;
-    activeRequest = request;
+  async function accept(event: NativeCaptureEvent, confirmOcr = false) {
+    const { requestId, candidate: next } = event;
+    activeRequest = requestId;
     if (dismissTimer) clearTimeout(dismissTimer);
     candidate = next;
     saved = null;
@@ -33,37 +31,35 @@
     ocrNeedsConfirmation = false;
     saving = true;
     try {
-      const settings = await api.getSettings();
-      let translation: string | undefined;
+      if (confirmOcr) await invoke("confirm_ocr", { requestId });
+      const settings = await invoke<{ sourceLanguage: string; targetLanguage: string }>("get_settings");
       try {
-        const result = await invoke<{ translatedText: string }>("translate_text", {
+        await invoke<{ translatedText: string }>("translate_text", {
+          requestId,
           text: next.selectedText,
           sourceLanguage: settings.sourceLanguage,
           targetLanguage: settings.targetLanguage,
         });
-        translation = result.translatedText;
       } catch {
-        if (request !== activeRequest) return;
+        if (requestId !== activeRequest) return;
         translationFailed = true;
         return;
       }
-      if (request === activeRequest) await persist(next, translation, request);
+      if (requestId === activeRequest) await persist(requestId, false);
     } catch (cause) { error = cause instanceof Error ? cause.message : String(cause); }
     finally { saving = false; }
   }
 
-  async function persist(next: CaptureCandidate, translation?: string, request = activeRequest) {
-    if (request !== activeRequest || savedRequests.has(request)) return;
-    savedRequests.add(request);
-    saved = await api.capture({ selectedText: next.selectedText, sentence: next.sentence,
-      sourceApp: next.sourceApp, sourceTitle: next.sourceTitle, sourceUrl: next.sourceUrl, translation });
+  async function persist(requestId = activeRequest, withoutTranslation = false) {
+    if (!requestId || requestId !== activeRequest) return;
+    saved = await invoke<CaptureCard>("save_native_capture", { requestId, withoutTranslation });
     dismissTimer = setTimeout(hide, 4_000);
   }
 
-  function offerOcr(next: CaptureCandidate) {
-    activeRequest = ++requestSequence;
+  function offerOcr(event: NativeCaptureEvent) {
+    activeRequest = event.requestId;
     if (dismissTimer) clearTimeout(dismissTimer);
-    candidate = next;
+    candidate = event.candidate;
     saved = null;
     error = "";
     saving = false;
@@ -73,7 +69,7 @@
 
   async function undo() {
     if (!saved) return;
-    await api.undoCapture(saved.encounterId);
+    await invoke("undo_capture", { encounterId: saved.encounterId });
     saved = null;
     await hide();
   }
@@ -90,14 +86,14 @@
         error = "Screen Recording permission was requested. Enable it in System Settings, then try OCR again.";
         return;
       }
-      await invoke("capture_with_ocr");
+      await invoke("capture_with_ocr", { requestId: activeRequest });
     } catch (cause) { error = cause instanceof Error ? cause.message : String(cause); }
   }
 
   onMount(() => {
-    const ready = listen<CaptureCandidate>("capture-ready", ({ payload }) => accept(payload));
-    const failed = listen<string>("capture-error", ({ payload }) => { candidate = null; saved = null; error = payload; });
-    const ocr = listen<CaptureCandidate>("ocr-candidate", ({ payload }) => offerOcr(payload));
+    const ready = listen<NativeCaptureEvent>("capture-ready", ({ payload }) => accept(payload));
+    const failed = listen<NativeCaptureErrorEvent>("capture-error", ({ payload }) => { activeRequest = payload.requestId; candidate = null; saved = null; error = payload.message; });
+    const ocr = listen<NativeCaptureEvent>("ocr-candidate", ({ payload }) => offerOcr(payload));
     return () => { ready.then((unlisten) => unlisten()); failed.then((unlisten) => unlisten()); ocr.then((unlisten) => unlisten()); if (dismissTimer) clearTimeout(dismissTimer); };
   });
 </script>
@@ -115,8 +111,8 @@
     <button class="undo" onclick={undo}>Undo</button>
   {:else if candidate}
     <section class="capture-result"><div><small>{ocrNeedsConfirmation ? "OCR suggestion · Confirm before saving" : saving ? "Translating…" : "Captured"}</small><h1>{candidate.selectedText}</h1><p>“{candidate.sentence}”</p><small>{candidate.sourceApp ?? "Current application"}</small>
-      {#if ocrNeedsConfirmation}<button class="primary" onclick={() => candidate && accept(candidate)}>Use this text</button>
-      {:else if translationFailed}<p>On-device translation is unavailable for this language pair.</p><button class="primary" onclick={() => candidate && persist(candidate)}>Save without translation</button>{/if}
+      {#if ocrNeedsConfirmation}<button class="primary" onclick={() => candidate && accept({ requestId: activeRequest, candidate }, true)}>Use this text</button>
+      {:else if translationFailed}<p>On-device translation is unavailable for this language pair.</p><button class="primary" onclick={() => persist(activeRequest, true)}>Save without translation</button>{/if}
     </div></section>
   {:else}
     <section class="capture-message"><strong>Ready to capture</strong><p>Select text in another app, then press your shortcut.</p></section>

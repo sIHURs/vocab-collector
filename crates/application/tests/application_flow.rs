@@ -3,7 +3,7 @@ use std::sync::Arc;
 use chrono::{TimeZone, Utc};
 use uuid::Uuid;
 use vocab_application::{AppService, CaptureRequest};
-use vocab_domain::{ReviewRating, SettingsRepository};
+use vocab_domain::{CaptureOrigin, ReviewRating, SettingsRepository};
 use vocab_storage::SqliteStore;
 
 fn request(word: &str, translation: &str) -> CaptureRequest {
@@ -18,6 +18,7 @@ fn request(word: &str, translation: &str) -> CaptureRequest {
         source_app: Some("Safari".into()),
         source_title: Some("Reading".into()),
         source_url: Some("https://example.com".into()),
+        capture_origin: CaptureOrigin::Manual,
         captured_at: Utc.with_ymd_and_hms(2026, 8, 25, 12, 0, 0).unwrap(),
     }
 }

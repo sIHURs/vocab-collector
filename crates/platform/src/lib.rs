@@ -4,6 +4,7 @@
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
+pub use vocab_domain::CaptureOrigin;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -85,14 +86,6 @@ impl MonitorWorkArea {
             && point.y >= self.y
             && point.y < self.y + self.height
     }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum CaptureOrigin {
-    Manual,
-    Accessibility,
-    Ocr,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

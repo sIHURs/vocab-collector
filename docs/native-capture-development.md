@@ -9,7 +9,7 @@ The default shortcut is `Alt+Shift+V`, displayed as `⌥ ⇧ V`. Users can recor
 ## Architecture
 
 - `crates/platform` owns portable capture, permission, translation, OCR, and geometry DTOs.
-- `crates/capture` owns shortcut policy, repeat suppression, and deterministic multi-monitor placement.
+- `crates/capture` owns the request coordinator, stale-result rejection, save-once gate, shortcut policy, repeat suppression, and deterministic multi-monitor placement.
 - `platform/macos` is a static Swift package. It contains Accessibility selection capture, sentence extraction, Apple Translation, ScreenCaptureKit screenshots, Vision OCR, and permission calls.
 - `apps/desktop/src-tauri/src/macos_bridge.rs` is the only Rust file containing native FFI. It immediately copies and frees bridge JSON and exposes safe Rust results.
 - `apps/desktop/src-tauri/src/lib.rs` composes providers, registers the shortcut, positions the capture window, and exposes narrow commands.
@@ -22,12 +22,12 @@ No captured text, translation, URL, context, OCR image, or screenshot is written
 1. The global-shortcut plugin receives a `Pressed` transition for the persisted accelerator.
 2. Swift queries the focused Accessibility element for selected text, full text, range bounds, application metadata, and document URL.
 3. Rust chooses the correct monitor, places the 380×280 card above the selection when possible, and shows the hidden capture window.
-4. The capture UI asks the local Apple Translation framework for the configured language pair.
-5. The encounter and available translation are stored through the existing application service and SQLite transaction.
+4. The capture UI asks the local Apple Translation framework for the configured language pair; Rust accepts the result only if its request UUID is still current.
+5. The Rust coordinator admits the request through a save-once gate, then stores the encounter, capture origin, and available translation through the application service and SQLite transaction.
 6. The card dismisses after four seconds. Hover pauses the timer; Undo soft-deletes the new encounter.
 7. When Accessibility cannot obtain a selection, the card offers OCR. OCR runs only after explicit user action and Screen Recording approval, then selects the Vision text observation nearest the pointer.
 
-If an Apple language pack is unavailable or translation fails, the encounter is still saved with `Translation pending`. A later enrichment/sync worker can fill the translation without changing the capture boundary.
+If an Apple language pack is unavailable or translation fails, the card offers an explicit **Save without translation** action. A later enrichment/sync worker can fill the translation without changing the capture boundary.
 
 ## Permissions
 

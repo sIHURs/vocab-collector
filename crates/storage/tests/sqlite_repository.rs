@@ -1,6 +1,8 @@
 use chrono::{TimeZone, Utc};
 use uuid::Uuid;
-use vocab_domain::{Appearance, EncounterRepository, SettingsRepository, WordRepository};
+use vocab_domain::{
+    Appearance, CaptureOrigin, EncounterRepository, SettingsRepository, WordRepository,
+};
 use vocab_storage::{CaptureRecord, SqliteStore};
 
 fn capture(selected_text: &str, sentence: &str) -> CaptureRecord {
@@ -15,8 +17,69 @@ fn capture(selected_text: &str, sentence: &str) -> CaptureRecord {
         source_app: Some("Safari".into()),
         source_title: Some("An essay".into()),
         source_url: Some("https://example.com/essay".into()),
+        capture_origin: CaptureOrigin::Accessibility,
         captured_at: Utc.with_ymd_and_hms(2026, 8, 25, 12, 0, 0).unwrap(),
     }
+}
+
+#[test]
+fn capture_origin_survives_sqlite_and_outbox_round_trips() {
+    let path = std::env::temp_dir().join(format!("vocab-origin-{}.db", Uuid::now_v7()));
+    {
+        let store = SqliteStore::open(&path).unwrap();
+        let stored = store
+            .capture(&capture("Serendipity", "A lucky moment."))
+            .unwrap();
+        assert_eq!(
+            stored.encounter.capture_origin,
+            CaptureOrigin::Accessibility
+        );
+        assert_eq!(
+            store.list_for_word(stored.word.id).unwrap()[0].capture_origin,
+            CaptureOrigin::Accessibility
+        );
+    }
+    let connection = rusqlite::Connection::open(&path).unwrap();
+    let payload: String = connection.query_row(
+        "SELECT payload FROM outbox WHERE entity_type = 'encounter' ORDER BY created_at DESC LIMIT 1",
+        [],
+        |row| row.get(0),
+    ).unwrap();
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&payload).unwrap()["captureOrigin"],
+        "accessibility"
+    );
+    std::fs::remove_file(path).unwrap();
+}
+
+#[test]
+fn version_one_database_migrates_existing_encounters_to_manual_origin() {
+    let path = std::env::temp_dir().join(format!("vocab-v1-{}.db", Uuid::now_v7()));
+    let connection = rusqlite::Connection::open(&path).unwrap();
+    connection.execute_batch(
+        "CREATE TABLE encounters (
+           id TEXT PRIMARY KEY, word_id TEXT NOT NULL, selected_text TEXT NOT NULL,
+           sentence TEXT NOT NULL, source_app TEXT, source_title TEXT, source_url TEXT,
+           captured_at TEXT NOT NULL, updated_at TEXT NOT NULL, deleted_at TEXT
+         );
+         INSERT INTO encounters VALUES ('e1','w1','word','A word.',NULL,NULL,NULL,'2026-01-01','2026-01-01',NULL);
+         PRAGMA user_version = 1;",
+    ).unwrap();
+    drop(connection);
+
+    let store = SqliteStore::open(&path).unwrap();
+    assert_eq!(store.schema_version().unwrap(), 2);
+    drop(store);
+    let connection = rusqlite::Connection::open(&path).unwrap();
+    let origin: String = connection
+        .query_row(
+            "SELECT capture_origin FROM encounters WHERE id = 'e1'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(origin, "\"manual\"");
+    std::fs::remove_file(path).unwrap();
 }
 
 #[test]
@@ -71,7 +134,7 @@ fn databases_are_initialized_with_foreign_keys_and_schema_version() {
     let store = SqliteStore::open_in_memory().unwrap();
 
     assert!(store.foreign_keys_enabled().unwrap());
-    assert_eq!(store.schema_version().unwrap(), 1);
+    assert_eq!(store.schema_version().unwrap(), 2);
 }
 
 #[test]

@@ -19,6 +19,7 @@ export interface CaptureInput {
   sourceApp?: string;
   sourceTitle?: string;
   sourceUrl?: string;
+  captureOrigin?: "manual" | "accessibility" | "ocr";
 }
 
 export interface CaptureCard {
@@ -49,6 +50,7 @@ export interface Encounter {
   sourceApp?: string;
   sourceTitle?: string;
   sourceUrl?: string;
+  captureOrigin: "manual" | "accessibility" | "ocr";
   capturedAt: string;
   updatedAt: string;
   deletedAt?: string;

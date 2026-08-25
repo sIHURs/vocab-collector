@@ -8,9 +8,9 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use vocab_domain::{
-    CaptureCard, EncounterRepository, RepositoryError, ReviewCard, ReviewLog, ReviewRating,
-    SettingsRepository, TodayView, UserSettings, WordDetail, WordListItem, WordRepository,
-    apply_review, build_review_queue,
+    CaptureCard, CaptureOrigin, EncounterRepository, RepositoryError, ReviewCard, ReviewLog,
+    ReviewRating, SettingsRepository, TodayView, UserSettings, WordDetail, WordListItem,
+    WordRepository, apply_review, build_review_queue,
 };
 use vocab_storage::{CaptureRecord, SqliteStore};
 
@@ -27,6 +27,8 @@ pub struct CaptureRequest {
     pub source_app: Option<String>,
     pub source_title: Option<String>,
     pub source_url: Option<String>,
+    #[serde(default)]
+    pub capture_origin: CaptureOrigin,
     pub captured_at: DateTime<Utc>,
 }
 
@@ -60,6 +62,7 @@ impl AppService {
             source_app: request.source_app,
             source_title: request.source_title,
             source_url: request.source_url,
+            capture_origin: request.capture_origin,
             captured_at: request.captured_at,
         })?;
         let encounter_count = self.store.list_for_word(stored.word.id)?.len();

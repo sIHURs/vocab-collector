@@ -3924,6 +3924,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.20",
+ "uuid",
  "vocab-platform",
 ]
 
@@ -3965,6 +3966,7 @@ dependencies = [
  "async-trait",
  "serde",
  "thiserror 2.0.20",
+ "vocab-domain",
 ]
 
 [[package]]

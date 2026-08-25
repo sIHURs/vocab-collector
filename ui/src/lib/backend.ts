@@ -48,7 +48,7 @@ export class DemoBackend implements Backend {
     const capturedAt = new Date(Date.now() - this.words.length * 3_600_000).toISOString();
     const encounter: Encounter = {
       id: id(), wordId, selectedText: word, sentence, sourceApp: "Safari",
-      sourceTitle: "Reading notes", capturedAt, updatedAt: capturedAt,
+      sourceTitle: "Reading notes", captureOrigin: "manual", capturedAt, updatedAt: capturedAt,
     };
     this.words.push({
       item: { id: wordId, displayForm: word, translation, status: "learning",
@@ -76,6 +76,7 @@ export class DemoBackend implements Backend {
       id: id(), wordId: detail.item.id, selectedText: input.selectedText.trim(),
       sentence: input.sentence.trim().replace(/\s+/g, " "), sourceApp: input.sourceApp,
       sourceTitle: input.sourceTitle, sourceUrl: input.sourceUrl,
+      captureOrigin: input.captureOrigin ?? "manual",
       capturedAt: now, updatedAt: now,
     };
     detail.encounters.unshift(encounter);
@@ -128,7 +129,8 @@ class TauriBackend implements Backend {
       selectedText: input.selectedText, lemma: input.selectedText, sentence: input.sentence,
       sourceLanguage: "en", targetLanguage: "de", translation: input.translation,
       partOfSpeech: undefined, sourceApp: input.sourceApp, sourceTitle: input.sourceTitle,
-      sourceUrl: input.sourceUrl, capturedAt: new Date().toISOString(),
+      sourceUrl: input.sourceUrl, captureOrigin: input.captureOrigin ?? "manual",
+      capturedAt: new Date().toISOString(),
     }});
   }
   undoCapture(encounterId: string) { return invoke<void>("undo_capture", { encounterId }); }
