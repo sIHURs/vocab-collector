@@ -215,11 +215,16 @@ fn present_native_capture(app: &tauri::AppHandle) -> Result<(), String> {
 }
 
 pub fn run() {
+    let shortcut_gate = Arc::new(vocab_capture::PressGate::default());
     tauri::Builder::default()
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
-                .with_handler(|app, _shortcut, event| {
-                    if event.state() == ShortcutState::Pressed {
+                .with_handler(move |app, _shortcut, event| {
+                    let state = match event.state() {
+                        ShortcutState::Pressed => vocab_capture::ShortcutState::Pressed,
+                        ShortcutState::Released => vocab_capture::ShortcutState::Released,
+                    };
+                    if shortcut_gate.accept(state) {
                         #[cfg(target_os = "macos")]
                         if let Err(error) = present_native_capture(app)
                             && let Some(window) = app.get_webview_window("capture")
@@ -237,7 +242,12 @@ pub fn run() {
             let store = SqliteStore::open(data_dir.join("guest.db"))
                 .map_err(|error| Box::<dyn std::error::Error>::from(error.to_string()))?;
             let service = AppService::new(Arc::new(store), Uuid::now_v7());
-            let shortcut = service.get_settings()?.capture_shortcut;
+            let mut settings = service.get_settings()?;
+            if vocab_capture::parse_shortcut(&settings.capture_shortcut).is_err() {
+                settings.capture_shortcut = "Alt+Shift+V".into();
+                service.update_settings(settings.clone())?;
+            }
+            let shortcut = settings.capture_shortcut;
             app.global_shortcut().register(shortcut.as_str())?;
             app.manage(AppState(service));
             Ok(())

@@ -18,6 +18,7 @@
   }
 
   async function accept(next: CaptureCandidate) {
+    if (dismissTimer) clearTimeout(dismissTimer);
     candidate = next;
     saved = null;
     error = "";
