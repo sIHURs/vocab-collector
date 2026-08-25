@@ -6,6 +6,7 @@ platform/macos/.build/
 /ui/dist/
 /ui/coverage/
 /apps/desktop/src-tauri/gen/
+/docs/develop-doc/
 *.db
 *.db-shm
 *.db-wal
