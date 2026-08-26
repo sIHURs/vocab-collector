@@ -9,7 +9,7 @@ rust-version.workspace = true
 serde.workspace = true
 thiserror.workspace = true
 uuid.workspace = true
-vocab-platform = { path = "../platform" }
+vocab-platform-api = { path = "../platform-api" }
 
 [dev-dependencies]
 serde_json.workspace = true

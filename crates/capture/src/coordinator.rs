@@ -1,7 +1,7 @@
 use std::{fmt::Display, sync::Mutex};
 
 use uuid::Uuid;
-use vocab_platform::{CaptureCandidate, CaptureOrigin, TranslationResult};
+use vocab_platform_api::{CaptureCandidate, CaptureOrigin, TranslationResult};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Phase {

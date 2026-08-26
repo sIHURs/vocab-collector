@@ -4,7 +4,7 @@ use std::{
 };
 
 use serde::Deserialize;
-use vocab_platform::{
+use vocab_platform_api::{
     CaptureCandidate, PermissionKind, PermissionStatus, PlatformError, TranslationResult,
 };
 

@@ -23,6 +23,6 @@ uuid.workspace = true
 vocab-application = { path = "../../../crates/application" }
 vocab-capture = { path = "../../../crates/capture" }
 vocab-domain = { path = "../../../crates/domain" }
-vocab-platform = { path = "../../../crates/platform" }
+vocab-platform-api = { path = "../../../crates/platform-api" }
 vocab-storage = { path = "../../../crates/storage" }
 vocab-sync = { path = "../../../crates/sync" }

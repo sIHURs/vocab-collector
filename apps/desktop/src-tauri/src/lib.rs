@@ -23,7 +23,7 @@ struct AppState {
 #[serde(rename_all = "camelCase")]
 struct NativeCaptureEvent {
     request_id: Uuid,
-    candidate: vocab_platform::CaptureCandidate,
+    candidate: vocab_platform_api::CaptureCandidate,
 }
 
 #[derive(Debug)]
@@ -145,26 +145,26 @@ fn replace_shortcut(
 #[cfg(target_os = "macos")]
 #[tauri::command]
 fn get_permission_status(
-    kind: vocab_platform::PermissionKind,
-) -> Result<vocab_platform::PermissionStatus, String> {
+    kind: vocab_platform_api::PermissionKind,
+) -> Result<vocab_platform_api::PermissionStatus, String> {
     macos_bridge::permission_status(kind).map_err(|error| error.to_string())
 }
 
 #[cfg(target_os = "macos")]
 #[tauri::command]
-fn request_accessibility_permission() -> Result<vocab_platform::PermissionStatus, String> {
+fn request_accessibility_permission() -> Result<vocab_platform_api::PermissionStatus, String> {
     macos_bridge::request_accessibility().map_err(|error| error.to_string())
 }
 
 #[cfg(target_os = "macos")]
 #[tauri::command]
-fn capture_selected_text() -> Result<vocab_platform::CaptureCandidate, String> {
+fn capture_selected_text() -> Result<vocab_platform_api::CaptureCandidate, String> {
     macos_bridge::capture_selection().map_err(|error| error.to_string())
 }
 
 #[cfg(target_os = "macos")]
 #[tauri::command]
-fn request_screen_recording_permission() -> Result<vocab_platform::PermissionStatus, String> {
+fn request_screen_recording_permission() -> Result<vocab_platform_api::PermissionStatus, String> {
     macos_bridge::request_screen_recording().map_err(|error| error.to_string())
 }
 
@@ -208,7 +208,7 @@ async fn translate_text(
     text: String,
     source_language: String,
     target_language: String,
-) -> Result<vocab_platform::TranslationResult, String> {
+) -> Result<vocab_platform_api::TranslationResult, String> {
     let result = tauri::async_runtime::spawn_blocking(move || {
         macos_bridge::translate(&text, &source_language, &target_language)
     })
@@ -335,7 +335,7 @@ fn present_native_capture(app: &tauri::AppHandle) -> Result<(), NativeCaptureErr
         .map(|monitor| {
             let area = monitor.work_area();
             let scale = monitor.scale_factor();
-            vocab_platform::MonitorWorkArea::new(
+            vocab_platform_api::MonitorWorkArea::new(
                 f64::from(area.position.x) / scale,
                 f64::from(area.position.y) / scale,
                 f64::from(area.size.width) / scale,
@@ -347,9 +347,9 @@ fn present_native_capture(app: &tauri::AppHandle) -> Result<(), NativeCaptureErr
     let anchor = candidate.selection_bounds.unwrap_or_default();
     let position = vocab_capture::place_floating_window(
         anchor,
-        vocab_platform::ScreenPoint::new(pointer.x / monitor_scale, pointer.y / monitor_scale),
+        vocab_platform_api::ScreenPoint::new(pointer.x / monitor_scale, pointer.y / monitor_scale),
         &work_areas,
-        vocab_platform::ScreenSize::new(380.0, 280.0),
+        vocab_platform_api::ScreenSize::new(380.0, 280.0),
     );
     window
         .set_position(LogicalPosition::new(position.x, position.y))

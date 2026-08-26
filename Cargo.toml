@@ -5,7 +5,7 @@ members = [
   "crates/application",
   "crates/capture",
   "crates/domain",
-  "crates/platform",
+  "crates/platform-api",
   "crates/storage",
   "crates/sync",
 ]

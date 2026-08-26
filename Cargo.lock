@@ -3925,7 +3925,7 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.20",
  "uuid",
- "vocab-platform",
+ "vocab-platform-api",
 ]
 
 [[package]]
@@ -3943,7 +3943,7 @@ dependencies = [
  "vocab-application",
  "vocab-capture",
  "vocab-domain",
- "vocab-platform",
+ "vocab-platform-api",
  "vocab-storage",
  "vocab-sync",
 ]
@@ -3960,7 +3960,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "vocab-platform"
+name = "vocab-platform-api"
 version = "0.1.0"
 dependencies = [
  "async-trait",

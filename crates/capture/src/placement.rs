@@ -1,4 +1,4 @@
-use vocab_platform::{MonitorWorkArea, ScreenPoint, ScreenRect, ScreenSize};
+use vocab_platform_api::{MonitorWorkArea, ScreenPoint, ScreenRect, ScreenSize};
 
 const GAP: f64 = 12.0;
 const MARGIN: f64 = 8.0;

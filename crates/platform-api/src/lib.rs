@@ -2,9 +2,19 @@
 
 //! Platform-neutral contracts for capture, translation, notification, and future enrichment.
 
-use async_trait::async_trait;
+mod capabilities;
+mod errors;
+mod providers;
+
 use serde::{Deserialize, Serialize};
 pub use vocab_domain::CaptureOrigin;
+
+pub use capabilities::{Capability, PlatformCapabilities};
+pub use errors::PlatformError;
+pub use providers::{
+    EnrichmentProvider, NoopEnrichmentProvider, OcrProvider, PermissionProvider, PlatformServices,
+    SelectionProvider, TranslationProvider, WindowProvider,
+};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -54,6 +64,7 @@ impl ScreenRect {
     pub fn is_available(self) -> bool {
         self.width > 0.0 && self.height > 0.0
     }
+
     pub fn center(self) -> ScreenPoint {
         ScreenPoint::new(self.x + self.width / 2.0, self.y + self.height / 2.0)
     }
@@ -139,56 +150,4 @@ pub struct EnrichmentResult {
     pub provider: String,
     pub model: String,
     pub schema_version: u16,
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum PlatformError {
-    #[error("permission is required: {0}")]
-    PermissionRequired(String),
-    #[error("feature is unavailable: {0}")]
-    Unavailable(String),
-    #[error("platform operation failed: {0}")]
-    Operation(String),
-}
-
-#[async_trait]
-pub trait CaptureProvider: Send + Sync {
-    async fn capture_selected_text(&self) -> Result<CaptureCandidate, PlatformError>;
-}
-
-#[async_trait]
-pub trait OcrProvider: Send + Sync {
-    async fn capture_screen_region(&self) -> Result<Vec<OcrCandidate>, PlatformError>;
-}
-
-#[async_trait]
-pub trait TranslationProvider: Send + Sync {
-    async fn translate(
-        &self,
-        text: &str,
-        source_language: &str,
-        target_language: &str,
-    ) -> Result<TranslationResult, PlatformError>;
-}
-
-#[async_trait]
-pub trait EnrichmentProvider: Send + Sync {
-    async fn enrich(
-        &self,
-        word: &str,
-        context: &str,
-    ) -> Result<Option<EnrichmentResult>, PlatformError>;
-}
-
-pub struct NoopEnrichmentProvider;
-
-#[async_trait]
-impl EnrichmentProvider for NoopEnrichmentProvider {
-    async fn enrich(
-        &self,
-        _word: &str,
-        _context: &str,
-    ) -> Result<Option<EnrichmentResult>, PlatformError> {
-        Ok(None)
-    }
 }

@@ -1,5 +1,5 @@
 use vocab_capture::{CaptureCoordinator, CoordinatorError};
-use vocab_platform::{CaptureCandidate, CaptureOrigin, TranslationResult};
+use vocab_platform_api::{CaptureCandidate, CaptureOrigin, TranslationResult};
 
 fn candidate(origin: CaptureOrigin) -> CaptureCandidate {
     CaptureCandidate {
