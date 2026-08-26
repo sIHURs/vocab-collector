@@ -1,52 +1,21 @@
 use std::{
-    fmt,
     future::Future,
     sync::Arc,
     task::{Context, Poll, Wake, Waker},
     thread,
 };
 
-use chrono::{TimeZone, Utc};
+use chrono::{DateTime, TimeZone, Utc};
 use uuid::Uuid;
-use vocab_application::{AppService, CaptureRequest};
+use vocab_application::{AppService, PlatformCaptureError, PlatformCaptureWorkflow};
+use vocab_capture::CoordinatorError;
 use vocab_platform_api::{
-    Capability, CaptureCandidate, CaptureOrigin, PlatformError, SelectionProvider,
-    TranslationProvider,
+    Capability, CaptureCandidate, CaptureOrigin, OcrCandidate, OcrProvider, PermissionKind,
+    PermissionProvider, PermissionStatus, PlatformCapabilities, PlatformError, PlatformServices,
+    ScreenPoint, WindowProvider,
 };
 use vocab_platform_contract_tests::{FakeSelectionProvider, UnavailableTranslationProvider};
 use vocab_storage::SqliteStore;
-
-struct TestProviderBundle {
-    selection: Arc<dyn SelectionProvider>,
-    translation: Arc<dyn TranslationProvider>,
-}
-
-#[derive(Debug)]
-enum TestCaptureError {
-    Platform(PlatformError),
-    Application(vocab_application::ApplicationError),
-}
-
-impl fmt::Display for TestCaptureError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Platform(error) => error.fmt(formatter),
-            Self::Application(error) => error.fmt(formatter),
-        }
-    }
-}
-
-impl From<PlatformError> for TestCaptureError {
-    fn from(error: PlatformError) -> Self {
-        Self::Platform(error)
-    }
-}
-
-impl From<vocab_application::ApplicationError> for TestCaptureError {
-    fn from(error: vocab_application::ApplicationError) -> Self {
-        Self::Application(error)
-    }
-}
 
 fn candidate(selected_text: &str) -> CaptureCandidate {
     CaptureCandidate {
@@ -60,54 +29,63 @@ fn candidate(selected_text: &str) -> CaptureCandidate {
     }
 }
 
-async fn capture_with_providers(
-    service: &AppService,
-    providers: &TestProviderBundle,
-    save_without_translation: bool,
-) -> Result<vocab_domain::CaptureCard, TestCaptureError> {
-    let candidate = providers.selection.capture_selection().await?;
-    let translation = match providers
-        .translation
-        .translate(&candidate.selected_text, "en", "de")
-        .await
-    {
-        Ok(value) => Some(value),
-        Err(PlatformError::Unsupported(Capability::Translation)) if save_without_translation => {
-            None
-        }
-        Err(error) => return Err(error.into()),
-    };
-
-    Ok(service.capture(CaptureRequest {
-        selected_text: candidate.selected_text,
-        lemma: None,
-        sentence: candidate.sentence,
-        source_language: translation
-            .as_ref()
-            .map_or_else(|| "en".into(), |value| value.source_language.clone()),
-        target_language: translation
-            .as_ref()
-            .map_or_else(|| "de".into(), |value| value.target_language.clone()),
-        translation: translation.map(|value| value.translated_text),
-        part_of_speech: None,
-        source_app: candidate.source_app,
-        source_title: candidate.source_title,
-        source_url: candidate.source_url,
-        capture_origin: candidate.origin,
-        captured_at: Utc.with_ymd_and_hms(2026, 8, 26, 12, 0, 0).unwrap(),
-    })?)
+fn captured_at() -> DateTime<Utc> {
+    Utc.with_ymd_and_hms(2026, 8, 26, 12, 0, 0).unwrap()
 }
 
-fn providers(selection: Result<CaptureCandidate, PlatformError>) -> TestProviderBundle {
-    TestProviderBundle {
+fn workflow(
+    selection: Result<CaptureCandidate, PlatformError>,
+) -> (PlatformCaptureWorkflow, Arc<AppService>) {
+    let store = Arc::new(SqliteStore::open_in_memory().unwrap());
+    let application = Arc::new(AppService::new(store, Uuid::now_v7()));
+    (
+        PlatformCaptureWorkflow::new(application.clone(), platform_services(selection)),
+        application,
+    )
+}
+
+fn platform_services(selection: Result<CaptureCandidate, PlatformError>) -> PlatformServices {
+    PlatformServices {
+        capabilities: PlatformCapabilities::default(),
         selection: Arc::new(FakeSelectionProvider::new(selection)),
+        ocr: Arc::new(UnusedOcrProvider),
         translation: Arc::new(UnavailableTranslationProvider),
+        permissions: Arc::new(UnusedPermissionProvider),
+        window: Arc::new(UnusedWindowProvider),
     }
 }
 
-fn service() -> (AppService, Arc<SqliteStore>) {
-    let store = Arc::new(SqliteStore::open_in_memory().unwrap());
-    (AppService::new(store.clone(), Uuid::now_v7()), store)
+struct UnusedOcrProvider;
+
+#[async_trait::async_trait]
+impl OcrProvider for UnusedOcrProvider {
+    async fn recognize_near(
+        &self,
+        _pointer: ScreenPoint,
+    ) -> Result<Vec<OcrCandidate>, PlatformError> {
+        Err(PlatformError::Unsupported(Capability::ScreenshotOcr))
+    }
+}
+
+struct UnusedPermissionProvider;
+
+#[async_trait::async_trait]
+impl PermissionProvider for UnusedPermissionProvider {
+    async fn status(&self, _kind: PermissionKind) -> Result<PermissionStatus, PlatformError> {
+        Err(PlatformError::Unsupported(Capability::Selection))
+    }
+
+    async fn request(&self, _kind: PermissionKind) -> Result<PermissionStatus, PlatformError> {
+        Err(PlatformError::Unsupported(Capability::Selection))
+    }
+}
+
+struct UnusedWindowProvider;
+
+impl WindowProvider for UnusedWindowProvider {
+    fn configure_capture_window(&self) -> Result<(), PlatformError> {
+        Err(PlatformError::Unsupported(Capability::NonActivatingWindow))
+    }
 }
 
 fn block_on<F: Future>(future: F) -> F::Output {
@@ -131,89 +109,86 @@ fn block_on<F: Future>(future: F) -> F::Output {
 }
 
 #[test]
-fn exact_unicode_surface_form_is_preserved_through_application_storage() {
+fn exact_unicode_surface_form_is_preserved_through_the_production_workflow() {
     let selected_text = "Straße—CAFÉ 👩🏽‍💻";
-    let (service, _) = service();
+    let (workflow, application) = workflow(Ok(candidate(selected_text)));
 
-    let card = block_on(capture_with_providers(
-        &service,
-        &providers(Ok(candidate(selected_text))),
-        true,
-    ))
-    .unwrap();
-    let detail = service.get_word(card.word_id).unwrap();
+    let prepared = block_on(workflow.prepare_selection()).unwrap();
+    let card = workflow
+        .save(prepared.request_id, true, captured_at())
+        .unwrap();
+    let detail = application.get_word(card.word_id).unwrap();
 
+    assert_eq!(prepared.candidate.selected_text, selected_text);
     assert_eq!(card.display_form, selected_text);
     assert_eq!(detail.encounters[0].selected_text, selected_text);
 }
 
 #[test]
-fn empty_selection_remains_a_typed_platform_error_and_saves_nothing() {
-    let (service, _) = service();
+fn empty_selection_returns_the_typed_error_without_saving() {
+    let (workflow, application) = workflow(Err(PlatformError::EmptySelection));
 
-    let result = block_on(capture_with_providers(
-        &service,
-        &providers(Err(PlatformError::EmptySelection)),
-        false,
-    ));
+    let result = block_on(workflow.prepare_selection());
 
     assert!(matches!(
         result,
-        Err(TestCaptureError::Platform(PlatformError::EmptySelection))
+        Err(PlatformCaptureError::Platform(
+            PlatformError::EmptySelection
+        ))
     ));
-    assert!(service.list_words().unwrap().is_empty());
+    assert!(application.list_words().unwrap().is_empty());
 }
 
 #[test]
-fn unsupported_selection_remains_a_typed_platform_error_and_saves_nothing() {
-    let (service, _) = service();
+fn unsupported_selection_returns_the_typed_error_without_saving() {
+    let (workflow, application) = workflow(Err(PlatformError::UnsupportedElement));
 
-    let result = block_on(capture_with_providers(
-        &service,
-        &providers(Err(PlatformError::UnsupportedElement)),
-        false,
-    ));
+    let result = block_on(workflow.prepare_selection());
 
     assert!(matches!(
         result,
-        Err(TestCaptureError::Platform(
+        Err(PlatformCaptureError::Platform(
             PlatformError::UnsupportedElement
         ))
     ));
-    assert!(service.list_words().unwrap().is_empty());
+    assert!(application.list_words().unwrap().is_empty());
 }
 
 #[test]
-fn unavailable_translation_remains_a_typed_platform_error() {
-    let (service, _) = service();
+fn unavailable_translation_requires_the_real_coordinator_fallback() {
+    let (workflow, application) = workflow(Ok(candidate("serendipity")));
 
-    let result = block_on(capture_with_providers(
-        &service,
-        &providers(Ok(candidate("serendipity"))),
-        false,
-    ));
+    let prepared = block_on(workflow.prepare_selection()).unwrap();
 
+    assert_eq!(
+        prepared.translation_error,
+        Some(PlatformError::Unsupported(Capability::Translation))
+    );
     assert!(matches!(
-        result,
-        Err(TestCaptureError::Platform(PlatformError::Unsupported(
-            Capability::Translation
-        )))
+        workflow.save(prepared.request_id, false, captured_at()),
+        Err(PlatformCaptureError::Coordinator(
+            CoordinatorError::TranslationRequired
+        ))
     ));
-    assert!(service.list_words().unwrap().is_empty());
+    assert!(application.list_words().unwrap().is_empty());
 }
 
 #[test]
-fn explicit_save_without_translation_persists_an_untranslated_capture() {
-    let (service, _) = service();
+fn explicit_save_without_translation_persists_an_untranslated_capture_once() {
+    let (workflow, application) = workflow(Ok(candidate("serendipity")));
+    let prepared = block_on(workflow.prepare_selection()).unwrap();
 
-    let card = block_on(capture_with_providers(
-        &service,
-        &providers(Ok(candidate("serendipity"))),
-        true,
-    ))
-    .unwrap();
+    let card = workflow
+        .save(prepared.request_id, true, captured_at())
+        .unwrap();
 
     assert_eq!(card.display_form, "serendipity");
     assert_eq!(card.translation, None);
-    assert_eq!(service.list_words().unwrap().len(), 1);
+    assert_eq!(application.list_words().unwrap().len(), 1);
+    assert!(matches!(
+        workflow.save(prepared.request_id, true, captured_at()),
+        Err(PlatformCaptureError::Coordinator(
+            CoordinatorError::AlreadySaved
+        ))
+    ));
 }

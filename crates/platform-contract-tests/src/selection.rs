@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use vocab_platform_api::{CaptureCandidate, PlatformError, SelectionProvider};
 
@@ -20,12 +22,11 @@ impl SelectionProvider for FakeSelectionProvider {
 }
 
 /// Verifies a selection provider solely through its public portable contract.
-pub async fn assert_selection_contract<F, P>(
+pub async fn assert_selection_contract<F>(
     provider_factory: F,
     expected: Result<CaptureCandidate, PlatformError>,
 ) where
-    F: FnOnce() -> P,
-    P: SelectionProvider,
+    F: FnOnce() -> Arc<dyn SelectionProvider>,
 {
     let actual = provider_factory().capture_selection().await;
     assert_eq!(actual, expected);
@@ -55,7 +56,9 @@ fn clone_platform_error(error: &PlatformError) -> PlatformError {
 
 #[cfg(test)]
 mod tests {
-    use vocab_platform_api::{CaptureCandidate, CaptureOrigin, PlatformError};
+    use std::sync::Arc;
+
+    use vocab_platform_api::{CaptureCandidate, CaptureOrigin, PlatformError, SelectionProvider};
 
     use super::{FakeSelectionProvider, assert_selection_contract};
 
@@ -75,16 +78,21 @@ mod tests {
     fn selection_contract_compares_exact_unicode_and_typed_errors() {
         let exact = candidate("naïve—CAFÉ 👩🏽‍💻");
         let provider_fixture = exact.clone();
+        let provider: Arc<dyn SelectionProvider> =
+            Arc::new(FakeSelectionProvider::new(Ok(provider_fixture)));
+        crate::block_on(assert_selection_contract(|| provider, Ok(exact)));
+        let provider: Arc<dyn SelectionProvider> = Arc::new(FakeSelectionProvider::new(Err(
+            PlatformError::EmptySelection,
+        )));
         crate::block_on(assert_selection_contract(
-            || FakeSelectionProvider::new(Ok(provider_fixture)),
-            Ok(exact),
-        ));
-        crate::block_on(assert_selection_contract(
-            || FakeSelectionProvider::new(Err(PlatformError::EmptySelection)),
+            || provider,
             Err(PlatformError::EmptySelection),
         ));
+        let provider: Arc<dyn SelectionProvider> = Arc::new(FakeSelectionProvider::new(Err(
+            PlatformError::UnsupportedElement,
+        )));
         crate::block_on(assert_selection_contract(
-            || FakeSelectionProvider::new(Err(PlatformError::UnsupportedElement)),
+            || provider,
             Err(PlatformError::UnsupportedElement),
         ));
     }
@@ -94,11 +102,9 @@ mod tests {
     fn selection_contract_rejects_a_changed_surface_form() {
         let actual = candidate("CAFÉ");
         let expected = candidate("cafe");
+        let provider: Arc<dyn SelectionProvider> = Arc::new(FakeSelectionProvider::new(Ok(actual)));
 
-        crate::block_on(assert_selection_contract(
-            || FakeSelectionProvider::new(Ok(actual)),
-            Ok(expected),
-        ));
+        crate::block_on(assert_selection_contract(|| provider, Ok(expected)));
     }
 
     #[test]

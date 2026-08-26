@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use vocab_platform_api::{Capability, PlatformError, TranslationProvider, TranslationResult};
 
@@ -18,15 +20,14 @@ impl TranslationProvider for UnavailableTranslationProvider {
 }
 
 /// Verifies exact translation output or a typed error through the public contract.
-pub async fn assert_translation_contract<F, P>(
+pub async fn assert_translation_contract<F>(
     provider_factory: F,
     text: &str,
     source: &str,
     target: &str,
     expected: Result<TranslationResult, PlatformError>,
 ) where
-    F: FnOnce() -> P,
-    P: TranslationProvider,
+    F: FnOnce() -> Arc<dyn TranslationProvider>,
 {
     let actual = provider_factory().translate(text, source, target).await;
     assert_eq!(actual, expected);
@@ -34,14 +35,17 @@ pub async fn assert_translation_contract<F, P>(
 
 #[cfg(test)]
 mod tests {
-    use vocab_platform_api::{Capability, PlatformError};
+    use std::sync::Arc;
+
+    use vocab_platform_api::{Capability, PlatformError, TranslationProvider};
 
     use super::{UnavailableTranslationProvider, assert_translation_contract};
 
     #[test]
     fn unavailable_translation_contract_returns_the_typed_capability_error() {
+        let provider: Arc<dyn TranslationProvider> = Arc::new(UnavailableTranslationProvider);
         crate::block_on(assert_translation_contract(
-            || UnavailableTranslationProvider,
+            || provider,
             "Straße—CAFÉ 👩🏽‍💻",
             "de",
             "en",
@@ -52,8 +56,9 @@ mod tests {
     #[test]
     #[should_panic]
     fn translation_contract_rejects_a_different_typed_error() {
+        let provider: Arc<dyn TranslationProvider> = Arc::new(UnavailableTranslationProvider);
         crate::block_on(assert_translation_contract(
-            || UnavailableTranslationProvider,
+            || provider,
             "Straße",
             "de",
             "en",

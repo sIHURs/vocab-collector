@@ -3909,10 +3909,12 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 name = "vocab-application"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "chrono",
  "serde",
  "thiserror 2.0.20",
  "uuid",
+ "vocab-capture",
  "vocab-domain",
  "vocab-platform-api",
  "vocab-platform-contract-tests",

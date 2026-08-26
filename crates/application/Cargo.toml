@@ -10,9 +10,11 @@ chrono.workspace = true
 serde.workspace = true
 thiserror.workspace = true
 uuid.workspace = true
+vocab-capture = { path = "../capture" }
 vocab-domain = { path = "../domain" }
+vocab-platform-api = { path = "../platform-api" }
 vocab-storage = { path = "../storage" }
 
 [dev-dependencies]
-vocab-platform-api = { path = "../platform-api" }
+async-trait.workspace = true
 vocab-platform-contract-tests = { path = "../platform-contract-tests" }

@@ -2,6 +2,8 @@
 
 //! Application use cases exposed to desktop IPC.
 
+mod platform_capture;
+
 use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
@@ -13,6 +15,8 @@ use vocab_domain::{
     WordRepository, apply_review, build_review_queue,
 };
 use vocab_storage::{CaptureRecord, SqliteStore};
+
+pub use platform_capture::{PlatformCaptureError, PlatformCaptureWorkflow, PreparedCapture};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
