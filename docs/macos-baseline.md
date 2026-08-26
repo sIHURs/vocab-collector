@@ -9,8 +9,8 @@ record is the regression baseline for the `macos-mvp-v0.1.0` tag.
 | --- | --- |
 | Rust | `rustc 1.98.0 (88d9e12ae 2026-08-18)` |
 | Cargo | `cargo 1.98.0 (797e8a9bc 2026-08-05)` |
-| Node.js | `node`: command not found |
-| pnpm | Launcher installed, but it exits `env: node: No such file or directory` |
+| Node.js | `v24.19.0` |
+| pnpm | `11.19.0` |
 | Swift | `swift-driver version: 1.148.6 Apple Swift version 6.3.1 (swiftlang-6.3.1.1.2 clang-2100.0.123.102)`; target `arm64-apple-macosx26.0` |
 | Xcode | `Xcode 26.4.1`, build `17E202` |
 | macOS | `macOS 26.5` (`25F71`) |
@@ -26,13 +26,17 @@ this record was added.
 | `cargo fmt --all --check` | PASS |
 | `cargo clippy --workspace --all-targets -- -D warnings` | PASS |
 | `cargo test --workspace` | PASS (34 integration/unit tests; all doc tests pass) |
-| `pnpm check` | FAIL before execution: `env: node: No such file or directory` |
-| `pnpm test` | FAIL before execution: `env: node: No such file or directory` |
-| `pnpm build` | FAIL before execution: `env: node: No such file or directory` |
-| `pnpm tauri build --bundles app` | FAIL before execution: `env: node: No such file or directory` |
+| `pnpm check` | PASS: `svelte-check` found 0 errors and 0 warnings |
+| `pnpm test` | PASS: 4 test files and 8 tests pass |
+| `pnpm build` | PASS: Vite production bundle built |
+| `pnpm tauri build --bundles app` | PASS: built `target/release/bundle/macos/Vocab Collector.app` |
 
 Swift and Cargo commands were run with access to the existing SwiftPM and Clang
 user caches. No repository cache location was changed.
+
+The frontend and Tauri commands used the bundled Codex Node runtime on `PATH`.
+The Tauri invocation also needed the pre-existing Cargo bin directory on `PATH`
+so that Tauri could invoke Cargo; no repository configuration was changed.
 
 ## Permissions setup
 
@@ -65,8 +69,6 @@ signed application smoke test.
 
 ## Known defects / constraints
 
-- This environment has no runnable `node` binary. All four pnpm checks fail at
-  the pnpm launcher and therefore do not exercise the frontend or app bundle.
 - Manual app-level checks have not been performed in this baseline. Safari,
   Chrome, Firefox, Preview, Books, permission recovery, OCR confirmation,
   translation failure, Undo, dismissal, and multi-monitor placement remain
