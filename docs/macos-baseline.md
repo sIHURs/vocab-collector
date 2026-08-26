@@ -3,6 +3,14 @@
 Recorded on 2026-08-26 before the Plan A platform encapsulation refactor. This
 record is the regression baseline for the `macos-mvp-v0.1.0` tag.
 
+## Baseline references
+
+- `macos-mvp-v0.1.0` is the immutable source-baseline tag at the original
+  pre-refactor record commit.
+- `macos-mvp-v0.1.0-verified` identifies the final corrected verification
+  record. The original local baseline tag was mistakenly retargeted during
+  setup and restored to its original commit before handoff.
+
 ## Environment
 
 | Tool | Version / result |
