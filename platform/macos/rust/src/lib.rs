@@ -4,7 +4,7 @@ pub mod ffi;
 mod providers;
 
 pub use ffi::{
-    capture_ocr, capture_selection, permission_status, request_accessibility,
+    capture_ocr, capture_ocr_at, capture_selection, permission_status, request_accessibility,
     request_screen_recording, translate,
 };
 pub use providers::{

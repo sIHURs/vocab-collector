@@ -51,9 +51,9 @@ pub struct MacOcrProvider;
 impl OcrProvider for MacOcrProvider {
     async fn recognize_near(
         &self,
-        _pointer: ScreenPoint,
+        pointer: ScreenPoint,
     ) -> Result<Vec<OcrCandidate>, PlatformError> {
-        let candidate = ffi::capture_ocr()?;
+        let candidate = ffi::capture_ocr_at(pointer)?;
         Ok(vec![OcrCandidate {
             text: candidate.selected_text,
             bounds: candidate.selection_bounds.unwrap_or_default(),
@@ -73,8 +73,22 @@ impl TranslationProvider for MacTranslationProvider {
         source: &str,
         target: &str,
     ) -> Result<TranslationResult, PlatformError> {
-        ffi::translate(text, source, target)
+        let text = text.to_owned();
+        let source = source.to_owned();
+        let target = target.to_owned();
+        run_blocking(move || ffi::translate(&text, &source, &target)).await
     }
+}
+
+async fn run_blocking<T>(
+    operation: impl FnOnce() -> Result<T, PlatformError> + Send + 'static,
+) -> Result<T, PlatformError>
+where
+    T: Send + 'static,
+{
+    tokio::task::spawn_blocking(operation)
+        .await
+        .map_err(|_| PlatformError::Operation("native translation worker failed".into()))?
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -100,5 +114,66 @@ pub struct MacWindowProvider;
 impl WindowProvider for MacWindowProvider {
     fn configure_capture_window(&self) -> Result<(), PlatformError> {
         ffi::configure_capture_window()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::thread;
+
+    use vocab_platform_api::PlatformError;
+
+    use super::run_blocking;
+
+    #[test]
+    fn blocking_translation_work_runs_off_the_async_caller_thread() {
+        let caller = thread::current().id();
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
+
+        let worker = runtime
+            .block_on(run_blocking(move || Ok(thread::current().id())))
+            .unwrap();
+
+        assert_ne!(worker, caller);
+    }
+
+    #[test]
+    fn blocking_translation_preserves_native_operation_errors() {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
+
+        let error = runtime
+            .block_on(run_blocking(|| {
+                Err::<(), _>(PlatformError::Operation(
+                    "native translation timed out".into(),
+                ))
+            }))
+            .unwrap_err();
+
+        assert_eq!(
+            error,
+            PlatformError::Operation("native translation timed out".into())
+        );
+    }
+
+    #[test]
+    fn blocking_translation_maps_worker_failures_to_a_static_operation_error() {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
+
+        let error = runtime
+            .block_on(run_blocking(|| -> Result<(), PlatformError> {
+                panic!("worker failure must not become a bridge payload")
+            }))
+            .unwrap_err();
+
+        assert_eq!(
+            error,
+            PlatformError::Operation("native translation worker failed".into())
+        );
     }
 }

@@ -64,10 +64,19 @@ public func vocabMacRequestScreenRecording() -> UnsafeMutablePointer<CChar>? {
 
 @_cdecl("vocab_mac_capture_ocr")
 public func vocabMacCaptureOcr() -> UnsafeMutablePointer<CChar>? {
+    captureOcr(OcrCaptureRequest(x: NSEvent.mouseLocation.x, y: NSEvent.mouseLocation.y))
+}
+
+@_cdecl("vocab_mac_capture_ocr_at")
+public func vocabMacCaptureOcrAt(_ x: Double, _ y: Double) -> UnsafeMutablePointer<CChar>? {
+    captureOcr(OcrCaptureRequest(x: x, y: y))
+}
+
+private func captureOcr(_ request: OcrCaptureRequest) -> UnsafeMutablePointer<CChar>? {
     let semaphore = DispatchSemaphore(value: 0)
     let box = AsyncResultBox<SelectionPayload>()
     Task.detached {
-        do { box.result = .success(try await OcrCapture.captureNearPointer()) }
+        do { box.result = .success(try await OcrCapture.capture(near: request)) }
         catch { box.result = .failure(error) }
         semaphore.signal()
     }

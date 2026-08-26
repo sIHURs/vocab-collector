@@ -10,3 +10,12 @@ import Testing
     #expect(encoded["selectedText"] as? String == "serendipity")
     #expect(encoded["origin"] as? String == "accessibility")
 }
+
+@Test func ocrRequestPreservesExplicitPointerCoordinates() throws {
+    let request = OcrCaptureRequest(x: 137.25, y: -48.5)
+    let data = try JSONEncoder().encode(request)
+    let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Double])
+
+    #expect(object["x"] == 137.25)
+    #expect(object["y"] == -48.5)
+}

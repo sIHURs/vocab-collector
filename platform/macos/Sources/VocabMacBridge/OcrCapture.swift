@@ -11,10 +11,27 @@ public enum OcrCaptureError: Error, CustomStringConvertible {
     }
 }
 
+public struct OcrCaptureRequest: Codable, Equatable, Sendable {
+    public let x: Double
+    public let y: Double
+
+    public init(x: Double, y: Double) {
+        self.x = x
+        self.y = y
+    }
+}
+
 public enum OcrCapture {
     public static func captureNearPointer() async throws -> SelectionPayload {
+        try await capture(near: NSEvent.mouseLocation)
+    }
+
+    public static func capture(near request: OcrCaptureRequest) async throws -> SelectionPayload {
+        try await capture(near: CGPoint(x: request.x, y: request.y))
+    }
+
+    private static func capture(near pointer: CGPoint) async throws -> SelectionPayload {
         guard CGPreflightScreenCaptureAccess() else { throw OcrCaptureError.screenRecordingPermissionRequired }
-        let pointer = NSEvent.mouseLocation
         let display = NSScreen.screens.first(where: { $0.frame.contains(pointer) }) ?? NSScreen.main
         guard let display,
               let number = display.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID else { throw OcrCaptureError.screenshotUnavailable }

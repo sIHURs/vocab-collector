@@ -15,6 +15,7 @@ unsafe extern "C" {
     fn vocab_mac_capture_selection() -> *mut c_char;
     fn vocab_mac_request_screen_recording() -> *mut c_char;
     fn vocab_mac_capture_ocr() -> *mut c_char;
+    fn vocab_mac_capture_ocr_at(x: f64, y: f64) -> *mut c_char;
     fn vocab_mac_translate(
         text: *const c_char,
         source: *const c_char,
@@ -122,6 +123,21 @@ pub fn capture_ocr() -> Result<CaptureCandidate, PlatformError> {
     decode_owned(unsafe { vocab_mac_capture_ocr() })
 }
 
+pub fn capture_ocr_at(
+    pointer: vocab_platform_api::ScreenPoint,
+) -> Result<CaptureCandidate, PlatformError> {
+    forward_ocr_coordinates(pointer, |x, y| {
+        decode_owned(unsafe { vocab_mac_capture_ocr_at(x, y) })
+    })
+}
+
+fn forward_ocr_coordinates<T>(
+    pointer: vocab_platform_api::ScreenPoint,
+    invoke: impl FnOnce(f64, f64) -> T,
+) -> T {
+    invoke(pointer.x, pointer.y)
+}
+
 pub fn translate(
     text: &str,
     source: &str,
@@ -139,4 +155,19 @@ pub fn translate(
 pub(crate) fn configure_capture_window() -> Result<(), PlatformError> {
     let _: String = decode_owned(unsafe { vocab_mac_configure_capture_window() })?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use vocab_platform_api::ScreenPoint;
+
+    use super::forward_ocr_coordinates;
+
+    #[test]
+    fn forwards_requested_ocr_coordinates_without_sampling_new_pointer_data() {
+        let point = ScreenPoint::new(137.25, -48.5);
+        let forwarded = forward_ocr_coordinates(point, |x, y| (x, y));
+
+        assert_eq!(forwarded, (137.25, -48.5));
+    }
 }

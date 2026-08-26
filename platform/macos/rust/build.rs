@@ -8,6 +8,7 @@ fn main() {
             .unwrap()
             .to_owned();
         println!("cargo:rustc-link-arg=-Wl,-rpath,/usr/lib/swift");
+        println!("cargo::metadata=final-link-arg=-Wl,-rpath,/usr/lib/swift");
         println!(
             "cargo:rerun-if-changed={}",
             package_dir.join("Package.swift").display()
