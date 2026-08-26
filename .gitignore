@@ -2,6 +2,7 @@
 node_modules/
 .worktrees/
 platform/macos/.build/
+platform/macos/native/.build/
 /.pnpm-store/
 /ui/dist/
 /ui/coverage/
