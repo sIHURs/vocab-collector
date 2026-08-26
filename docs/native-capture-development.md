@@ -10,8 +10,8 @@ The default shortcut is `Alt+Shift+V`, displayed as `⌥ ⇧ V`. Users can recor
 
 - `crates/platform` owns portable capture, permission, translation, OCR, and geometry DTOs.
 - `crates/capture` owns the request coordinator, stale-result rejection, save-once gate, shortcut policy, repeat suppression, and deterministic multi-monitor placement.
-- `platform/macos` is a static Swift package. It contains Accessibility selection capture, sentence extraction, Apple Translation, ScreenCaptureKit screenshots, Vision OCR, and permission calls.
-- `apps/desktop/src-tauri/src/macos_bridge.rs` is the only Rust file containing native FFI. It immediately copies and frees bridge JSON and exposes safe Rust results.
+- `platform/macos/native` is a static Swift package. It contains Accessibility selection capture, sentence extraction, Apple Translation, ScreenCaptureKit screenshots, Vision OCR, and permission calls.
+- `platform/macos/rust` is the only Rust crate containing native FFI. It immediately copies and frees bridge JSON and exposes safe Rust results.
 - `apps/desktop/src-tauri/src/lib.rs` composes providers, registers the shortcut, positions the capture window, and exposes narrow commands.
 - `ui/src/FloatingCapture.svelte` is the shared capture card. The Tauri `capture` window is independent from the main window, transparent, always on top, and hidden by default.
 
@@ -50,9 +50,8 @@ The browser-only `pnpm dev` mode retains manual Quick Capture but cannot use sys
 Focused verification:
 
 ```bash
-swift test --package-path platform/macos
-cargo test -p vocab-capture
-cargo test -p vocab-desktop --lib
+swift test --package-path platform/macos/native
+cargo test -p vocab-platform-macos
 pnpm check
 pnpm test
 ```
