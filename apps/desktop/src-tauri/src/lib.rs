@@ -12,7 +12,7 @@ use vocab_domain::{CaptureCard, ReviewRating, TodayView, UserSettings, WordDetai
 use vocab_storage::SqliteStore;
 
 #[cfg(target_os = "macos")]
-mod macos_bridge;
+use vocab_platform_macos as macos_bridge;
 
 struct AppState {
     service: AppService,
@@ -421,7 +421,9 @@ pub fn run() {
                 coordinator: vocab_capture::CaptureCoordinator::default(),
             });
             #[cfg(target_os = "macos")]
-            macos_bridge::configure_capture_window()?;
+            macos_bridge::MacPlatform::new()?
+                .window
+                .configure_capture_window()?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

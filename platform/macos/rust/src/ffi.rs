@@ -5,7 +5,8 @@ use std::{
 
 use serde::Deserialize;
 use vocab_platform_api::{
-    CaptureCandidate, PermissionKind, PermissionStatus, PlatformError, TranslationResult,
+    Capability, CaptureCandidate, PermissionKind, PermissionStatus, PlatformError,
+    TranslationResult,
 };
 
 unsafe extern "C" {
@@ -41,7 +42,8 @@ fn decode_owned<T: for<'de> Deserialize<'de>>(pointer: *mut c_char) -> Result<T,
     decode(&json)
 }
 
-fn decode<T: for<'de> Deserialize<'de>>(json: &str) -> Result<T, PlatformError> {
+/// Decodes a JSON response from the native bridge without exposing its envelope to callers.
+pub fn decode<T: for<'de> Deserialize<'de>>(json: &str) -> Result<T, PlatformError> {
     let response: BridgeResponse<T> = serde_json::from_str(json)
         .map_err(|_| PlatformError::Operation("native bridge returned invalid data".into()))?;
     if response.ok {
@@ -49,11 +51,37 @@ fn decode<T: for<'de> Deserialize<'de>>(json: &str) -> Result<T, PlatformError> 
             .payload
             .ok_or_else(|| PlatformError::Operation("native bridge omitted its result".into()))
     } else {
-        Err(PlatformError::Operation(
-            response
-                .error
-                .unwrap_or_else(|| "native operation failed".into()),
-        ))
+        Err(map_native_error(response.error.as_deref()))
+    }
+}
+
+fn map_native_error(code: Option<&str>) -> PlatformError {
+    match code {
+        Some("noSelection") | Some("noTextFound") => PlatformError::EmptySelection,
+        Some("noFocusedElement") => PlatformError::UnsupportedElement,
+        Some("invalidSelectionRange") => PlatformError::InvalidSelectionRange,
+        Some("accessibilityPermissionRequired") => {
+            PlatformError::PermissionRequired(PermissionKind::Accessibility)
+        }
+        Some("screenRecordingPermissionRequired") => {
+            PlatformError::PermissionRequired(PermissionKind::ScreenRecording)
+        }
+        Some("accessibilityPermissionDenied") => {
+            PlatformError::PermissionDenied(PermissionKind::Accessibility)
+        }
+        Some("screenRecordingPermissionDenied") => {
+            PlatformError::PermissionDenied(PermissionKind::ScreenRecording)
+        }
+        Some("cancelled") => PlatformError::Cancelled,
+        Some("translationUnavailable") => PlatformError::Unsupported(Capability::Translation),
+        Some("screenshotUnavailable") => {
+            PlatformError::Operation("native screenshot is unavailable".into())
+        }
+        Some("ocrUnavailable") => PlatformError::Operation("native OCR is unavailable".into()),
+        Some("translationTimedOut") => {
+            PlatformError::Operation("native translation timed out".into())
+        }
+        _ => PlatformError::Operation("native bridge operation failed".into()),
     }
 }
 
@@ -108,26 +136,7 @@ pub fn translate(
     decode_owned(unsafe { vocab_mac_translate(text.as_ptr(), source.as_ptr(), target.as_ptr()) })
 }
 
-pub fn configure_capture_window() -> Result<(), PlatformError> {
+pub(crate) fn configure_capture_window() -> Result<(), PlatformError> {
     let _: String = decode_owned(unsafe { vocab_mac_configure_capture_window() })?;
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn decodes_selection_without_exposing_native_envelope() {
-        let candidate: CaptureCandidate = decode(r#"{"ok":true,"payload":{"selectedText":"serendipity","sentence":"A moment of serendipity.","sourceApp":"Safari","sourceTitle":null,"sourceUrl":null,"selectionBounds":{"x":10.0,"y":20.0,"width":80.0,"height":18.0},"origin":"accessibility"},"error":null}"#).unwrap();
-        assert_eq!(candidate.selected_text, "serendipity");
-        assert_eq!(candidate.sentence, "A moment of serendipity.");
-    }
-
-    #[test]
-    fn maps_native_failure_to_a_content_free_error() {
-        let error =
-            decode::<CaptureCandidate>(r#"{"ok":false,"payload":null,"error":"noSelection"}"#)
-                .unwrap_err();
-        assert_eq!(error.to_string(), "platform operation failed: noSelection");
-    }
 }

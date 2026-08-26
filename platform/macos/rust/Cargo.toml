@@ -1,0 +1,19 @@
+[package]
+name = "vocab-platform-macos"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+build = "build.rs"
+
+[dependencies]
+async-trait.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+vocab-platform-api = { path = "../../../crates/platform-api" }
+
+[dev-dependencies]
+vocab-platform-contract-tests = { path = "../../../crates/platform-contract-tests" }
+
+[target.'cfg(target_os = "macos")'.build-dependencies]
+swift-rs = { version = "1.0.8", features = ["build"] }

@@ -3939,7 +3939,6 @@ dependencies = [
  "chrono",
  "serde",
  "serde_json",
- "swift-rs",
  "tauri",
  "tauri-build",
  "tauri-plugin-global-shortcut",
@@ -3948,6 +3947,7 @@ dependencies = [
  "vocab-capture",
  "vocab-domain",
  "vocab-platform-api",
+ "vocab-platform-macos",
  "vocab-storage",
  "vocab-sync",
 ]
@@ -3979,6 +3979,18 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "vocab-platform-api",
+]
+
+[[package]]
+name = "vocab-platform-macos"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "serde",
+ "serde_json",
+ "swift-rs",
+ "vocab-platform-api",
+ "vocab-platform-contract-tests",
 ]
 
 [[package]]
