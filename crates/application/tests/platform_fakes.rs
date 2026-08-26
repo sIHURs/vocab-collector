@@ -1,6 +1,9 @@
 use std::{
     future::Future,
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
     task::{Context, Poll, Wake, Waker},
     thread,
 };
@@ -12,7 +15,7 @@ use vocab_capture::CoordinatorError;
 use vocab_platform_api::{
     Capability, CaptureCandidate, CaptureOrigin, OcrCandidate, OcrProvider, PermissionKind,
     PermissionProvider, PermissionStatus, PlatformCapabilities, PlatformError, PlatformServices,
-    ScreenPoint, WindowProvider,
+    ScreenPoint, TranslationProvider, TranslationResult, WindowProvider,
 };
 use vocab_platform_contract_tests::{FakeSelectionProvider, UnavailableTranslationProvider};
 use vocab_storage::SqliteStore;
@@ -29,6 +32,13 @@ fn candidate(selected_text: &str) -> CaptureCandidate {
     }
 }
 
+fn ocr_candidate(selected_text: &str) -> CaptureCandidate {
+    CaptureCandidate {
+        origin: CaptureOrigin::Ocr,
+        ..candidate(selected_text)
+    }
+}
+
 fn captured_at() -> DateTime<Utc> {
     Utc.with_ymd_and_hms(2026, 8, 26, 12, 0, 0).unwrap()
 }
@@ -36,20 +46,33 @@ fn captured_at() -> DateTime<Utc> {
 fn workflow(
     selection: Result<CaptureCandidate, PlatformError>,
 ) -> (PlatformCaptureWorkflow, Arc<AppService>) {
+    workflow_with_translation(selection, Arc::new(UnavailableTranslationProvider))
+}
+
+fn workflow_with_translation(
+    selection: Result<CaptureCandidate, PlatformError>,
+    translation: Arc<dyn TranslationProvider>,
+) -> (PlatformCaptureWorkflow, Arc<AppService>) {
     let store = Arc::new(SqliteStore::open_in_memory().unwrap());
     let application = Arc::new(AppService::new(store, Uuid::now_v7()));
     (
-        PlatformCaptureWorkflow::new(application.clone(), platform_services(selection)),
+        PlatformCaptureWorkflow::new(
+            application.clone(),
+            platform_services(selection, translation),
+        ),
         application,
     )
 }
 
-fn platform_services(selection: Result<CaptureCandidate, PlatformError>) -> PlatformServices {
+fn platform_services(
+    selection: Result<CaptureCandidate, PlatformError>,
+    translation: Arc<dyn TranslationProvider>,
+) -> PlatformServices {
     PlatformServices {
         capabilities: PlatformCapabilities::default(),
         selection: Arc::new(FakeSelectionProvider::new(selection)),
         ocr: Arc::new(UnusedOcrProvider),
-        translation: Arc::new(UnavailableTranslationProvider),
+        translation,
         permissions: Arc::new(UnusedPermissionProvider),
         window: Arc::new(UnusedWindowProvider),
     }
@@ -85,6 +108,27 @@ struct UnusedWindowProvider;
 impl WindowProvider for UnusedWindowProvider {
     fn configure_capture_window(&self) -> Result<(), PlatformError> {
         Err(PlatformError::Unsupported(Capability::NonActivatingWindow))
+    }
+}
+
+struct CountingTranslationProvider {
+    calls: Arc<AtomicUsize>,
+}
+
+#[async_trait::async_trait]
+impl TranslationProvider for CountingTranslationProvider {
+    async fn translate(
+        &self,
+        _text: &str,
+        _source: &str,
+        _target: &str,
+    ) -> Result<TranslationResult, PlatformError> {
+        self.calls.fetch_add(1, Ordering::SeqCst);
+        Ok(TranslationResult {
+            translated_text: "unused".into(),
+            source_language: "en".into(),
+            target_language: "de".into(),
+        })
     }
 }
 
@@ -151,6 +195,23 @@ fn unsupported_selection_returns_the_typed_error_without_saving() {
             PlatformError::UnsupportedElement
         ))
     ));
+    assert!(application.list_words().unwrap().is_empty());
+}
+
+#[test]
+fn ocr_origin_requires_task_six_confirmation_without_translation_or_persistence() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let translation: Arc<dyn TranslationProvider> = Arc::new(CountingTranslationProvider {
+        calls: calls.clone(),
+    });
+    let (workflow, application) =
+        workflow_with_translation(Ok(ocr_candidate("serendipity")), translation);
+
+    assert!(matches!(
+        block_on(workflow.prepare_selection()),
+        Err(PlatformCaptureError::OcrConfirmationRequired)
+    ));
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
     assert!(application.list_words().unwrap().is_empty());
 }
 

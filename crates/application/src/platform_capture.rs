@@ -5,8 +5,8 @@ use uuid::Uuid;
 use vocab_capture::{CaptureCoordinator, CoordinatorError};
 use vocab_domain::CaptureCard;
 use vocab_platform_api::{
-    CaptureCandidate, PlatformError, PlatformServices, SelectionProvider, TranslationProvider,
-    TranslationResult,
+    CaptureCandidate, CaptureOrigin, PlatformError, PlatformServices, SelectionProvider,
+    TranslationProvider, TranslationResult,
 };
 
 use crate::{AppService, ApplicationError, CaptureRequest};
@@ -21,6 +21,8 @@ pub struct PreparedCapture {
 
 #[derive(Debug, thiserror::Error)]
 pub enum PlatformCaptureError {
+    #[error("OCR-origin capture requires explicit confirmation")]
+    OcrConfirmationRequired,
     #[error("{0}")]
     Platform(#[from] PlatformError),
     #[error("{0}")]
@@ -47,8 +49,12 @@ impl PlatformCaptureWorkflow {
     }
 
     pub async fn prepare_selection(&self) -> Result<PreparedCapture, PlatformCaptureError> {
-        let request_id = self.coordinator.start();
         let candidate = self.selection.capture_selection().await?;
+        if candidate.origin == CaptureOrigin::Ocr {
+            return Err(PlatformCaptureError::OcrConfirmationRequired);
+        }
+
+        let request_id = self.coordinator.start();
         self.coordinator
             .set_candidate(request_id, candidate.clone())?;
 
