@@ -1,15 +1,15 @@
 # macOS MVP baseline
 
 Recorded on 2026-08-26 before the Plan A platform encapsulation refactor. This
-record is the regression baseline for the `macos-mvp-v0.1.0` tag.
+record is the regression baseline for the `macos-mvp-v0.1.0-baseline` tag.
 
 ## Baseline references
 
-- `macos-mvp-v0.1.0` is the immutable source-baseline tag at the original
-  pre-refactor record commit.
-- `macos-mvp-v0.1.0-verified` identifies the final corrected verification
-  record. The original local baseline tag was mistakenly retargeted during
-  setup and restored to its original commit before handoff.
+- `macos-mvp-v0.1.0-baseline` is the one canonical, immutable handoff baseline
+  tag for this record.
+- The earlier local alias `macos-mvp-v0.1.0` was moved during verification
+  setup, so it was discarded before handoff rather than reused. The temporary
+  verification tag was also removed for a single unambiguous baseline reference.
 
 ## Environment
 
