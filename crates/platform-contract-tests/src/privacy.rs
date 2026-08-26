@@ -1,0 +1,40 @@
+use vocab_platform_api::PlatformError;
+
+/// Asserts that a rendered provider error does not disclose captured fixture content.
+pub fn assert_error_is_content_free(error: &PlatformError, private_values: &[&str]) {
+    let diagnostic = error.to_string();
+    for value in private_values
+        .iter()
+        .copied()
+        .filter(|value| !value.is_empty())
+    {
+        assert!(
+            !diagnostic.contains(value),
+            "platform diagnostic disclosed captured content"
+        );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use vocab_platform_api::{Capability, PlatformError};
+
+    use super::assert_error_is_content_free;
+
+    #[test]
+    fn typed_unavailable_error_excludes_private_fixture_values() {
+        assert_error_is_content_free(
+            &PlatformError::Unsupported(Capability::Translation),
+            &["Straße—CAFÉ 👩🏽‍💻", "private reading context"],
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "platform diagnostic disclosed captured content")]
+    fn privacy_assertion_rejects_a_diagnostic_containing_fixture_content() {
+        assert_error_is_content_free(
+            &PlatformError::Operation("failed while reading private context".into()),
+            &["private context"],
+        );
+    }
+}

@@ -3914,6 +3914,8 @@ dependencies = [
  "thiserror 2.0.20",
  "uuid",
  "vocab-domain",
+ "vocab-platform-api",
+ "vocab-platform-contract-tests",
  "vocab-storage",
 ]
 
@@ -3967,6 +3969,14 @@ dependencies = [
  "serde",
  "thiserror 2.0.20",
  "vocab-domain",
+]
+
+[[package]]
+name = "vocab-platform-contract-tests"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "vocab-platform-api",
 ]
 
 [[package]]

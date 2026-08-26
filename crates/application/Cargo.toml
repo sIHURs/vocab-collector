@@ -12,3 +12,7 @@ thiserror.workspace = true
 uuid.workspace = true
 vocab-domain = { path = "../domain" }
 vocab-storage = { path = "../storage" }
+
+[dev-dependencies]
+vocab-platform-api = { path = "../platform-api" }
+vocab-platform-contract-tests = { path = "../platform-contract-tests" }
