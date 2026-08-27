@@ -25,8 +25,9 @@ The browser backend and Rust application service implement the same frontend-fac
 ## Quality gates
 
 On macOS, exclude the Linux and Windows adapter skeletons from native Rust
-checks. Those crates are compiled, tested, and runtime-verified only on their
-physical target hosts or the corresponding target-specific CI jobs.
+checks. Their compilation and automated tests run on physical target hosts or
+the corresponding target-specific CI jobs. Runtime, permission, and native
+integration verification runs only on the physical target machines.
 
 ```bash
 cargo fmt --all --check
