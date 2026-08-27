@@ -34,12 +34,23 @@ struct BridgeResponse<T> {
 }
 
 fn decode_owned<T: for<'de> Deserialize<'de>>(pointer: *mut c_char) -> Result<T, PlatformError> {
+    unsafe {
+        decode_owned_with(pointer, |pointer| {
+            vocab_mac_free_string(pointer.as_ptr());
+        })
+    }
+}
+
+unsafe fn decode_owned_with<T: for<'de> Deserialize<'de>>(
+    pointer: *mut c_char,
+    free: impl FnOnce(NonNull<c_char>),
+) -> Result<T, PlatformError> {
     let pointer = NonNull::new(pointer)
         .ok_or_else(|| PlatformError::Operation("native bridge returned no data".into()))?;
     let json = unsafe { CStr::from_ptr(pointer.as_ptr()) }
         .to_string_lossy()
         .into_owned();
-    unsafe { vocab_mac_free_string(pointer.as_ptr()) };
+    free(pointer);
     decode(&json)
 }
 
@@ -159,9 +170,11 @@ pub(crate) fn configure_capture_window() -> Result<(), PlatformError> {
 
 #[cfg(test)]
 mod tests {
+    use std::{cell::Cell, ffi::CString, ptr};
+
     use vocab_platform_api::ScreenPoint;
 
-    use super::forward_ocr_coordinates;
+    use super::{decode_owned_with, forward_ocr_coordinates};
 
     #[test]
     fn forwards_requested_ocr_coordinates_without_sampling_new_pointer_data() {
@@ -169,5 +182,63 @@ mod tests {
         let forwarded = forward_ocr_coordinates(point, |x, y| (x, y));
 
         assert_eq!(forwarded, (137.25, -48.5));
+    }
+
+    #[test]
+    fn frees_a_non_null_native_string_once_before_returning_success() {
+        let pointer = CString::new(r#"{"ok":true,"payload":"ready","error":null}"#)
+            .unwrap()
+            .into_raw();
+        let free_count = Cell::new(0);
+
+        let result: Result<String, _> = unsafe {
+            decode_owned_with(pointer, |pointer| {
+                free_count.set(free_count.get() + 1);
+                drop(CString::from_raw(pointer.as_ptr()));
+            })
+        };
+
+        assert_eq!(result.unwrap(), "ready");
+        assert_eq!(free_count.get(), 1);
+    }
+
+    #[test]
+    fn frees_a_non_null_native_string_once_before_returning_invalid_json() {
+        let pointer = CString::new("private malformed bridge payload")
+            .unwrap()
+            .into_raw();
+        let free_count = Cell::new(0);
+
+        let result: Result<String, _> = unsafe {
+            decode_owned_with(pointer, |pointer| {
+                free_count.set(free_count.get() + 1);
+                drop(CString::from_raw(pointer.as_ptr()));
+            })
+        };
+
+        assert_eq!(
+            result.unwrap_err(),
+            vocab_platform_api::PlatformError::Operation(
+                "native bridge returned invalid data".into()
+            )
+        );
+        assert_eq!(free_count.get(), 1);
+    }
+
+    #[test]
+    fn null_native_string_returns_typed_no_data_without_calling_free() {
+        let free_count = Cell::new(0);
+
+        let result: Result<String, _> = unsafe {
+            decode_owned_with(ptr::null_mut(), |_| {
+                free_count.set(free_count.get() + 1);
+            })
+        };
+
+        assert_eq!(
+            result.unwrap_err(),
+            vocab_platform_api::PlatformError::Operation("native bridge returned no data".into())
+        );
+        assert_eq!(free_count.get(), 0);
     }
 }

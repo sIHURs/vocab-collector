@@ -74,13 +74,33 @@ public enum OcrCapture {
             sourceApp: NSWorkspace.shared.frontmostApplication?.localizedName,
             sourceTitle: nil,
             sourceUrl: nil,
-            selectionBounds: BridgeRect(
-                x: display.frame.minX + region.minX + bounds.minX * region.width,
-                y: display.frame.minY + region.minY + (1 - bounds.maxY) * region.height,
-                width: bounds.width * region.width,
-                height: bounds.height * region.height
+            selectionBounds: normalizedBounds(
+                primaryFrame: NSScreen.screens.first?.frame ?? display.frame,
+                displayFrame: display.frame,
+                captureRegion: region,
+                recognizedBounds: bounds
             ),
             origin: "ocr"
+        )
+    }
+
+    static func normalizedBounds(
+        primaryFrame: CGRect,
+        displayFrame: CGRect,
+        captureRegion: CGRect,
+        recognizedBounds: CGRect
+    ) -> BridgeRect {
+        let recognizedCocoaLeft = displayFrame.minX + captureRegion.minX
+            + recognizedBounds.minX * captureRegion.width
+        let recognizedTopOffset = captureRegion.minY
+            + (1 - recognizedBounds.maxY) * captureRegion.height
+        let recognizedCocoaTop = displayFrame.maxY - recognizedTopOffset
+
+        return BridgeRect(
+            x: recognizedCocoaLeft - primaryFrame.minX,
+            y: primaryFrame.maxY - recognizedCocoaTop,
+            width: recognizedBounds.width * captureRegion.width,
+            height: recognizedBounds.height * captureRegion.height
         )
     }
 

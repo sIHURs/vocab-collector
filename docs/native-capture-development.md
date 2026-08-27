@@ -8,11 +8,12 @@ The default shortcut is `Alt+Shift+V`, displayed as `⌥ ⇧ V`. Users can recor
 
 ## Architecture
 
-- `crates/platform` owns portable capture, permission, translation, OCR, and geometry DTOs.
-- `crates/capture` owns the request coordinator, stale-result rejection, save-once gate, shortcut policy, repeat suppression, and deterministic multi-monitor placement.
+- `crates/platform-api` owns portable capture, permission, translation, OCR, and geometry DTOs, typed `PlatformError` values, capability reporting, and the small `SelectionProvider`, `OcrProvider`, `TranslationProvider`, `PermissionProvider`, and `WindowProvider` traits. `PlatformServices` is the injected provider bundle.
+- `crates/capture` owns the single capture coordinator, stale-result rejection, save-once gate, shortcut policy, repeat suppression, and deterministic multi-monitor placement.
+- `crates/application::PlatformCaptureWorkflow` combines that coordinator with shared application persistence and the injected providers. It is the one product workflow for both Accessibility and explicitly confirmed OCR candidates.
 - `platform/macos/native` is a static Swift package. It contains Accessibility selection capture, sentence extraction, Apple Translation, ScreenCaptureKit screenshots, Vision OCR, and permission calls.
 - `platform/macos/rust` is the only Rust crate containing native FFI. It immediately copies and frees bridge JSON and exposes safe Rust results.
-- `apps/desktop/src-tauri/src/lib.rs` composes providers, registers the shortcut, positions the capture window, and exposes narrow commands.
+- `apps/desktop/src-tauri/src/bootstrap.rs` selects the target adapter and injects its `PlatformServices`; `commands/` and `events.rs` expose a target-independent command/event surface. `lib.rs` performs only Tauri setup, shortcut registration, and composition.
 - `ui/src/FloatingCapture.svelte` is the shared capture card. The Tauri `capture` window is independent from the main window, transparent, always on top, and hidden by default.
 
 No captured text, translation, URL, context, OCR image, or screenshot is written to logs. OCR screenshots live only in memory for the duration of the Vision request.
@@ -20,14 +21,19 @@ No captured text, translation, URL, context, OCR image, or screenshot is written
 ## Runtime flow
 
 1. The global-shortcut plugin receives a `Pressed` transition for the persisted accelerator.
-2. Swift queries the focused Accessibility element for selected text, full text, range bounds, application metadata, and document URL.
-3. Rust chooses the correct monitor, places the 380×280 card above the selection when possible, and shows the hidden capture window.
-4. The capture UI asks the local Apple Translation framework for the configured language pair; Rust accepts the result only if its request UUID is still current.
-5. The Rust coordinator admits the request through a save-once gate, then stores the encounter, capture origin, and available translation through the application service and SQLite transaction.
+2. `PlatformCaptureWorkflow` uses the injected selection provider. The macOS Rust adapter calls Swift, which queries the focused Accessibility element for selected text, context, range bounds, application metadata, and document URL.
+3. The same coordinator admits the candidate and rejects stale request UUIDs. Shared Rust chooses the monitor, places the 380×280 card, and publishes the typed event only while the request is current.
+4. The capture UI invokes the target-independent translation command. The workflow authorizes the transition before calling the injected provider and accepts the result only while the same request remains current.
+5. The coordinator applies the save-once gate, then the application service stores the encounter, origin, and available translation in one SQLite transaction.
 6. The card dismisses after four seconds. Hover pauses the timer; Undo soft-deletes the new encounter.
-7. When Accessibility cannot obtain a selection, the card offers OCR. OCR runs only after explicit user action and Screen Recording approval, then selects the Vision text observation nearest the pointer.
+7. When Accessibility cannot obtain a selection, the card offers OCR only when the reported capability permits it. OCR capture runs after explicit user action and Screen Recording approval; the suggested candidate must then be explicitly confirmed before translation or save. Swift converts Vision bounds into the shared primary-top-left logical coordinate convention.
 
 If an Apple language pack is unavailable or translation fails, the card offers an explicit **Save without translation** action. A later enrichment/sync worker can fill the translation without changing the capture boundary.
+
+Commands return a stable `CaptureFailure` object. Its `code` is one of
+`permission_required`, `permission_denied`, `empty_selection`,
+`unsupported_element`, `translation_unavailable`, `cancelled`, or
+`operation`; UI copy does not branch on native Swift strings or an OS name.
 
 ## Permissions
 
@@ -60,8 +66,9 @@ Full verification and a local application bundle:
 
 ```bash
 cargo fmt --all --check
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace
+cargo clippy --workspace --all-targets --exclude vocab-platform-linux --exclude vocab-platform-windows -- -D warnings
+cargo test --workspace --exclude vocab-platform-linux --exclude vocab-platform-windows
+cargo build --workspace --exclude vocab-platform-linux --exclude vocab-platform-windows
 pnpm check
 pnpm test
 pnpm build
@@ -72,4 +79,8 @@ The `.app` output is created under `target/release/bundle/macos/`. Distribution 
 
 ## Porting boundary
 
-Windows and Linux implementations replace only the native selection, permission, OCR, and window adapters. They reuse the capture coordinator contracts, placement tests, shortcut policy, Svelte card, application service, and storage. See `docs/cross-platform-porting-guide.md` for the per-OS adapter checklist.
+Windows and Linux replace only the provider implementations selected in the
+desktop composition root. Their Plan A crates are static skeletons with all
+capabilities set to `false` and typed `Unsupported` results; they have not been
+compiled or run on this Mac. Plan B implements and verifies each native adapter
+on its physical target machine. See `docs/cross-platform-porting-guide.md`.
