@@ -56,6 +56,14 @@ impl PlatformCaptureWorkflow {
         self.coordinator.is_current(request_id)
     }
 
+    pub fn publish_if_current<T>(
+        &self,
+        request_id: Uuid,
+        publish: impl FnOnce() -> T,
+    ) -> Result<T, PlatformCaptureError> {
+        Ok(self.coordinator.publish_if_current(request_id, publish)?)
+    }
+
     pub fn set_candidate(
         &self,
         request_id: Uuid,
@@ -63,6 +71,17 @@ impl PlatformCaptureWorkflow {
     ) -> Result<(), PlatformCaptureError> {
         self.coordinator.set_candidate(request_id, candidate)?;
         Ok(())
+    }
+
+    pub fn set_candidate_and_publish<T>(
+        &self,
+        request_id: Uuid,
+        candidate: CaptureCandidate,
+        publish: impl FnOnce() -> T,
+    ) -> Result<T, PlatformCaptureError> {
+        Ok(self
+            .coordinator
+            .set_candidate_and_publish(request_id, candidate, publish)?)
     }
 
     pub fn confirm_ocr(&self, request_id: Uuid) -> Result<(), PlatformCaptureError> {

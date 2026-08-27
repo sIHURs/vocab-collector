@@ -99,14 +99,34 @@ pub async fn capture_with_ocr(
     // Tauri reports a logical top-left desktop point. AppKit's OCR entry point consumes
     // Cocoa global coordinates, whose Y axis starts at the primary display's bottom edge.
     let cocoa_pointer = portable_top_left_to_cocoa(portable_pointer, primary_bounds);
-    window.hide().map_err(|error| error.to_string())?;
+    state
+        .publish_if_current(request_id, || {
+            window.hide().map_err(|error| error.to_string())
+        })
+        .map_err(|error| error.to_string())??;
     let candidates = state.recognize_near(cocoa_pointer).await;
-    window.show().map_err(|error| error.to_string())?;
-    let best = candidates
-        .map_err(|error| error.to_string())?
+    let candidates = match candidates {
+        Ok(candidates) => candidates,
+        Err(error) => {
+            state
+                .publish_if_current(request_id, || {
+                    window.show().map_err(|error| error.to_string())
+                })
+                .map_err(|error| error.to_string())??;
+            return Err(error.to_string());
+        }
+    };
+    let Some(best) = candidates
         .into_iter()
         .max_by(|left, right| left.confidence.total_cmp(&right.confidence))
-        .ok_or_else(|| "OCR did not find readable text".to_string())?;
+    else {
+        state
+            .publish_if_current(request_id, || {
+                window.show().map_err(|error| error.to_string())
+            })
+            .map_err(|error| error.to_string())??;
+        return Err("OCR did not find readable text".to_string());
+    };
     let candidate = CaptureCandidate {
         selected_text: best.text.clone(),
         sentence: best.text,
@@ -117,17 +137,19 @@ pub async fn capture_with_ocr(
         origin: CaptureOrigin::Ocr,
     };
     state
-        .set_capture_candidate(request_id, candidate.clone())
-        .map_err(|error| error.to_string())?;
-    window
-        .emit(
-            "ocr-candidate",
-            NativeCaptureEvent {
-                request_id,
-                candidate,
-            },
-        )
-        .map_err(|error| error.to_string())
+        .set_capture_candidate_and_publish(request_id, candidate.clone(), || {
+            window.show().map_err(|error| error.to_string())?;
+            window
+                .emit(
+                    "ocr-candidate",
+                    NativeCaptureEvent {
+                        request_id,
+                        candidate,
+                    },
+                )
+                .map_err(|error| error.to_string())
+        })
+        .map_err(|error| error.to_string())?
 }
 
 #[tauri::command]
@@ -203,27 +225,29 @@ pub(crate) async fn present_native_capture(
         &work_areas,
         ScreenSize::new(380.0, 280.0),
     );
-    window
-        .set_position(LogicalPosition::new(position.x, position.y))
+    state
+        .publish_if_current(prepared.request_id, || {
+            window
+                .set_position(LogicalPosition::new(position.x, position.y))
+                .map_err(|error| error.to_string())?;
+            window.show().map_err(|error| error.to_string())?;
+            window
+                .emit(
+                    "capture-ready",
+                    NativeCaptureEvent {
+                        request_id: prepared.request_id,
+                        candidate: prepared.candidate,
+                    },
+                )
+                .map_err(|error| error.to_string())
+        })
         .map_err(|error| NativeCaptureError {
             request_id: prepared.request_id,
             message: error.to_string(),
-        })?;
-    window.show().map_err(|error| NativeCaptureError {
-        request_id: prepared.request_id,
-        message: error.to_string(),
-    })?;
-    window
-        .emit(
-            "capture-ready",
-            NativeCaptureEvent {
-                request_id: prepared.request_id,
-                candidate: prepared.candidate,
-            },
-        )
-        .map_err(|error| NativeCaptureError {
+        })?
+        .map_err(|message| NativeCaptureError {
             request_id: prepared.request_id,
-            message: error.to_string(),
+            message,
         })
 }
 

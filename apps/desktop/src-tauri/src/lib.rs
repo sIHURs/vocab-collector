@@ -27,15 +27,18 @@ pub fn run() {
                     if shortcut_gate.accept(state) {
                         let app = app.clone();
                         tauri::async_runtime::spawn(async move {
-                            if let Err(error) = capture::present_native_capture(&app).await
-                                && let Some(window) = app.get_webview_window("capture")
-                                && app
-                                    .state::<bootstrap::AppState>()
-                                    .is_current_capture_request(error.request_id)
-                            {
-                                let _ = window.show();
-                                let _ = window
-                                    .emit("capture-error", NativeCaptureErrorEvent::from(error));
+                            if let Err(error) = capture::present_native_capture(&app).await {
+                                let request_id = error.request_id;
+                                let state = app.state::<bootstrap::AppState>();
+                                let _ = state.publish_if_current(request_id, || {
+                                    if let Some(window) = app.get_webview_window("capture") {
+                                        let _ = window.show();
+                                        let _ = window.emit(
+                                            "capture-error",
+                                            NativeCaptureErrorEvent::from(error),
+                                        );
+                                    }
+                                });
                             }
                         });
                     }

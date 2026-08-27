@@ -58,6 +58,23 @@ impl CaptureCoordinator {
             .is_some_and(|session| session.request_id == request_id)
     }
 
+    /// Runs synchronous observable publication only while `request_id` is current.
+    ///
+    /// The session lock remains held for the closure, so `start` cannot replace
+    /// the request between currentness validation and the visible side effects.
+    /// Callers must not perform asynchronous work or re-enter the coordinator
+    /// inside this closure.
+    pub fn publish_if_current<T>(
+        &self,
+        request_id: Uuid,
+        publish: impl FnOnce() -> T,
+    ) -> Result<T, CoordinatorError> {
+        let guard = self.current(request_id)?;
+        let result = publish();
+        drop(guard);
+        Ok(result)
+    }
+
     pub fn translation(
         &self,
         request_id: Uuid,
@@ -85,6 +102,28 @@ impl CaptureCoordinator {
     ) -> Result<(), CoordinatorError> {
         let mut guard = self.current(request_id)?;
         let session = guard.as_mut().ok_or(CoordinatorError::StaleRequest)?;
+        Self::accept_candidate(session, candidate)
+    }
+
+    /// Applies a candidate and synchronously publishes it under one current-request guard.
+    pub fn set_candidate_and_publish<T>(
+        &self,
+        request_id: Uuid,
+        candidate: CaptureCandidate,
+        publish: impl FnOnce() -> T,
+    ) -> Result<T, CoordinatorError> {
+        let mut guard = self.current(request_id)?;
+        let session = guard.as_mut().ok_or(CoordinatorError::StaleRequest)?;
+        Self::accept_candidate(session, candidate)?;
+        let result = publish();
+        drop(guard);
+        Ok(result)
+    }
+
+    fn accept_candidate(
+        session: &mut Session,
+        candidate: CaptureCandidate,
+    ) -> Result<(), CoordinatorError> {
         if session.phase != Phase::Capturing {
             return Err(CoordinatorError::InvalidTransition);
         }

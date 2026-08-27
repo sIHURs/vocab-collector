@@ -1,3 +1,13 @@
+use std::{
+    sync::{
+        Arc, Condvar, Mutex,
+        atomic::{AtomicBool, Ordering},
+        mpsc,
+    },
+    thread,
+    time::Duration,
+};
+
 use vocab_capture::{CaptureCoordinator, CoordinatorError};
 use vocab_platform_api::{CaptureCandidate, CaptureOrigin, TranslationResult};
 
@@ -132,6 +142,101 @@ fn only_one_translation_provider_call_can_be_in_flight() {
         coordinator.begin_translation(request),
         Err(CoordinatorError::InvalidTransition)
     );
+}
+
+#[test]
+fn stale_request_publication_never_runs_its_closure() {
+    let coordinator = CaptureCoordinator::default();
+    let stale = coordinator.start();
+    let current = coordinator.start();
+    let published = AtomicBool::new(false);
+
+    assert_eq!(
+        coordinator.publish_if_current(stale, || published.store(true, Ordering::SeqCst)),
+        Err(CoordinatorError::StaleRequest)
+    );
+    assert!(!published.load(Ordering::SeqCst));
+    assert!(coordinator.is_current(current));
+}
+
+#[test]
+fn starting_a_new_request_waits_for_current_publication_to_finish() {
+    let coordinator = Arc::new(CaptureCoordinator::default());
+    let request = coordinator.start();
+    let publication_entered = Arc::new((Mutex::new(false), Condvar::new()));
+    let release_publication = Arc::new((Mutex::new(false), Condvar::new()));
+
+    let publishing_coordinator = coordinator.clone();
+    let publishing_entered = publication_entered.clone();
+    let publishing_release = release_publication.clone();
+    let publication = thread::spawn(move || {
+        publishing_coordinator
+            .publish_if_current(request, || {
+                let (entered, signal) = &*publishing_entered;
+                *entered.lock().unwrap() = true;
+                signal.notify_one();
+
+                let (released, signal) = &*publishing_release;
+                let mut released = released.lock().unwrap();
+                while !*released {
+                    released = signal.wait(released).unwrap();
+                }
+            })
+            .unwrap();
+    });
+
+    let (entered, signal) = &*publication_entered;
+    let mut entered = entered.lock().unwrap();
+    while !*entered {
+        entered = signal.wait(entered).unwrap();
+    }
+    drop(entered);
+
+    let (started_tx, started_rx) = mpsc::channel();
+    let starting_coordinator = coordinator.clone();
+    let start = thread::spawn(move || {
+        started_tx.send(starting_coordinator.start()).unwrap();
+    });
+    let start_was_blocked = matches!(
+        started_rx.recv_timeout(Duration::from_millis(100)),
+        Err(mpsc::RecvTimeoutError::Timeout)
+    );
+
+    let (released, signal) = &*release_publication;
+    *released.lock().unwrap() = true;
+    signal.notify_one();
+    publication.join().unwrap();
+    let next_request = started_rx.recv_timeout(Duration::from_secs(1)).unwrap();
+    start.join().unwrap();
+
+    assert!(start_was_blocked);
+    assert_ne!(request, next_request);
+    assert!(coordinator.is_current(next_request));
+}
+
+#[test]
+fn candidate_transition_and_publication_use_the_same_current_request_guard() {
+    let coordinator = CaptureCoordinator::default();
+    let stale = coordinator.start();
+    let current = coordinator.start();
+    let stale_published = AtomicBool::new(false);
+    let current_published = AtomicBool::new(false);
+
+    assert_eq!(
+        coordinator.set_candidate_and_publish(stale, candidate(CaptureOrigin::Ocr), || {
+            stale_published.store(true, Ordering::SeqCst);
+        }),
+        Err(CoordinatorError::StaleRequest)
+    );
+    coordinator
+        .set_candidate_and_publish(current, candidate(CaptureOrigin::Ocr), || {
+            current_published.store(true, Ordering::SeqCst);
+        })
+        .unwrap();
+
+    assert!(!stale_published.load(Ordering::SeqCst));
+    assert!(current_published.load(Ordering::SeqCst));
+    coordinator.confirm_ocr(current).unwrap();
 }
 
 #[test]

@@ -111,6 +111,14 @@ impl AppState {
         self.workflow.is_current(request_id)
     }
 
+    pub fn publish_if_current<T>(
+        &self,
+        request_id: Uuid,
+        publish: impl FnOnce() -> T,
+    ) -> Result<T, vocab_application::PlatformCaptureError> {
+        self.workflow.publish_if_current(request_id, publish)
+    }
+
     pub async fn prepare_selection_for(
         &self,
         request_id: Uuid,
@@ -122,12 +130,14 @@ impl AppState {
         self.window.configure_capture_window()
     }
 
-    pub(crate) fn set_capture_candidate(
+    pub(crate) fn set_capture_candidate_and_publish<T>(
         &self,
         request_id: Uuid,
         candidate: CaptureCandidate,
-    ) -> Result<(), vocab_application::PlatformCaptureError> {
-        self.workflow.set_candidate(request_id, candidate)
+        publish: impl FnOnce() -> T,
+    ) -> Result<T, vocab_application::PlatformCaptureError> {
+        self.workflow
+            .set_candidate_and_publish(request_id, candidate, publish)
     }
 
     pub(crate) fn confirm_ocr(
