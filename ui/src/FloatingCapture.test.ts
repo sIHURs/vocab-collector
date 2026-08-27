@@ -38,6 +38,16 @@ const candidate = (selectedText: string) => ({
   origin: "accessibility",
 });
 
+const savedCard = (displayForm: string) => ({
+  wordId: `word-${displayForm}`,
+  encounterId: `encounter-${displayForm}`,
+  displayForm,
+  translation: `${displayForm}-translation`,
+  context: `Context for ${displayForm}.`,
+  encounterCount: 1,
+  isExistingWord: false,
+});
+
 describe("floating capture request freshness", () => {
   beforeEach(() => {
     mocks.getPlatformCapabilities.mockResolvedValue(capabilities(false));
@@ -47,6 +57,7 @@ describe("floating capture request freshness", () => {
     mocks.handlers.clear();
     mocks.invoke.mockReset();
     mocks.getPlatformCapabilities.mockReset();
+    vi.restoreAllMocks();
   });
 
   it("does not let a late failure from an old request replace the current card", async () => {
@@ -75,6 +86,78 @@ describe("floating capture request freshness", () => {
 
     expect(screen.queryByText("late failure")).not.toBeInTheDocument();
     expect(screen.getByText("current")).toBeVisible();
+  });
+
+  it("does not apply a completed save from a stale request or schedule its dismissal", async () => {
+    let resolveFirstSave!: (card: ReturnType<typeof savedCard>) => void;
+    const firstSave = new Promise<ReturnType<typeof savedCard>>((resolve) => {
+      resolveFirstSave = resolve;
+    });
+    const secondSave = new Promise<ReturnType<typeof savedCard>>(() => {});
+    const timerSpy = vi.spyOn(globalThis, "setTimeout");
+    mocks.invoke.mockImplementation((command: string, args?: { requestId?: string }) => {
+      if (command === "get_settings") {
+        return Promise.resolve({ sourceLanguage: "en", targetLanguage: "de" });
+      }
+      if (command === "translate_text") return Promise.resolve({ translatedText: "translated" });
+      if (command === "save_native_capture" && args?.requestId === "request-a") return firstSave;
+      if (command === "save_native_capture" && args?.requestId === "request-b") return secondSave;
+      return Promise.resolve();
+    });
+
+    render(FloatingCapture);
+    await waitFor(() => expect(mocks.handlers.has("capture-ready")).toBe(true));
+    mocks.handlers.get("capture-ready")?.({
+      payload: { requestId: "request-a", candidate: candidate("old") },
+    });
+    await waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith(
+      "save_native_capture",
+      { requestId: "request-a", withoutTranslation: false },
+    ));
+
+    mocks.handlers.get("capture-ready")?.({
+      payload: { requestId: "request-b", candidate: candidate("current") },
+    });
+    expect(await screen.findByText("current")).toBeVisible();
+    resolveFirstSave(savedCard("old"));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(screen.queryByText("old-translation")).not.toBeInTheDocument();
+    expect(screen.getByText("current")).toBeVisible();
+    expect(timerSpy.mock.calls.some(([, delay]) => delay === 4_000)).toBe(false);
+  });
+
+  it("does not schedule dismissal or hide work when save completes after unmount", async () => {
+    let resolveSave!: (card: ReturnType<typeof savedCard>) => void;
+    const pendingSave = new Promise<ReturnType<typeof savedCard>>((resolve) => {
+      resolveSave = resolve;
+    });
+    const timerSpy = vi.spyOn(globalThis, "setTimeout");
+    mocks.invoke.mockImplementation((command: string) => {
+      if (command === "get_settings") {
+        return Promise.resolve({ sourceLanguage: "en", targetLanguage: "de" });
+      }
+      if (command === "translate_text") return Promise.resolve({ translatedText: "translated" });
+      if (command === "save_native_capture") return pendingSave;
+      return Promise.resolve();
+    });
+
+    const { unmount } = render(FloatingCapture);
+    await waitFor(() => expect(mocks.handlers.has("capture-ready")).toBe(true));
+    mocks.handlers.get("capture-ready")?.({
+      payload: { requestId: "request-a", candidate: candidate("old") },
+    });
+    await waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith(
+      "save_native_capture",
+      { requestId: "request-a", withoutTranslation: false },
+    ));
+    unmount();
+
+    resolveSave(savedCard("old"));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(timerSpy.mock.calls.some(([, delay]) => delay === 4_000)).toBe(false);
+    expect(mocks.invoke).not.toHaveBeenCalledWith("hide_capture_window");
   });
 
   it("shows the permission action from a permission_required code despite misleading diagnostics", async () => {
@@ -162,6 +245,31 @@ describe("floating capture request freshness", () => {
 
     expect(await screen.findByRole("button", { name: "Save without translation" })).toBeVisible();
     expect(screen.getByText("No provider for this language pair")).toBeVisible();
+  });
+
+  it("does not offer save without translation for operation despite misleading diagnostics", async () => {
+    mocks.invoke.mockImplementation((command: string) => {
+      if (command === "get_settings") {
+        return Promise.resolve({ sourceLanguage: "en", targetLanguage: "de" });
+      }
+      if (command === "translate_text") {
+        return Promise.reject({
+          code: "operation",
+          message: "translationUnavailable no provider for this language pair",
+        });
+      }
+      return Promise.resolve();
+    });
+    render(FloatingCapture);
+    await waitFor(() => expect(mocks.handlers.has("capture-ready")).toBe(true));
+
+    mocks.handlers.get("capture-ready")?.({ payload: {
+      requestId: "operation-translation-request",
+      candidate: candidate("portable"),
+    } });
+
+    expect(await screen.findByText(/translationUnavailable/)).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Save without translation" })).not.toBeInTheDocument();
   });
 
   it("never derives actions from arbitrary operation diagnostics", async () => {

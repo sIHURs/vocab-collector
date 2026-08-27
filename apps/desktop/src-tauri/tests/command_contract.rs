@@ -15,7 +15,7 @@ use vocab_desktop_lib::{
         get_platform_capabilities, hide_capture_window, request_accessibility_permission,
         request_screen_recording_permission, save_native_capture, translate_text,
     },
-    events::{CaptureFailure, CaptureFailureCode},
+    events::{CaptureFailure, CaptureFailureCode, NativeCaptureError, NativeCaptureErrorEvent},
 };
 use vocab_domain::CaptureOrigin;
 use vocab_platform_api::{
@@ -87,6 +87,24 @@ fn platform_error_variants_serialize_to_the_exact_capture_failure_contract() {
             serialized_code
         );
     }
+}
+
+#[test]
+fn native_capture_error_serializes_the_exact_frontend_event_contract() {
+    let request_id = uuid::Uuid::parse_str("018f5d2e-6f53-7cc4-a6da-bf11a2f9c221").unwrap();
+    let event = NativeCaptureErrorEvent::from(NativeCaptureError {
+        request_id,
+        failure: CaptureFailure::from(PlatformError::EmptySelection),
+    });
+
+    assert_eq!(
+        serde_json::to_value(event).unwrap(),
+        serde_json::json!({
+            "requestId": "018f5d2e-6f53-7cc4-a6da-bf11a2f9c221",
+            "code": "empty_selection",
+            "message": "selection is empty",
+        })
+    );
 }
 
 #[test]

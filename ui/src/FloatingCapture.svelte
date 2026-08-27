@@ -34,6 +34,7 @@
   let platformCapabilities = unavailableCapabilities;
   let dismissTimer: ReturnType<typeof setTimeout> | undefined;
   let activeRequest = "";
+  let mounted = false;
 
   function asCaptureFailure(cause: unknown): CaptureFailure {
     if (typeof cause === "object" && cause !== null) {
@@ -91,8 +92,10 @@
   }
 
   async function persist(requestId = activeRequest, withoutTranslation = false) {
-    if (!requestId || requestId !== activeRequest) return;
-    saved = await invoke<CaptureCard>("save_native_capture", { requestId, withoutTranslation });
+    if (!mounted || !requestId || requestId !== activeRequest) return;
+    const nextSaved = await invoke<CaptureCard>("save_native_capture", { requestId, withoutTranslation });
+    if (!mounted || requestId !== activeRequest) return;
+    saved = nextSaved;
     dismissTimer = setTimeout(hide, 4_000);
   }
 
@@ -134,7 +137,7 @@
   }
 
   onMount(() => {
-    let mounted = true;
+    mounted = true;
     void backend.getPlatformCapabilities()
       .then((capabilities) => { if (mounted) platformCapabilities = capabilities; })
       .catch(() => { /* Conservative defaults remain active. */ });
