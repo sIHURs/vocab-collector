@@ -24,10 +24,14 @@ The browser backend and Rust application service implement the same frontend-fac
 
 ## Quality gates
 
+On macOS, exclude the Linux and Windows adapter skeletons from native Rust
+checks. Those crates are compiled, tested, and runtime-verified only on their
+physical target hosts or the corresponding target-specific CI jobs.
+
 ```bash
 cargo fmt --all --check
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace
+cargo clippy --workspace --all-targets --exclude vocab-platform-linux --exclude vocab-platform-windows -- -D warnings
+cargo test --workspace --exclude vocab-platform-linux --exclude vocab-platform-windows
 pnpm check
 pnpm test
 pnpm build
