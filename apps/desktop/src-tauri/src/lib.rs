@@ -29,6 +29,9 @@ pub fn run() {
                         tauri::async_runtime::spawn(async move {
                             if let Err(error) = capture::present_native_capture(&app).await
                                 && let Some(window) = app.get_webview_window("capture")
+                                && app
+                                    .state::<bootstrap::AppState>()
+                                    .is_current_capture_request(error.request_id)
                             {
                                 let _ = window.show();
                                 let _ = window

@@ -1,10 +1,9 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use uuid::Uuid;
 use vocab_application::{AppService, PlatformCaptureWorkflow, PreparedCapture};
-use vocab_capture::CaptureCoordinator;
 use vocab_platform_api::{
-    CaptureCandidate, OcrCandidate, OcrProvider, PermissionKind, PermissionProvider,
+    Capability, CaptureCandidate, OcrCandidate, OcrProvider, PermissionKind, PermissionProvider,
     PermissionStatus, PlatformCapabilities, PlatformError, PlatformServices, ScreenPoint,
     SelectionProvider, TranslationProvider, TranslationResult, WindowProvider,
 };
@@ -20,8 +19,6 @@ pub struct AppState {
     translation: Arc<dyn TranslationProvider>,
     permissions: Arc<dyn PermissionProvider>,
     window: Arc<dyn WindowProvider>,
-    ocr_coordinator: CaptureCoordinator,
-    prepared_translation: Mutex<Option<(Uuid, TranslationResult)>>,
 }
 
 /// Composes storage, shared application behavior, and the selected platform adapter.
@@ -44,8 +41,6 @@ pub fn build_app_state(repository: Arc<SqliteStore>, platform: PlatformServices)
         translation,
         permissions,
         window,
-        ocr_coordinator: CaptureCoordinator::default(),
-        prepared_translation: Mutex::new(None),
     }
 }
 
@@ -53,6 +48,16 @@ pub fn build_app_state(repository: Arc<SqliteStore>, platform: PlatformServices)
 #[cfg(target_os = "macos")]
 pub fn selected_platform() -> Result<PlatformServices, PlatformError> {
     vocab_platform_macos::MacPlatform::new()
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn selected_platform() -> Result<PlatformServices, PlatformError> {
+    unsupported_platform()
+}
+
+/// Static fallback used until a target adapter is selected in Task 8.
+pub fn unsupported_platform() -> Result<PlatformServices, PlatformError> {
+    Err(PlatformError::Unsupported(Capability::Selection))
 }
 
 impl AppState {
@@ -98,112 +103,74 @@ impl AppState {
         self.translation.translate(text, source, target).await
     }
 
-    pub(crate) async fn prepare_selection(
+    pub fn start_capture_request(&self) -> Uuid {
+        self.workflow.start_request()
+    }
+
+    pub fn is_current_capture_request(&self, request_id: Uuid) -> bool {
+        self.workflow.is_current(request_id)
+    }
+
+    pub async fn prepare_selection_for(
         &self,
+        request_id: Uuid,
     ) -> Result<PreparedCapture, vocab_application::PlatformCaptureError> {
-        self.workflow.prepare_selection().await
+        self.workflow.prepare_selection_for(request_id).await
     }
 
     pub(crate) fn configure_capture_window(&self) -> Result<(), PlatformError> {
         self.window.configure_capture_window()
     }
 
-    pub(crate) fn remember_translation(&self, request_id: Uuid, value: TranslationResult) {
-        *self
-            .prepared_translation
-            .lock()
-            .expect("prepared translation cache poisoned") = Some((request_id, value));
-    }
-
-    pub(crate) fn prepared_translation(&self, request_id: Uuid) -> Option<TranslationResult> {
-        self.prepared_translation
-            .lock()
-            .expect("prepared translation cache poisoned")
-            .as_ref()
-            .filter(|(prepared_id, _)| *prepared_id == request_id)
-            .map(|(_, value)| value.clone())
-    }
-
-    pub(crate) fn start_ocr_request(&self) -> Uuid {
-        self.ocr_coordinator.start()
-    }
-
-    pub(crate) fn is_ocr_request(&self, request_id: Uuid) -> bool {
-        self.ocr_coordinator.is_current(request_id)
-    }
-
-    pub(crate) fn set_ocr_candidate(
+    pub(crate) fn set_capture_candidate(
         &self,
         request_id: Uuid,
         candidate: CaptureCandidate,
-    ) -> Result<(), vocab_capture::CoordinatorError> {
-        self.ocr_coordinator.set_candidate(request_id, candidate)
+    ) -> Result<(), vocab_application::PlatformCaptureError> {
+        self.workflow.set_candidate(request_id, candidate)
     }
 
     pub(crate) fn confirm_ocr(
         &self,
         request_id: Uuid,
-    ) -> Result<(), vocab_capture::CoordinatorError> {
-        self.ocr_coordinator.confirm_ocr(request_id)
+    ) -> Result<(), vocab_application::PlatformCaptureError> {
+        self.workflow.confirm_ocr(request_id)
     }
 
-    pub(crate) fn set_ocr_translation(
+    pub async fn translate_capture(
         &self,
         request_id: Uuid,
-        translation: TranslationResult,
-    ) -> Result<(), vocab_capture::CoordinatorError> {
-        self.ocr_coordinator
-            .set_translation(request_id, translation)
+        text: &str,
+        source: &str,
+        target: &str,
+    ) -> Result<TranslationResult, vocab_application::PlatformCaptureError> {
+        self.workflow
+            .translate(request_id, text, source, target)
+            .await
     }
 
-    pub(crate) fn fail_ocr_translation(
-        &self,
-        request_id: Uuid,
-    ) -> Result<(), vocab_capture::CoordinatorError> {
-        self.ocr_coordinator.translation_failed(request_id)
-    }
-
-    pub(crate) fn save_capture(
+    pub fn save_capture(
         &self,
         request_id: Uuid,
         without_translation: bool,
     ) -> Result<vocab_domain::CaptureCard, String> {
-        if self.is_ocr_request(request_id) {
-            let settings = self
-                .application
-                .get_settings()
-                .map_err(|error| error.to_string())?;
-            return self
-                .ocr_coordinator
-                .save_with(request_id, without_translation, |snapshot| {
-                    let candidate = &snapshot.candidate;
-                    let translation = snapshot.translation.as_ref();
-                    self.application.capture(vocab_application::CaptureRequest {
-                        selected_text: candidate.selected_text.clone(),
-                        lemma: None,
-                        sentence: candidate.sentence.clone(),
-                        source_language: translation.map_or_else(
-                            || settings.source_language.clone(),
-                            |value| value.source_language.clone(),
-                        ),
-                        target_language: translation.map_or_else(
-                            || settings.target_language.clone(),
-                            |value| value.target_language.clone(),
-                        ),
-                        translation: translation.map(|value| value.translated_text.clone()),
-                        part_of_speech: None,
-                        source_app: candidate.source_app.clone(),
-                        source_title: candidate.source_title.clone(),
-                        source_url: candidate.source_url.clone(),
-                        capture_origin: candidate.origin,
-                        captured_at: chrono::Utc::now(),
-                    })
-                })
-                .map_err(|error| error.to_string());
-        }
-
         self.workflow
             .save(request_id, without_translation, chrono::Utc::now())
             .map_err(|error| error.to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use vocab_platform_api::{Capability, PlatformError};
+
+    use super::unsupported_platform;
+
+    #[test]
+    fn unsupported_target_selection_returns_a_typed_portable_error() {
+        assert!(matches!(
+            unsupported_platform(),
+            Err(PlatformError::Unsupported(Capability::Selection))
+        ));
     }
 }

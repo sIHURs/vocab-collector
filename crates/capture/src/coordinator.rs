@@ -7,6 +7,7 @@ use vocab_platform_api::{CaptureCandidate, CaptureOrigin, TranslationResult};
 enum Phase {
     Capturing,
     AwaitingOcrConfirmation,
+    TranslationPending,
     Translating,
     TranslationFailed,
     ReadyToSave,
@@ -57,6 +58,15 @@ impl CaptureCoordinator {
             .is_some_and(|session| session.request_id == request_id)
     }
 
+    pub fn translation(
+        &self,
+        request_id: Uuid,
+    ) -> Result<Option<TranslationResult>, CoordinatorError> {
+        let guard = self.current(request_id)?;
+        let session = guard.as_ref().ok_or(CoordinatorError::StaleRequest)?;
+        Ok(session.translation.clone())
+    }
+
     pub fn start(&self) -> Uuid {
         let request_id = Uuid::now_v7();
         *self.session.lock().expect("capture coordinator poisoned") = Some(Session {
@@ -81,7 +91,7 @@ impl CaptureCoordinator {
         session.phase = if candidate.origin == CaptureOrigin::Ocr {
             Phase::AwaitingOcrConfirmation
         } else {
-            Phase::Translating
+            Phase::TranslationPending
         };
         session.candidate = Some(candidate);
         Ok(())
@@ -93,7 +103,23 @@ impl CaptureCoordinator {
         if session.phase != Phase::AwaitingOcrConfirmation {
             return Err(CoordinatorError::InvalidTransition);
         }
-        session.phase = Phase::Translating;
+        session.phase = Phase::TranslationPending;
+        Ok(())
+    }
+
+    /// Authorizes a translation provider call for the current request.
+    ///
+    /// This check must happen before invoking an external provider so OCR
+    /// candidates cannot leave the confirmation boundary implicitly.
+    pub fn begin_translation(&self, request_id: Uuid) -> Result<(), CoordinatorError> {
+        let mut guard = self.current(request_id)?;
+        let session = guard.as_mut().ok_or(CoordinatorError::StaleRequest)?;
+        match session.phase {
+            Phase::TranslationPending | Phase::TranslationFailed => {
+                session.phase = Phase::Translating;
+            }
+            _ => return Err(CoordinatorError::InvalidTransition),
+        }
         Ok(())
     }
 

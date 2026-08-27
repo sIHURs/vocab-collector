@@ -89,7 +89,7 @@ pub async fn capture_with_ocr(
     state: State<'_, AppState>,
     request_id: Uuid,
 ) -> Result<(), String> {
-    if !state.is_ocr_request(request_id) {
+    if !state.is_current_capture_request(request_id) {
         return Err(vocab_capture::CoordinatorError::StaleRequest.to_string());
     }
     let window = app
@@ -117,7 +117,7 @@ pub async fn capture_with_ocr(
         origin: CaptureOrigin::Ocr,
     };
     state
-        .set_ocr_candidate(request_id, candidate.clone())
+        .set_capture_candidate(request_id, candidate.clone())
         .map_err(|error| error.to_string())?;
     window
         .emit(
@@ -138,31 +138,10 @@ pub async fn translate_text(
     source_language: String,
     target_language: String,
 ) -> Result<TranslationResult, String> {
-    if let Some(prepared) = state.prepared_translation(request_id) {
-        return Ok(prepared);
-    }
-    let result = state
-        .translate(&text, &source_language, &target_language)
-        .await;
-    match result {
-        Ok(translation) => {
-            if state.is_ocr_request(request_id) {
-                state
-                    .set_ocr_translation(request_id, translation.clone())
-                    .map_err(|error| error.to_string())?;
-            }
-            state.remember_translation(request_id, translation.clone());
-            Ok(translation)
-        }
-        Err(error) => {
-            if state.is_ocr_request(request_id) {
-                state
-                    .fail_ocr_translation(request_id)
-                    .map_err(|coordinator_error| coordinator_error.to_string())?;
-            }
-            Err(error.to_string())
-        }
-    }
+    state
+        .translate_capture(request_id, &text, &source_language, &target_language)
+        .await
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -198,17 +177,14 @@ pub(crate) async fn present_native_capture(
     app: &tauri::AppHandle,
 ) -> Result<(), NativeCaptureError> {
     let state = app.state::<AppState>();
-    let error_request_id = state.start_ocr_request();
+    let request_id = state.start_capture_request();
     let prepared = state
-        .prepare_selection()
+        .prepare_selection_for(request_id)
         .await
         .map_err(|error| NativeCaptureError {
-            request_id: error_request_id,
+            request_id,
             message: error.to_string(),
         })?;
-    if let Some(translation) = prepared.translation.clone() {
-        state.remember_translation(prepared.request_id, translation);
-    }
     let window = app
         .get_webview_window("capture")
         .ok_or_else(|| NativeCaptureError {
@@ -251,40 +227,77 @@ pub(crate) async fn present_native_capture(
         })
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct PhysicalMonitorWorkArea {
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+    scale_factor: f64,
+}
+
+impl PhysicalMonitorWorkArea {
+    const fn new(x: f64, y: f64, width: f64, height: f64, scale_factor: f64) -> Self {
+        Self {
+            x,
+            y,
+            width,
+            height,
+            scale_factor,
+        }
+    }
+}
+
+fn normalize_virtual_desktop(
+    pointer: ScreenPoint,
+    primary_scale: f64,
+    monitors: &[PhysicalMonitorWorkArea],
+) -> (ScreenPoint, Vec<MonitorWorkArea>) {
+    let pointer = ScreenPoint::new(pointer.x / primary_scale, pointer.y / primary_scale);
+    let monitors = monitors
+        .iter()
+        .map(|monitor| {
+            MonitorWorkArea::new(
+                monitor.x / monitor.scale_factor,
+                monitor.y / monitor.scale_factor,
+                monitor.width / monitor.scale_factor,
+                monitor.height / monitor.scale_factor,
+                monitor.scale_factor,
+            )
+        })
+        .collect();
+    (pointer, monitors)
+}
+
 fn pointer_and_work_areas(
     app: &tauri::AppHandle,
 ) -> Result<(ScreenPoint, Vec<MonitorWorkArea>), String> {
     let pointer = app.cursor_position().map_err(|error| error.to_string())?;
+    let primary_scale = app
+        .primary_monitor()
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| "primary monitor is unavailable".to_string())?
+        .scale_factor();
     let monitors = app
         .available_monitors()
         .map_err(|error| error.to_string())?;
-    let monitor_scale = monitors
-        .iter()
-        .find(|monitor| {
-            let area = monitor.work_area();
-            pointer.x >= f64::from(area.position.x)
-                && pointer.x < f64::from(area.position.x) + f64::from(area.size.width)
-                && pointer.y >= f64::from(area.position.y)
-                && pointer.y < f64::from(area.position.y) + f64::from(area.size.height)
-        })
-        .map_or(1.0, |monitor| monitor.scale_factor());
-    let work_areas = monitors
+    let physical_work_areas = monitors
         .iter()
         .map(|monitor| {
             let area = monitor.work_area();
-            let scale = monitor.scale_factor();
-            MonitorWorkArea::new(
-                f64::from(area.position.x) / scale,
-                f64::from(area.position.y) / scale,
-                f64::from(area.size.width) / scale,
-                f64::from(area.size.height) / scale,
-                scale,
+            PhysicalMonitorWorkArea::new(
+                f64::from(area.position.x),
+                f64::from(area.position.y),
+                f64::from(area.size.width),
+                f64::from(area.size.height),
+                monitor.scale_factor(),
             )
         })
-        .collect();
-    Ok((
-        ScreenPoint::new(pointer.x / monitor_scale, pointer.y / monitor_scale),
-        work_areas,
+        .collect::<Vec<_>>();
+    Ok(normalize_virtual_desktop(
+        ScreenPoint::new(pointer.x, pointer.y),
+        primary_scale,
+        &physical_work_areas,
     ))
 }
 
@@ -323,7 +336,43 @@ pub(crate) fn portable_top_left_to_cocoa(
 mod tests {
     use vocab_platform_api::{MonitorWorkArea, ScreenPoint};
 
-    use super::portable_top_left_to_cocoa;
+    use super::{PhysicalMonitorWorkArea, normalize_virtual_desktop, portable_top_left_to_cocoa};
+
+    #[test]
+    fn normalizes_mixed_scale_positive_and_negative_monitor_origins_into_one_logical_space() {
+        let positive = normalize_virtual_desktop(
+            ScreenPoint::new(3_600.0, 500.0),
+            2.0,
+            &[
+                PhysicalMonitorWorkArea::new(0.0, 0.0, 2_880.0, 1_800.0, 2.0),
+                PhysicalMonitorWorkArea::new(1_440.0, 100.0, 1_920.0, 1_080.0, 1.0),
+            ],
+        );
+        assert_eq!(positive.0, ScreenPoint::new(1_800.0, 250.0));
+        assert_eq!(
+            positive.1,
+            vec![
+                MonitorWorkArea::new(0.0, 0.0, 1_440.0, 900.0, 2.0),
+                MonitorWorkArea::new(1_440.0, 100.0, 1_920.0, 1_080.0, 1.0),
+            ]
+        );
+        assert!(positive.1[1].contains(positive.0));
+
+        let negative = normalize_virtual_desktop(
+            ScreenPoint::new(-1_280.0, 200.0),
+            2.0,
+            &[
+                PhysicalMonitorWorkArea::new(0.0, 0.0, 2_880.0, 1_800.0, 2.0),
+                PhysicalMonitorWorkArea::new(-1_920.0, -300.0, 1_920.0, 1_200.0, 1.5),
+            ],
+        );
+        assert_eq!(negative.0, ScreenPoint::new(-640.0, 100.0));
+        assert_eq!(
+            negative.1[1],
+            MonitorWorkArea::new(-1_280.0, -200.0, 1_280.0, 800.0, 1.5)
+        );
+        assert!(negative.1[1].contains(negative.0));
+    }
 
     #[test]
     fn converts_portable_top_left_points_to_cocoa_bottom_left_points() {

@@ -57,6 +57,7 @@ fn ocr_requires_confirmation_before_translation_or_save() {
     );
 
     coordinator.confirm_ocr(request).unwrap();
+    coordinator.begin_translation(request).unwrap();
     coordinator.set_translation(request, translation()).unwrap();
     coordinator
         .save_with(request, false, |_| Ok::<_, &str>(()))
@@ -70,6 +71,7 @@ fn a_request_can_reach_persistence_only_once() {
     coordinator
         .set_candidate(request, candidate(CaptureOrigin::Accessibility))
         .unwrap();
+    coordinator.begin_translation(request).unwrap();
     coordinator.set_translation(request, translation()).unwrap();
     coordinator
         .save_with(request, false, |_| Ok::<_, &str>(()))
@@ -88,6 +90,7 @@ fn failed_translation_requires_the_explicit_save_without_translation_path() {
     coordinator
         .set_candidate(request, candidate(CaptureOrigin::Accessibility))
         .unwrap();
+    coordinator.begin_translation(request).unwrap();
     coordinator.translation_failed(request).unwrap();
 
     assert_eq!(
@@ -100,12 +103,45 @@ fn failed_translation_requires_the_explicit_save_without_translation_path() {
 }
 
 #[test]
+fn translation_must_be_authorized_before_calling_a_provider() {
+    let coordinator = CaptureCoordinator::default();
+    let request = coordinator.start();
+    coordinator
+        .set_candidate(request, candidate(CaptureOrigin::Ocr))
+        .unwrap();
+
+    assert_eq!(
+        coordinator.begin_translation(request),
+        Err(CoordinatorError::InvalidTransition)
+    );
+
+    coordinator.confirm_ocr(request).unwrap();
+    coordinator.begin_translation(request).unwrap();
+}
+
+#[test]
+fn only_one_translation_provider_call_can_be_in_flight() {
+    let coordinator = CaptureCoordinator::default();
+    let request = coordinator.start();
+    coordinator
+        .set_candidate(request, candidate(CaptureOrigin::Accessibility))
+        .unwrap();
+
+    coordinator.begin_translation(request).unwrap();
+    assert_eq!(
+        coordinator.begin_translation(request),
+        Err(CoordinatorError::InvalidTransition)
+    );
+}
+
+#[test]
 fn persistence_failure_rolls_back_so_the_user_can_retry() {
     let coordinator = CaptureCoordinator::default();
     let request = coordinator.start();
     coordinator
         .set_candidate(request, candidate(CaptureOrigin::Accessibility))
         .unwrap();
+    coordinator.begin_translation(request).unwrap();
     coordinator.set_translation(request, translation()).unwrap();
 
     let result = coordinator.save_with(request, false, |_| Err::<(), _>("disk full"));

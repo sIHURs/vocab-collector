@@ -48,35 +48,82 @@ impl PlatformCaptureWorkflow {
         }
     }
 
+    pub fn start_request(&self) -> Uuid {
+        self.coordinator.start()
+    }
+
+    pub fn is_current(&self, request_id: Uuid) -> bool {
+        self.coordinator.is_current(request_id)
+    }
+
+    pub fn set_candidate(
+        &self,
+        request_id: Uuid,
+        candidate: CaptureCandidate,
+    ) -> Result<(), PlatformCaptureError> {
+        self.coordinator.set_candidate(request_id, candidate)?;
+        Ok(())
+    }
+
+    pub fn confirm_ocr(&self, request_id: Uuid) -> Result<(), PlatformCaptureError> {
+        self.coordinator.confirm_ocr(request_id)?;
+        Ok(())
+    }
+
+    pub async fn translate(
+        &self,
+        request_id: Uuid,
+        text: &str,
+        source: &str,
+        target: &str,
+    ) -> Result<TranslationResult, PlatformCaptureError> {
+        if let Some(translation) = self.coordinator.translation(request_id)? {
+            return Ok(translation);
+        }
+        self.coordinator.begin_translation(request_id)?;
+        match self.translation.translate(text, source, target).await {
+            Ok(translation) => {
+                self.coordinator
+                    .set_translation(request_id, translation.clone())?;
+                Ok(translation)
+            }
+            Err(error) => {
+                self.coordinator.translation_failed(request_id)?;
+                Err(error.into())
+            }
+        }
+    }
+
     pub async fn prepare_selection(&self) -> Result<PreparedCapture, PlatformCaptureError> {
+        let request_id = self.start_request();
+        self.prepare_selection_for(request_id).await
+    }
+
+    pub async fn prepare_selection_for(
+        &self,
+        request_id: Uuid,
+    ) -> Result<PreparedCapture, PlatformCaptureError> {
         let candidate = self.selection.capture_selection().await?;
         if candidate.origin == CaptureOrigin::Ocr {
             return Err(PlatformCaptureError::OcrConfirmationRequired);
         }
 
-        let request_id = self.coordinator.start();
         self.coordinator
             .set_candidate(request_id, candidate.clone())?;
 
         let settings = self.application.get_settings()?;
         let (translation, translation_error) = match self
-            .translation
             .translate(
+                request_id,
                 &candidate.selected_text,
                 &settings.source_language,
                 &settings.target_language,
             )
             .await
         {
-            Ok(translation) => {
-                self.coordinator
-                    .set_translation(request_id, translation.clone())?;
-                (Some(translation), None)
-            }
-            Err(error) => {
-                self.coordinator.translation_failed(request_id)?;
-                (None, Some(error))
-            }
+            Ok(translation) => (Some(translation), None),
+            Err(PlatformCaptureError::Platform(error)) => (None, Some(error)),
+            Err(error) => return Err(error),
         };
 
         Ok(PreparedCapture {

@@ -1,7 +1,7 @@
 use std::{
     future::Future,
     sync::{
-        Arc,
+        Arc, Condvar, Mutex,
         atomic::{AtomicUsize, Ordering},
     },
     task::{Context, Poll, Wake, Waker},
@@ -15,7 +15,7 @@ use vocab_capture::CoordinatorError;
 use vocab_platform_api::{
     Capability, CaptureCandidate, CaptureOrigin, OcrCandidate, OcrProvider, PermissionKind,
     PermissionProvider, PermissionStatus, PlatformCapabilities, PlatformError, PlatformServices,
-    ScreenPoint, TranslationProvider, TranslationResult, WindowProvider,
+    ScreenPoint, SelectionProvider, TranslationProvider, TranslationResult, WindowProvider,
 };
 use vocab_platform_contract_tests::{FakeSelectionProvider, UnavailableTranslationProvider};
 use vocab_storage::SqliteStore;
@@ -132,6 +132,57 @@ impl TranslationProvider for CountingTranslationProvider {
     }
 }
 
+struct RetryTranslationProvider {
+    calls: Arc<AtomicUsize>,
+}
+
+struct ControlledSelectionProvider {
+    calls: AtomicUsize,
+    first_started: Arc<(Mutex<bool>, Condvar)>,
+    release_first: Arc<(Mutex<bool>, Condvar)>,
+}
+
+#[async_trait::async_trait]
+impl SelectionProvider for ControlledSelectionProvider {
+    async fn capture_selection(&self) -> Result<CaptureCandidate, PlatformError> {
+        let call = self.calls.fetch_add(1, Ordering::SeqCst);
+        if call == 0 {
+            let (started, signal) = &*self.first_started;
+            *started.lock().unwrap() = true;
+            signal.notify_one();
+
+            let (released, signal) = &*self.release_first;
+            let mut released = released.lock().unwrap();
+            while !*released {
+                released = signal.wait(released).unwrap();
+            }
+            Ok(candidate("first selection"))
+        } else {
+            Ok(candidate("second selection"))
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl TranslationProvider for RetryTranslationProvider {
+    async fn translate(
+        &self,
+        _text: &str,
+        source: &str,
+        target: &str,
+    ) -> Result<TranslationResult, PlatformError> {
+        let attempt = self.calls.fetch_add(1, Ordering::SeqCst);
+        if attempt == 0 {
+            return Err(PlatformError::Operation("first attempt failed".into()));
+        }
+        Ok(TranslationResult {
+            translated_text: "glücklicher Zufall".into(),
+            source_language: source.into(),
+            target_language: target.into(),
+        })
+    }
+}
+
 fn block_on<F: Future>(future: F) -> F::Output {
     struct ThreadWake(thread::Thread);
 
@@ -213,6 +264,126 @@ fn ocr_origin_requires_task_six_confirmation_without_translation_or_persistence(
     ));
     assert_eq!(calls.load(Ordering::SeqCst), 0);
     assert!(application.list_words().unwrap().is_empty());
+}
+
+#[test]
+fn ocr_translation_does_not_call_the_provider_before_confirmation() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let translation: Arc<dyn TranslationProvider> = Arc::new(CountingTranslationProvider {
+        calls: calls.clone(),
+    });
+    let (workflow, _) = workflow_with_translation(Ok(candidate("unused")), translation);
+    let request = workflow.start_request();
+    workflow
+        .set_candidate(request, ocr_candidate("confirmed text"))
+        .unwrap();
+
+    assert!(matches!(
+        block_on(workflow.translate(request, "confirmed text", "en", "de")),
+        Err(PlatformCaptureError::Coordinator(
+            CoordinatorError::InvalidTransition
+        ))
+    ));
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+
+    workflow.confirm_ocr(request).unwrap();
+    block_on(workflow.translate(request, "confirmed text", "en", "de")).unwrap();
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn failed_translation_can_retry_and_save_the_successful_translation() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let translation: Arc<dyn TranslationProvider> = Arc::new(RetryTranslationProvider {
+        calls: calls.clone(),
+    });
+    let (workflow, application) =
+        workflow_with_translation(Ok(candidate("serendipity")), translation);
+    let request = workflow.start_request();
+    workflow
+        .set_candidate(request, candidate("serendipity"))
+        .unwrap();
+
+    assert!(matches!(
+        block_on(workflow.translate(request, "serendipity", "en", "de")),
+        Err(PlatformCaptureError::Platform(PlatformError::Operation(_)))
+    ));
+    let retried = block_on(workflow.translate(request, "serendipity", "en", "de")).unwrap();
+    let saved = workflow.save(request, false, captured_at()).unwrap();
+
+    assert_eq!(retried.translated_text, "glücklicher Zufall");
+    assert_eq!(saved.translation.as_deref(), Some("glücklicher Zufall"));
+    assert_eq!(application.list_words().unwrap().len(), 1);
+    assert_eq!(calls.load(Ordering::SeqCst), 2);
+}
+
+#[test]
+fn prepared_translation_is_reused_without_a_second_provider_call() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let translation: Arc<dyn TranslationProvider> = Arc::new(CountingTranslationProvider {
+        calls: calls.clone(),
+    });
+    let (workflow, _) = workflow_with_translation(Ok(candidate("serendipity")), translation);
+
+    let prepared = block_on(workflow.prepare_selection()).unwrap();
+    let reused =
+        block_on(workflow.translate(prepared.request_id, "serendipity", "en", "de")).unwrap();
+
+    assert_eq!(reused, prepared.translation.unwrap());
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn overlapping_selection_completion_rejects_the_stale_real_request_id() {
+    let first_started = Arc::new((Mutex::new(false), Condvar::new()));
+    let release_first = Arc::new((Mutex::new(false), Condvar::new()));
+    let selection: Arc<dyn SelectionProvider> = Arc::new(ControlledSelectionProvider {
+        calls: AtomicUsize::new(0),
+        first_started: first_started.clone(),
+        release_first: release_first.clone(),
+    });
+    let store = Arc::new(SqliteStore::open_in_memory().unwrap());
+    let application = Arc::new(AppService::new(store, Uuid::now_v7()));
+    let workflow = Arc::new(PlatformCaptureWorkflow::new(
+        application,
+        PlatformServices {
+            capabilities: PlatformCapabilities::default(),
+            selection,
+            ocr: Arc::new(UnusedOcrProvider),
+            translation: Arc::new(UnavailableTranslationProvider),
+            permissions: Arc::new(UnusedPermissionProvider),
+            window: Arc::new(UnusedWindowProvider),
+        },
+    ));
+
+    let first_request = workflow.start_request();
+    let first_workflow = workflow.clone();
+    let first =
+        thread::spawn(move || block_on(first_workflow.prepare_selection_for(first_request)));
+
+    let (started, signal) = &*first_started;
+    let mut started = started.lock().unwrap();
+    while !*started {
+        started = signal.wait(started).unwrap();
+    }
+    drop(started);
+
+    let second_request = workflow.start_request();
+    let second = block_on(workflow.prepare_selection_for(second_request)).unwrap();
+    let (released, signal) = &*release_first;
+    *released.lock().unwrap() = true;
+    signal.notify_one();
+    let stale = first.join().unwrap();
+
+    assert_eq!(second.request_id, second_request);
+    assert_eq!(second.candidate.selected_text, "second selection");
+    assert!(matches!(
+        stale,
+        Err(PlatformCaptureError::Coordinator(
+            CoordinatorError::StaleRequest
+        ))
+    ));
+    assert_ne!(first_request, second_request);
 }
 
 #[test]

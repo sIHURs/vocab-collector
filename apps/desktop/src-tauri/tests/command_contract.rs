@@ -87,6 +87,34 @@ fn app_state_routes_capture_operations_through_injected_platform_services() {
     );
 }
 
+#[test]
+fn app_state_uses_one_request_for_selection_translation_and_save() {
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    let state = build_app_state(
+        Arc::new(SqliteStore::open_in_memory().unwrap()),
+        platform_services(PlatformCapabilities::default(), calls.clone()),
+    );
+    let request_id = state.start_capture_request();
+
+    let prepared = block_on(state.prepare_selection_for(request_id)).unwrap();
+    let translated = block_on(state.translate_capture(
+        request_id,
+        &prepared.candidate.selected_text,
+        "en",
+        "de",
+    ))
+    .unwrap();
+    let saved = state.save_capture(request_id, false).unwrap();
+
+    assert_eq!(prepared.request_id, request_id);
+    assert_eq!(translated.translated_text, "portable translation");
+    assert_eq!(saved.translation.as_deref(), Some("portable translation"));
+    assert_eq!(
+        calls.lock().unwrap().as_slice(),
+        ["selection", "translation:portable selection:en:de"]
+    );
+}
+
 fn platform_services(
     capabilities: PlatformCapabilities,
     calls: Arc<Mutex<Vec<String>>>,
