@@ -5,11 +5,11 @@ on:
   pull_request:
 
 jobs:
-  test:
+  macos:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.98.0
         with:
           components: clippy,rustfmt
       - uses: pnpm/action-setup@v4
@@ -21,9 +21,62 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: cargo fmt --all --check
-      - run: cargo clippy --workspace --all-targets -- -D warnings
-      - run: cargo test --workspace
+      - run: cargo clippy --workspace --all-targets --exclude vocab-platform-linux --exclude vocab-platform-windows -- -D warnings
+      - run: cargo test --workspace --exclude vocab-platform-linux --exclude vocab-platform-windows
+      - run: cargo test -p vocab-platform-macos
+      - run: cargo build --workspace --exclude vocab-platform-linux --exclude vocab-platform-windows
+      - run: swift test --package-path platform/macos/native
       - run: pnpm check
       - run: pnpm test
       - run: pnpm build
 
+  linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Tauri system dependencies
+        run: sudo apt-get update && sudo apt-get install --yes build-essential curl wget file libssl-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev patchelf
+      - uses: dtolnay/rust-toolchain@1.98.0
+        with:
+          components: clippy,rustfmt
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets --exclude vocab-platform-macos --exclude vocab-platform-windows -- -D warnings
+      - run: cargo test --workspace --exclude vocab-platform-macos --exclude vocab-platform-windows
+      - run: cargo test -p vocab-platform-linux
+      - run: cargo build --workspace --exclude vocab-platform-macos --exclude vocab-platform-windows
+      - run: pnpm check
+      - run: pnpm test
+      - run: pnpm build
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.98.0
+        with:
+          components: clippy,rustfmt
+          targets: x86_64-pc-windows-msvc
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets --exclude vocab-platform-macos --exclude vocab-platform-linux -- -D warnings
+      - run: cargo test --workspace --exclude vocab-platform-macos --exclude vocab-platform-linux
+      - run: cargo test -p vocab-platform-windows
+      - run: cargo build --workspace --exclude vocab-platform-macos --exclude vocab-platform-linux
+      - run: pnpm check
+      - run: pnpm test
+      - run: pnpm build

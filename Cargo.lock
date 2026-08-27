@@ -3948,7 +3948,9 @@ dependencies = [
  "vocab-capture",
  "vocab-domain",
  "vocab-platform-api",
+ "vocab-platform-linux",
  "vocab-platform-macos",
+ "vocab-platform-windows",
  "vocab-storage",
  "vocab-sync",
 ]
@@ -3983,6 +3985,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "vocab-platform-linux"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "vocab-platform-api",
+]
+
+[[package]]
 name = "vocab-platform-macos"
 version = "0.1.0"
 dependencies = [
@@ -3993,6 +4003,14 @@ dependencies = [
  "tokio",
  "vocab-platform-api",
  "vocab-platform-contract-tests",
+]
+
+[[package]]
+name = "vocab-platform-windows"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "vocab-platform-api",
 ]
 
 [[package]]

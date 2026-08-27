@@ -29,5 +29,11 @@ vocab-sync = { path = "../../../crates/sync" }
 [target.'cfg(target_os = "macos")'.dependencies]
 vocab-platform-macos = { path = "../../../platform/macos/rust" }
 
+[target.'cfg(target_os = "linux")'.dependencies]
+vocab-platform-linux = { path = "../../../platform/linux" }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+vocab-platform-windows = { path = "../../../platform/windows" }
+
 [dev-dependencies]
 async-trait.workspace = true

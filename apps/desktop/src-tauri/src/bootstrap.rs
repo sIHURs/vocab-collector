@@ -3,7 +3,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 use vocab_application::{AppService, PlatformCaptureWorkflow, PreparedCapture};
 use vocab_platform_api::{
-    Capability, CaptureCandidate, OcrCandidate, OcrProvider, PermissionKind, PermissionProvider,
+    CaptureCandidate, OcrCandidate, OcrProvider, PermissionKind, PermissionProvider,
     PermissionStatus, PlatformCapabilities, PlatformError, PlatformServices, ScreenPoint,
     SelectionProvider, TranslationProvider, TranslationResult, WindowProvider,
 };
@@ -50,15 +50,20 @@ pub fn selected_platform() -> Result<PlatformServices, PlatformError> {
     vocab_platform_macos::MacPlatform::new()
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "linux")]
 pub fn selected_platform() -> Result<PlatformServices, PlatformError> {
-    unsupported_platform()
+    Ok(vocab_platform_linux::LinuxPlatform::new())
 }
 
-/// Static fallback used until a target adapter is selected in Task 8.
-pub fn unsupported_platform() -> Result<PlatformServices, PlatformError> {
-    Err(PlatformError::Unsupported(Capability::Selection))
+#[cfg(target_os = "windows")]
+pub fn selected_platform() -> Result<PlatformServices, PlatformError> {
+    Ok(vocab_platform_windows::WindowsPlatform::new())
 }
+
+#[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+compile_error!(
+    "Vocab Collector desktop supports only macOS, Linux, and Windows composition targets"
+);
 
 impl AppState {
     pub fn application(&self) -> &AppService {
@@ -166,20 +171,5 @@ impl AppState {
     ) -> Result<vocab_domain::CaptureCard, vocab_application::PlatformCaptureError> {
         self.workflow
             .save(request_id, without_translation, chrono::Utc::now())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use vocab_platform_api::{Capability, PlatformError};
-
-    use super::unsupported_platform;
-
-    #[test]
-    fn unsupported_target_selection_returns_a_typed_portable_error() {
-        assert!(matches!(
-            unsupported_platform(),
-            Err(PlatformError::Unsupported(Capability::Selection))
-        ));
     }
 }

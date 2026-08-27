@@ -9,7 +9,9 @@ members = [
   "crates/platform-contract-tests",
   "crates/storage",
   "crates/sync",
+  "platform/linux",
   "platform/macos/rust",
+  "platform/windows",
 ]
 
 [workspace.package]
