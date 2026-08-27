@@ -6,6 +6,8 @@ use std::{
 };
 
 use async_trait::async_trait;
+use vocab_application::PlatformCaptureError;
+use vocab_capture::CoordinatorError;
 use vocab_desktop_lib::{
     bootstrap::build_app_state,
     commands::capture::{
@@ -13,6 +15,7 @@ use vocab_desktop_lib::{
         get_platform_capabilities, hide_capture_window, request_accessibility_permission,
         request_screen_recording_permission, save_native_capture, translate_text,
     },
+    events::{CaptureFailure, CaptureFailureCode},
 };
 use vocab_domain::CaptureOrigin;
 use vocab_platform_api::{
@@ -34,6 +37,71 @@ fn capture_command_names_are_available_on_the_platform_neutral_surface() {
     let _ = save_native_capture;
     let _ = hide_capture_window;
     let _ = get_platform_capabilities;
+}
+
+#[test]
+fn platform_error_variants_serialize_to_the_exact_capture_failure_contract() {
+    let cases = [
+        (
+            PlatformError::PermissionRequired(PermissionKind::Accessibility),
+            CaptureFailureCode::PermissionRequired,
+            "permission_required",
+        ),
+        (
+            PlatformError::PermissionDenied(PermissionKind::ScreenRecording),
+            CaptureFailureCode::PermissionDenied,
+            "permission_denied",
+        ),
+        (
+            PlatformError::EmptySelection,
+            CaptureFailureCode::EmptySelection,
+            "empty_selection",
+        ),
+        (
+            PlatformError::UnsupportedElement,
+            CaptureFailureCode::UnsupportedElement,
+            "unsupported_element",
+        ),
+        (
+            PlatformError::Unsupported(vocab_platform_api::Capability::Translation),
+            CaptureFailureCode::TranslationUnavailable,
+            "translation_unavailable",
+        ),
+        (
+            PlatformError::Cancelled,
+            CaptureFailureCode::Cancelled,
+            "cancelled",
+        ),
+        (
+            PlatformError::Operation("diagnostic".into()),
+            CaptureFailureCode::Operation,
+            "operation",
+        ),
+    ];
+
+    for (error, expected_code, serialized_code) in cases {
+        let failure = CaptureFailure::from(error);
+        assert_eq!(failure.code, expected_code);
+        assert_eq!(
+            serde_json::to_value(&failure).unwrap()["code"],
+            serialized_code
+        );
+    }
+}
+
+#[test]
+fn non_translation_unsupported_and_internal_failures_map_to_operation() {
+    let unsupported = CaptureFailure::from(PlatformError::Unsupported(
+        vocab_platform_api::Capability::ScreenshotOcr,
+    ));
+    let invalid_range = CaptureFailure::from(PlatformError::InvalidSelectionRange);
+    let coordinator = CaptureFailure::from(PlatformCaptureError::Coordinator(
+        CoordinatorError::StaleRequest,
+    ));
+
+    assert_eq!(unsupported.code, CaptureFailureCode::Operation);
+    assert_eq!(invalid_range.code, CaptureFailureCode::Operation);
+    assert_eq!(coordinator.code, CaptureFailureCode::Operation);
 }
 
 #[test]

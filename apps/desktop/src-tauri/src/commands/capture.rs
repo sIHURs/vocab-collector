@@ -9,7 +9,7 @@ use vocab_platform_api::{
 
 use crate::{
     bootstrap::AppState,
-    events::{NativeCaptureError, NativeCaptureEvent},
+    events::{CaptureFailure, NativeCaptureError, NativeCaptureEvent},
 };
 
 #[tauri::command]
@@ -48,39 +48,41 @@ pub fn replace_shortcut(
 pub async fn get_permission_status(
     state: State<'_, AppState>,
     kind: PermissionKind,
-) -> Result<PermissionStatus, String> {
+) -> Result<PermissionStatus, CaptureFailure> {
     state
         .permission_status(kind)
         .await
-        .map_err(|error| error.to_string())
+        .map_err(CaptureFailure::from)
 }
 
 #[tauri::command]
 pub async fn request_accessibility_permission(
     state: State<'_, AppState>,
-) -> Result<PermissionStatus, String> {
+) -> Result<PermissionStatus, CaptureFailure> {
     state
         .request_permission(PermissionKind::Accessibility)
         .await
-        .map_err(|error| error.to_string())
+        .map_err(CaptureFailure::from)
 }
 
 #[tauri::command]
-pub async fn capture_selected_text(state: State<'_, AppState>) -> Result<CaptureCandidate, String> {
+pub async fn capture_selected_text(
+    state: State<'_, AppState>,
+) -> Result<CaptureCandidate, CaptureFailure> {
     state
         .capture_selection()
         .await
-        .map_err(|error| error.to_string())
+        .map_err(CaptureFailure::from)
 }
 
 #[tauri::command]
 pub async fn request_screen_recording_permission(
     state: State<'_, AppState>,
-) -> Result<PermissionStatus, String> {
+) -> Result<PermissionStatus, CaptureFailure> {
     state
         .request_permission(PermissionKind::ScreenRecording)
         .await
-        .map_err(|error| error.to_string())
+        .map_err(CaptureFailure::from)
 }
 
 #[tauri::command]
@@ -88,14 +90,15 @@ pub async fn capture_with_ocr(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
     request_id: Uuid,
-) -> Result<(), String> {
+) -> Result<(), CaptureFailure> {
     if !state.is_current_capture_request(request_id) {
-        return Err(vocab_capture::CoordinatorError::StaleRequest.to_string());
+        return Err(vocab_capture::CoordinatorError::StaleRequest.into());
     }
     let window = app
         .get_webview_window("capture")
-        .ok_or_else(|| "capture window is unavailable".to_string())?;
-    let (portable_pointer, primary_bounds) = pointer_and_primary_bounds(&app)?;
+        .ok_or_else(|| CaptureFailure::operation("capture window is unavailable"))?;
+    let (portable_pointer, primary_bounds) =
+        pointer_and_primary_bounds(&app).map_err(CaptureFailure::operation)?;
     // Tauri reports a logical top-left desktop point. AppKit's OCR entry point consumes
     // Cocoa global coordinates, whose Y axis starts at the primary display's bottom edge.
     let cocoa_pointer = portable_top_left_to_cocoa(portable_pointer, primary_bounds);
@@ -103,7 +106,8 @@ pub async fn capture_with_ocr(
         .publish_if_current(request_id, || {
             window.hide().map_err(|error| error.to_string())
         })
-        .map_err(|error| error.to_string())??;
+        .map_err(CaptureFailure::from)?
+        .map_err(CaptureFailure::operation)?;
     let candidates = state.recognize_near(cocoa_pointer).await;
     let candidates = match candidates {
         Ok(candidates) => candidates,
@@ -112,8 +116,9 @@ pub async fn capture_with_ocr(
                 .publish_if_current(request_id, || {
                     window.show().map_err(|error| error.to_string())
                 })
-                .map_err(|error| error.to_string())??;
-            return Err(error.to_string());
+                .map_err(CaptureFailure::from)?
+                .map_err(CaptureFailure::operation)?;
+            return Err(error.into());
         }
     };
     let Some(best) = candidates
@@ -124,8 +129,9 @@ pub async fn capture_with_ocr(
             .publish_if_current(request_id, || {
                 window.show().map_err(|error| error.to_string())
             })
-            .map_err(|error| error.to_string())??;
-        return Err("OCR did not find readable text".to_string());
+            .map_err(CaptureFailure::from)?
+            .map_err(CaptureFailure::operation)?;
+        return Err(CaptureFailure::operation("OCR did not find readable text"));
     };
     let candidate = CaptureCandidate {
         selected_text: best.text.clone(),
@@ -149,7 +155,8 @@ pub async fn capture_with_ocr(
                 )
                 .map_err(|error| error.to_string())
         })
-        .map_err(|error| error.to_string())?
+        .map_err(CaptureFailure::from)?
+        .map_err(CaptureFailure::operation)
 }
 
 #[tauri::command]
@@ -159,18 +166,16 @@ pub async fn translate_text(
     text: String,
     source_language: String,
     target_language: String,
-) -> Result<TranslationResult, String> {
+) -> Result<TranslationResult, CaptureFailure> {
     state
         .translate_capture(request_id, &text, &source_language, &target_language)
         .await
-        .map_err(|error| error.to_string())
+        .map_err(CaptureFailure::from)
 }
 
 #[tauri::command]
-pub fn confirm_ocr(state: State<'_, AppState>, request_id: Uuid) -> Result<(), String> {
-    state
-        .confirm_ocr(request_id)
-        .map_err(|error| error.to_string())
+pub fn confirm_ocr(state: State<'_, AppState>, request_id: Uuid) -> Result<(), CaptureFailure> {
+    state.confirm_ocr(request_id).map_err(CaptureFailure::from)
 }
 
 #[tauri::command]
@@ -178,16 +183,18 @@ pub fn save_native_capture(
     state: State<'_, AppState>,
     request_id: Uuid,
     without_translation: bool,
-) -> Result<CaptureCard, String> {
-    state.save_capture(request_id, without_translation)
+) -> Result<CaptureCard, CaptureFailure> {
+    state
+        .save_capture(request_id, without_translation)
+        .map_err(CaptureFailure::from)
 }
 
 #[tauri::command]
-pub fn hide_capture_window(app: tauri::AppHandle) -> Result<(), String> {
+pub fn hide_capture_window(app: tauri::AppHandle) -> Result<(), CaptureFailure> {
     app.get_webview_window("capture")
-        .ok_or_else(|| "capture window is unavailable".to_string())?
+        .ok_or_else(|| CaptureFailure::operation("capture window is unavailable"))?
         .hide()
-        .map_err(|error| error.to_string())
+        .map_err(|error| CaptureFailure::operation(error.to_string()))
 }
 
 #[tauri::command]
@@ -205,18 +212,18 @@ pub(crate) async fn present_native_capture(
         .await
         .map_err(|error| NativeCaptureError {
             request_id,
-            message: error.to_string(),
+            failure: error.into(),
         })?;
     let window = app
         .get_webview_window("capture")
         .ok_or_else(|| NativeCaptureError {
             request_id: prepared.request_id,
-            message: "capture window is unavailable".into(),
+            failure: CaptureFailure::operation("capture window is unavailable"),
         })?;
     let (pointer, work_areas) =
         pointer_and_work_areas(app).map_err(|message| NativeCaptureError {
             request_id: prepared.request_id,
-            message,
+            failure: CaptureFailure::operation(message),
         })?;
     let anchor = prepared.candidate.selection_bounds.unwrap_or_default();
     let position = vocab_capture::place_floating_window(
@@ -243,11 +250,11 @@ pub(crate) async fn present_native_capture(
         })
         .map_err(|error| NativeCaptureError {
             request_id: prepared.request_id,
-            message: error.to_string(),
+            failure: error.into(),
         })?
         .map_err(|message| NativeCaptureError {
             request_id: prepared.request_id,
-            message,
+            failure: CaptureFailure::operation(message),
         })
 }
 

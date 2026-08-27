@@ -2,18 +2,54 @@
   import { onMount } from "svelte";
   import { listen } from "@tauri-apps/api/event";
   import { invoke } from "@tauri-apps/api/core";
-  import type { CaptureCandidate, CaptureCard } from "./lib/types";
+  import { backend } from "./lib/backend";
+  import type {
+    CaptureCandidate,
+    CaptureCard,
+    CaptureFailure,
+    CaptureFailureCode,
+    PlatformCapabilities,
+  } from "./lib/types";
 
   type NativeCaptureEvent = { requestId: string; candidate: CaptureCandidate };
-  type NativeCaptureErrorEvent = { requestId: string; message: string };
+  type NativeCaptureErrorEvent = CaptureFailure & { requestId: string };
+  const failureCodes = new Set<CaptureFailureCode>([
+    "permission_required", "permission_denied", "empty_selection", "unsupported_element",
+    "translation_unavailable", "cancelled", "operation",
+  ]);
+  const unavailableCapabilities: PlatformCapabilities = {
+    selectionCapture: false,
+    selectionBounds: false,
+    screenshotOcr: false,
+    translation: false,
+    nonActivatingWindow: false,
+  };
   let candidate: CaptureCandidate | null = null;
   let saved: CaptureCard | null = null;
-  let error = "";
+  let failure: CaptureFailure | null = null;
   let saving = false;
-  let translationFailed = false;
+  let translationFailure: CaptureFailure | null = null;
   let ocrNeedsConfirmation = false;
+  let permissionAction: "accessibility" | "screen_recording" = "accessibility";
+  let platformCapabilities = unavailableCapabilities;
   let dismissTimer: ReturnType<typeof setTimeout> | undefined;
   let activeRequest = "";
+
+  function asCaptureFailure(cause: unknown): CaptureFailure {
+    if (typeof cause === "object" && cause !== null) {
+      const value = cause as { code?: unknown; message?: unknown };
+      if (typeof value.code === "string" && failureCodes.has(value.code as CaptureFailureCode)) {
+        return {
+          code: value.code as CaptureFailureCode,
+          message: typeof value.message === "string" ? value.message : "Capture operation failed.",
+        };
+      }
+    }
+    return {
+      code: "operation",
+      message: cause instanceof Error ? cause.message : String(cause),
+    };
+  }
 
   async function hide() {
     if (dismissTimer) clearTimeout(dismissTimer);
@@ -26,9 +62,10 @@
     if (dismissTimer) clearTimeout(dismissTimer);
     candidate = next;
     saved = null;
-    error = "";
-    translationFailed = false;
+    failure = null;
+    translationFailure = null;
     ocrNeedsConfirmation = false;
+    permissionAction = "accessibility";
     saving = true;
     try {
       if (confirmOcr) await invoke("confirm_ocr", { requestId });
@@ -40,14 +77,14 @@
           sourceLanguage: settings.sourceLanguage,
           targetLanguage: settings.targetLanguage,
         });
-      } catch {
+      } catch (cause) {
         if (requestId !== activeRequest) return;
-        translationFailed = true;
+        translationFailure = asCaptureFailure(cause);
         return;
       }
       if (requestId === activeRequest) await persist(requestId, false);
     } catch (cause) {
-      if (requestId === activeRequest) error = cause instanceof Error ? cause.message : String(cause);
+      if (requestId === activeRequest) failure = asCaptureFailure(cause);
     } finally {
       if (requestId === activeRequest) saving = false;
     }
@@ -64,10 +101,11 @@
     if (dismissTimer) clearTimeout(dismissTimer);
     candidate = event.candidate;
     saved = null;
-    error = "";
+    failure = null;
     saving = false;
-    translationFailed = false;
+    translationFailure = null;
     ocrNeedsConfirmation = true;
+    permissionAction = "accessibility";
   }
 
   async function undo() {
@@ -79,35 +117,41 @@
 
   async function grantAccessibility() {
     await invoke("request_accessibility_permission");
-    error = "Permission requested. Select text and press your shortcut again.";
+    failure = { code: "operation", message: "Permission requested. Select text and press your shortcut again." };
   }
 
   async function useOcr() {
+    permissionAction = "screen_recording";
     try {
       const status = await invoke<string>("request_screen_recording_permission");
       if (status !== "granted") {
-        error = "Screen Recording permission was requested. Enable it in System Settings, then try OCR again.";
+        permissionAction = "screen_recording";
+        failure = { code: "permission_required", message: "Screen Recording permission was requested. Enable it in System Settings, then try OCR again." };
         return;
       }
       await invoke("capture_with_ocr", { requestId: activeRequest });
-    } catch (cause) { error = cause instanceof Error ? cause.message : String(cause); }
+    } catch (cause) { failure = asCaptureFailure(cause); }
   }
 
   onMount(() => {
+    let mounted = true;
+    void backend.getPlatformCapabilities()
+      .then((capabilities) => { if (mounted) platformCapabilities = capabilities; })
+      .catch(() => { /* Conservative defaults remain active. */ });
     const ready = listen<NativeCaptureEvent>("capture-ready", ({ payload }) => accept(payload));
-    const failed = listen<NativeCaptureErrorEvent>("capture-error", ({ payload }) => { activeRequest = payload.requestId; candidate = null; saved = null; error = payload.message; });
+    const failed = listen<NativeCaptureErrorEvent>("capture-error", ({ payload }) => { activeRequest = payload.requestId; candidate = null; saved = null; translationFailure = null; permissionAction = "accessibility"; failure = payload; });
     const ocr = listen<NativeCaptureEvent>("ocr-candidate", ({ payload }) => offerOcr(payload));
-    return () => { ready.then((unlisten) => unlisten()); failed.then((unlisten) => unlisten()); ocr.then((unlisten) => unlisten()); if (dismissTimer) clearTimeout(dismissTimer); };
+    return () => { mounted = false; ready.then((unlisten) => unlisten()); failed.then((unlisten) => unlisten()); ocr.then((unlisten) => unlisten()); if (dismissTimer) clearTimeout(dismissTimer); };
   });
 </script>
 
 <main class="native-capture" onmouseenter={() => dismissTimer && clearTimeout(dismissTimer)} onmouseleave={() => saved && (dismissTimer = setTimeout(hide, 4_000))}>
   <header><span><i></i> Vocab Collector</span><button aria-label="Close capture" onclick={hide}>×</button></header>
-  {#if error}
-    <section class="capture-message"><strong>Capture needs attention</strong><p>{error}</p>
-      {#if error.includes("accessibilityPermissionRequired")}<button class="primary" onclick={grantAccessibility}>Allow Accessibility</button>{/if}
-      {#if error.includes("noSelection") || error.includes("noFocusedElement")}<button class="primary" onclick={useOcr}>Use OCR near pointer</button>{/if}
-      {#if error.includes("screenRecordingPermissionRequired")}<button class="primary" onclick={useOcr}>Allow Screen Recording</button>{/if}
+  {#if failure}
+    <section class="capture-message"><strong>Capture needs attention</strong><p>{failure.message}</p>
+      {#if failure.code === "permission_required" && permissionAction === "accessibility"}<button class="primary" onclick={grantAccessibility}>Allow Accessibility</button>{/if}
+      {#if failure.code === "permission_required" && permissionAction === "screen_recording"}<button class="primary" onclick={useOcr}>Allow Screen Recording</button>{/if}
+      {#if failure.code === "empty_selection" && platformCapabilities.screenshotOcr}<button class="primary" onclick={useOcr}>Use OCR near pointer</button>{/if}
     </section>
   {:else if saved}
     <section class="capture-result"><span class="check">✓</span><div><small>Saved</small><h1>{saved.displayForm}</h1><strong>{saved.translation ?? "Translation pending"}</strong><p>“{saved.context}”</p><small>{saved.isExistingWord ? `Seen ${saved.encounterCount} times · New context saved` : "Added to your review queue"}</small></div></section>
@@ -115,7 +159,7 @@
   {:else if candidate}
     <section class="capture-result"><div><small>{ocrNeedsConfirmation ? "OCR suggestion · Confirm before saving" : saving ? "Translating…" : "Captured"}</small><h1>{candidate.selectedText}</h1><p>“{candidate.sentence}”</p><small>{candidate.sourceApp ?? "Current application"}</small>
       {#if ocrNeedsConfirmation}<button class="primary" onclick={() => candidate && accept({ requestId: activeRequest, candidate }, true)}>Use this text</button>
-      {:else if translationFailed}<p>On-device translation is unavailable for this language pair.</p><button class="primary" onclick={() => persist(activeRequest, true)}>Save without translation</button>{/if}
+      {:else if translationFailure}<p>{translationFailure.message}</p>{#if translationFailure.code === "translation_unavailable"}<button class="primary" onclick={() => persist(activeRequest, true)}>Save without translation</button>{/if}{/if}
     </div></section>
   {:else}
     <section class="capture-message"><strong>Ready to capture</strong><p>Select text in another app, then press your shortcut.</p></section>

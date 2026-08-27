@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
-  CaptureCard, CaptureInput, Encounter, ReviewRating, Settings, TodayView, WordDetail,
-  WordListItem,
+  CaptureCard, CaptureInput, Encounter, PlatformCapabilities, ReviewRating, Settings, TodayView,
+  WordDetail, WordListItem,
 } from "./types";
 
 export interface Backend {
@@ -14,6 +14,7 @@ export interface Backend {
   getSettings(): Promise<Settings>;
   updateSettings(settings: Settings): Promise<void>;
   replaceShortcut(candidate: string): Promise<Settings>;
+  getPlatformCapabilities(): Promise<PlatformCapabilities>;
 }
 
 type DemoWord = WordDetail & { due: boolean };
@@ -22,6 +23,14 @@ const defaultSettings: Settings = {
   sourceLanguage: "en", targetLanguage: "de", captureShortcut: "Alt+Shift+V",
   reviewTime: "18:00", dailyLimit: 5, launchAtLogin: false, appearance: "system",
   reducedMotion: false,
+};
+
+const unavailablePlatformCapabilities: PlatformCapabilities = {
+  selectionCapture: false,
+  selectionBounds: false,
+  screenshotOcr: false,
+  translation: false,
+  nonActivatingWindow: false,
 };
 
 const id = () => globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
@@ -121,6 +130,7 @@ export class DemoBackend implements Backend {
   async getSettings() { return { ...this.settings }; }
   async updateSettings(settings: Settings) { this.settings = { ...settings }; }
   async replaceShortcut(candidate: string) { this.settings.captureShortcut = candidate; return { ...this.settings }; }
+  async getPlatformCapabilities() { return { ...unavailablePlatformCapabilities }; }
 }
 
 class TauriBackend implements Backend {
@@ -141,6 +151,7 @@ class TauriBackend implements Backend {
   getSettings() { return invoke<Settings>("get_settings"); }
   updateSettings(settings: Settings) { return invoke<void>("update_settings", { settings }); }
   replaceShortcut(candidate: string) { return invoke<Settings>("replace_shortcut", { candidate }); }
+  getPlatformCapabilities() { return invoke<PlatformCapabilities>("get_platform_capabilities"); }
 }
 
 export const createBackend = (): Backend => "__TAURI_INTERNALS__" in globalThis

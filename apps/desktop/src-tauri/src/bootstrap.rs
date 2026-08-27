@@ -163,10 +163,9 @@ impl AppState {
         &self,
         request_id: Uuid,
         without_translation: bool,
-    ) -> Result<vocab_domain::CaptureCard, String> {
+    ) -> Result<vocab_domain::CaptureCard, vocab_application::PlatformCaptureError> {
         self.workflow
             .save(request_id, without_translation, chrono::Utc::now())
-            .map_err(|error| error.to_string())
     }
 }
 

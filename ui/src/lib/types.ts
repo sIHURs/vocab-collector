@@ -1,6 +1,28 @@
 export type WordStatus = "learning" | "mastered" | "paused";
 export type ReviewRating = "forgot" | "remembered";
 
+export type CaptureFailureCode =
+  | "permission_required"
+  | "permission_denied"
+  | "empty_selection"
+  | "unsupported_element"
+  | "translation_unavailable"
+  | "cancelled"
+  | "operation";
+
+export interface CaptureFailure {
+  code: CaptureFailureCode;
+  message: string;
+}
+
+export interface PlatformCapabilities {
+  selectionCapture: boolean;
+  selectionBounds: boolean;
+  screenshotOcr: boolean;
+  translation: boolean;
+  nonActivatingWindow: boolean;
+}
+
 export interface Settings {
   sourceLanguage: string;
   targetLanguage: string;
