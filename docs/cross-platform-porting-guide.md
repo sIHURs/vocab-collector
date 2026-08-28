@@ -57,9 +57,10 @@ The present `PlatformError` variants are:
 
 The desktop boundary maps these into stable capture failure codes:
 `permission_required`, `permission_denied`, `empty_selection`,
-`unsupported_element`, `translation_unavailable`, `cancelled`, and
-`operation`. Do not expose captured text, context, translations, URLs,
-screenshots, or raw native bridge payloads in errors or logs.
+`unsupported_element`, `translation_unavailable`, `translation_failed`,
+`cancelled`, and `operation`. Do not expose captured text, context,
+translations, URLs, screenshots, or raw native bridge payloads in errors or
+logs.
 
 ## Shared capture workflow
 

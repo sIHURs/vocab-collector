@@ -32,8 +32,9 @@ If an Apple language pack is unavailable or translation fails, the card offers a
 
 Commands return a stable `CaptureFailure` object. Its `code` is one of
 `permission_required`, `permission_denied`, `empty_selection`,
-`unsupported_element`, `translation_unavailable`, `cancelled`, or
-`operation`; UI copy does not branch on native Swift strings or an OS name.
+`unsupported_element`, `translation_unavailable`, `translation_failed`,
+`cancelled`, or `operation`; UI copy does not branch on native Swift strings
+or an OS name.
 
 ## Permissions
 
