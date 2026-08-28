@@ -170,7 +170,7 @@ pub async fn translate_text(
     state
         .translate_capture(request_id, &text, &source_language, &target_language)
         .await
-        .map_err(CaptureFailure::from)
+        .map_err(CaptureFailure::from_translation)
 }
 
 #[tauri::command]
@@ -189,12 +189,29 @@ pub fn save_native_capture(
         .map_err(CaptureFailure::from)
 }
 
+pub fn hide_capture_window_for(
+    state: &AppState,
+    request_id: Uuid,
+    hide: impl FnOnce() -> Result<(), String>,
+) -> Result<(), CaptureFailure> {
+    state
+        .publish_if_current(request_id, hide)
+        .map_err(CaptureFailure::from)?
+        .map_err(CaptureFailure::operation)
+}
+
 #[tauri::command]
-pub fn hide_capture_window(app: tauri::AppHandle) -> Result<(), CaptureFailure> {
-    app.get_webview_window("capture")
-        .ok_or_else(|| CaptureFailure::operation("capture window is unavailable"))?
-        .hide()
-        .map_err(|error| CaptureFailure::operation(error.to_string()))
+pub fn hide_capture_window(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    request_id: Uuid,
+) -> Result<(), CaptureFailure> {
+    let window = app
+        .get_webview_window("capture")
+        .ok_or_else(|| CaptureFailure::operation("capture window is unavailable"))?;
+    hide_capture_window_for(&state, request_id, || {
+        window.hide().map_err(|error| error.to_string())
+    })
 }
 
 #[tauri::command]

@@ -209,6 +209,7 @@ fn exact_unicode_surface_form_is_preserved_through_the_production_workflow() {
     let (workflow, application) = workflow(Ok(candidate(selected_text)));
 
     let prepared = block_on(workflow.prepare_selection()).unwrap();
+    assert!(block_on(workflow.translate(prepared.request_id, selected_text, "en", "de")).is_err());
     let card = workflow
         .save(prepared.request_id, true, captured_at())
         .unwrap();
@@ -318,7 +319,7 @@ fn failed_translation_can_retry_and_save_the_successful_translation() {
 }
 
 #[test]
-fn prepared_translation_is_reused_without_a_second_provider_call() {
+fn selection_preparation_returns_before_translation_is_invoked() {
     let calls = Arc::new(AtomicUsize::new(0));
     let translation: Arc<dyn TranslationProvider> = Arc::new(CountingTranslationProvider {
         calls: calls.clone(),
@@ -326,10 +327,12 @@ fn prepared_translation_is_reused_without_a_second_provider_call() {
     let (workflow, _) = workflow_with_translation(Ok(candidate("serendipity")), translation);
 
     let prepared = block_on(workflow.prepare_selection()).unwrap();
-    let reused =
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+
+    let translated =
         block_on(workflow.translate(prepared.request_id, "serendipity", "en", "de")).unwrap();
 
-    assert_eq!(reused, prepared.translation.unwrap());
+    assert_eq!(translated.translated_text, "unused");
     assert_eq!(calls.load(Ordering::SeqCst), 1);
 }
 
@@ -392,10 +395,12 @@ fn unavailable_translation_requires_the_real_coordinator_fallback() {
 
     let prepared = block_on(workflow.prepare_selection()).unwrap();
 
-    assert_eq!(
-        prepared.translation_error,
-        Some(PlatformError::Unsupported(Capability::Translation))
-    );
+    assert!(matches!(
+        block_on(workflow.translate(prepared.request_id, "serendipity", "en", "de")),
+        Err(PlatformCaptureError::Platform(PlatformError::Unsupported(
+            Capability::Translation
+        )))
+    ));
     assert!(matches!(
         workflow.save(prepared.request_id, false, captured_at()),
         Err(PlatformCaptureError::Coordinator(
@@ -409,6 +414,7 @@ fn unavailable_translation_requires_the_real_coordinator_fallback() {
 fn explicit_save_without_translation_persists_an_untranslated_capture_once() {
     let (workflow, application) = workflow(Ok(candidate("serendipity")));
     let prepared = block_on(workflow.prepare_selection()).unwrap();
+    assert!(block_on(workflow.translate(prepared.request_id, "serendipity", "en", "de")).is_err());
 
     let card = workflow
         .save(prepared.request_id, true, captured_at())
@@ -423,4 +429,27 @@ fn explicit_save_without_translation_persists_an_untranslated_capture_once() {
             CoordinatorError::AlreadySaved
         ))
     ));
+}
+
+#[test]
+fn operation_translation_failure_can_save_without_translation() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let translation: Arc<dyn TranslationProvider> = Arc::new(RetryTranslationProvider {
+        calls: calls.clone(),
+    });
+    let (workflow, application) =
+        workflow_with_translation(Ok(candidate("serendipity")), translation);
+    let prepared = block_on(workflow.prepare_selection()).unwrap();
+
+    assert!(matches!(
+        block_on(workflow.translate(prepared.request_id, "serendipity", "en", "de")),
+        Err(PlatformCaptureError::Platform(PlatformError::Operation(_)))
+    ));
+    let card = workflow
+        .save(prepared.request_id, true, captured_at())
+        .unwrap();
+
+    assert_eq!(card.translation, None);
+    assert_eq!(application.list_words().unwrap().len(), 1);
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
 }

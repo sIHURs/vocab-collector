@@ -53,13 +53,21 @@ impl OcrProvider for MacOcrProvider {
         &self,
         pointer: ScreenPoint,
     ) -> Result<Vec<OcrCandidate>, PlatformError> {
-        let candidate = ffi::capture_ocr_at(pointer)?;
-        Ok(vec![OcrCandidate {
-            text: candidate.selected_text,
-            bounds: candidate.selection_bounds.unwrap_or_default(),
-            confidence: 1.0,
-        }])
+        recognize_near_with(pointer, ffi::capture_ocr_at).await
     }
+}
+
+async fn recognize_near_with(
+    pointer: ScreenPoint,
+    operation: impl FnOnce(ScreenPoint) -> Result<CaptureCandidate, PlatformError> + Send + 'static,
+) -> Result<Vec<OcrCandidate>, PlatformError> {
+    let candidate =
+        run_native_blocking("native OCR worker failed", move || operation(pointer)).await?;
+    Ok(vec![OcrCandidate {
+        text: candidate.selected_text,
+        bounds: candidate.selection_bounds.unwrap_or_default(),
+        confidence: 1.0,
+    }])
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -86,9 +94,19 @@ async fn run_blocking<T>(
 where
     T: Send + 'static,
 {
+    run_native_blocking("native translation worker failed", operation).await
+}
+
+async fn run_native_blocking<T>(
+    worker_failure: &'static str,
+    operation: impl FnOnce() -> Result<T, PlatformError> + Send + 'static,
+) -> Result<T, PlatformError>
+where
+    T: Send + 'static,
+{
     tokio::task::spawn_blocking(operation)
         .await
-        .map_err(|_| PlatformError::Operation("native translation worker failed".into()))?
+        .map_err(|_| PlatformError::Operation(worker_failure.into()))?
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -119,11 +137,46 @@ impl WindowProvider for MacWindowProvider {
 
 #[cfg(test)]
 mod tests {
-    use std::thread;
+    use std::{
+        sync::{Arc, Mutex},
+        thread,
+    };
 
-    use vocab_platform_api::PlatformError;
+    use vocab_platform_api::{CaptureCandidate, CaptureOrigin, PlatformError, ScreenPoint};
 
-    use super::run_blocking;
+    use super::{recognize_near_with, run_blocking};
+
+    #[test]
+    fn blocking_ocr_runs_off_the_async_caller_thread_and_preserves_the_result() {
+        let caller = thread::current().id();
+        let worker = Arc::new(Mutex::new(None));
+        let worker_for_call = worker.clone();
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
+
+        let candidates = runtime
+            .block_on(recognize_near_with(
+                ScreenPoint::new(25.0, 75.0),
+                move |pointer| {
+                    *worker_for_call.lock().unwrap() = Some(thread::current().id());
+                    assert_eq!(pointer, ScreenPoint::new(25.0, 75.0));
+                    Ok(CaptureCandidate {
+                        selected_text: "portable OCR".into(),
+                        sentence: "portable OCR".into(),
+                        source_app: None,
+                        source_title: None,
+                        source_url: None,
+                        selection_bounds: None,
+                        origin: CaptureOrigin::Ocr,
+                    })
+                },
+            ))
+            .unwrap();
+
+        assert_ne!(worker.lock().unwrap().unwrap(), caller);
+        assert_eq!(candidates[0].text, "portable OCR");
+    }
 
     #[test]
     fn blocking_translation_work_runs_off_the_async_caller_thread() {

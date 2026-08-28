@@ -48,6 +48,16 @@ const savedCard = (displayForm: string) => ({
   isExistingWord: false,
 });
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
+
 describe("floating capture request freshness", () => {
   beforeEach(() => {
     mocks.getPlatformCapabilities.mockResolvedValue(capabilities(false));
@@ -86,6 +96,54 @@ describe("floating capture request freshness", () => {
 
     expect(screen.queryByText("late failure")).not.toBeInTheDocument();
     expect(screen.getByText("current")).toBeVisible();
+  });
+
+  it("does not start translation after stale settings complete", async () => {
+    const firstSettings = deferred<{ sourceLanguage: string; targetLanguage: string }>();
+    const secondSettings = deferred<{ sourceLanguage: string; targetLanguage: string }>();
+    let settingsCalls = 0;
+    mocks.invoke.mockImplementation((command: string) => {
+      if (command === "get_settings") {
+        settingsCalls += 1;
+        return settingsCalls === 1 ? firstSettings.promise : secondSettings.promise;
+      }
+      return Promise.resolve();
+    });
+
+    render(FloatingCapture);
+    await waitFor(() => expect(mocks.handlers.has("capture-ready")).toBe(true));
+    mocks.handlers.get("capture-ready")?.({
+      payload: { requestId: "request-a", candidate: candidate("old") },
+    });
+    mocks.handlers.get("capture-ready")?.({
+      payload: { requestId: "request-b", candidate: candidate("current") },
+    });
+    firstSettings.resolve({ sourceLanguage: "en", targetLanguage: "de" });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(mocks.invoke).not.toHaveBeenCalledWith("translate_text", expect.objectContaining({
+      requestId: "request-a",
+    }));
+    expect(screen.getByText("current")).toBeVisible();
+  });
+
+  it("does not start translation when settings complete after unmount", async () => {
+    const settings = deferred<{ sourceLanguage: string; targetLanguage: string }>();
+    mocks.invoke.mockImplementation((command: string) => {
+      if (command === "get_settings") return settings.promise;
+      return Promise.resolve();
+    });
+
+    const { unmount } = render(FloatingCapture);
+    await waitFor(() => expect(mocks.handlers.has("capture-ready")).toBe(true));
+    mocks.handlers.get("capture-ready")?.({
+      payload: { requestId: "request-a", candidate: candidate("old") },
+    });
+    unmount();
+    settings.resolve({ sourceLanguage: "en", targetLanguage: "de" });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(mocks.invoke.mock.calls.filter(([command]) => command === "translate_text")).toHaveLength(0);
   });
 
   it("does not apply a completed save from a stale request or schedule its dismissal", async () => {
@@ -160,6 +218,178 @@ describe("floating capture request freshness", () => {
     expect(mocks.invoke).not.toHaveBeenCalledWith("hide_capture_window");
   });
 
+  it("does not continue OCR after an old permission request completes", async () => {
+    mocks.getPlatformCapabilities.mockResolvedValue(capabilities(true));
+    const permission = deferred<string>();
+    const currentSettings = deferred<{ sourceLanguage: string; targetLanguage: string }>();
+    mocks.invoke.mockImplementation((command: string) => {
+      if (command === "request_screen_recording_permission") return permission.promise;
+      if (command === "get_settings") return currentSettings.promise;
+      return Promise.resolve();
+    });
+    render(FloatingCapture);
+    await waitFor(() => expect(mocks.handlers.has("capture-error")).toBe(true));
+    await waitFor(() => expect(mocks.getPlatformCapabilities).toHaveBeenCalled());
+    mocks.handlers.get("capture-error")?.({ payload: {
+      requestId: "request-a", code: "empty_selection", message: "Nothing selected",
+    } });
+    await fireEvent.click(await screen.findByRole("button", { name: "Use OCR near pointer" }));
+
+    mocks.handlers.get("capture-ready")?.({
+      payload: { requestId: "request-b", candidate: candidate("current") },
+    });
+    permission.resolve("granted");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(mocks.invoke).not.toHaveBeenCalledWith("capture_with_ocr", expect.anything());
+    expect(screen.getByText("current")).toBeVisible();
+  });
+
+  it("does not continue OCR when permission completes after unmount", async () => {
+    mocks.getPlatformCapabilities.mockResolvedValue(capabilities(true));
+    const permission = deferred<string>();
+    mocks.invoke.mockImplementation((command: string) => {
+      if (command === "request_screen_recording_permission") return permission.promise;
+      return Promise.resolve();
+    });
+    const { unmount } = render(FloatingCapture);
+    await waitFor(() => expect(mocks.handlers.has("capture-error")).toBe(true));
+    await waitFor(() => expect(mocks.getPlatformCapabilities).toHaveBeenCalled());
+    mocks.handlers.get("capture-error")?.({ payload: {
+      requestId: "request-a", code: "empty_selection", message: "Nothing selected",
+    } });
+    await fireEvent.click(await screen.findByRole("button", { name: "Use OCR near pointer" }));
+    unmount();
+    permission.resolve("granted");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(mocks.invoke.mock.calls.filter(([command]) => command === "capture_with_ocr")).toHaveLength(0);
+  });
+
+  it("does not publish a late OCR failure over a newer capture", async () => {
+    mocks.getPlatformCapabilities.mockResolvedValue(capabilities(true));
+    const ocr = deferred<void>();
+    const currentSettings = deferred<{ sourceLanguage: string; targetLanguage: string }>();
+    mocks.invoke.mockImplementation((command: string) => {
+      if (command === "request_screen_recording_permission") return Promise.resolve("granted");
+      if (command === "capture_with_ocr") return ocr.promise;
+      if (command === "get_settings") return currentSettings.promise;
+      return Promise.resolve();
+    });
+    render(FloatingCapture);
+    await waitFor(() => expect(mocks.handlers.has("capture-error")).toBe(true));
+    await waitFor(() => expect(mocks.getPlatformCapabilities).toHaveBeenCalled());
+    mocks.handlers.get("capture-error")?.({ payload: {
+      requestId: "request-a", code: "empty_selection", message: "Nothing selected",
+    } });
+    await fireEvent.click(await screen.findByRole("button", { name: "Use OCR near pointer" }));
+    await waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith(
+      "capture_with_ocr", { requestId: "request-a" },
+    ));
+
+    mocks.handlers.get("capture-ready")?.({
+      payload: { requestId: "request-b", candidate: candidate("current") },
+    });
+    ocr.reject({ code: "operation", message: "late OCR failure" });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(screen.queryByText("late OCR failure")).not.toBeInTheDocument();
+    expect(screen.getByText("current")).toBeVisible();
+  });
+
+  it("does not mutate a newer capture after an old accessibility request completes", async () => {
+    const permission = deferred<void>();
+    const currentSettings = deferred<{ sourceLanguage: string; targetLanguage: string }>();
+    mocks.invoke.mockImplementation((command: string) => {
+      if (command === "request_accessibility_permission") return permission.promise;
+      if (command === "get_settings") return currentSettings.promise;
+      return Promise.resolve();
+    });
+    render(FloatingCapture);
+    await waitFor(() => expect(mocks.handlers.has("capture-error")).toBe(true));
+    mocks.handlers.get("capture-error")?.({ payload: {
+      requestId: "request-a", code: "permission_required", message: "Permission needed",
+    } });
+    await fireEvent.click(await screen.findByRole("button", { name: "Allow Accessibility" }));
+
+    mocks.handlers.get("capture-ready")?.({
+      payload: { requestId: "request-b", candidate: candidate("current") },
+    });
+    permission.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(screen.queryByText(/Permission requested/)).not.toBeInTheDocument();
+    expect(screen.getByText("current")).toBeVisible();
+  });
+
+  it("does not hide a newer capture when an old undo completes", async () => {
+    const undo = deferred<void>();
+    const currentSettings = deferred<{ sourceLanguage: string; targetLanguage: string }>();
+    let settingsCalls = 0;
+    mocks.invoke.mockImplementation((command: string) => {
+      if (command === "get_settings") {
+        settingsCalls += 1;
+        return settingsCalls === 1
+          ? Promise.resolve({ sourceLanguage: "en", targetLanguage: "de" })
+          : currentSettings.promise;
+      }
+      if (command === "translate_text") return Promise.resolve({ translatedText: "translated" });
+      if (command === "save_native_capture") return Promise.resolve(savedCard("old"));
+      if (command === "undo_capture") return undo.promise;
+      return Promise.resolve();
+    });
+    render(FloatingCapture);
+    await waitFor(() => expect(mocks.handlers.has("capture-ready")).toBe(true));
+    mocks.handlers.get("capture-ready")?.({
+      payload: { requestId: "request-a", candidate: candidate("old") },
+    });
+    await fireEvent.click(await screen.findByRole("button", { name: "Undo" }));
+
+    mocks.handlers.get("capture-ready")?.({
+      payload: { requestId: "request-b", candidate: candidate("current") },
+    });
+    undo.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(mocks.invoke.mock.calls.filter(([command]) => command === "hide_capture_window")).toHaveLength(0);
+    expect(screen.getByText("current")).toBeVisible();
+  });
+
+  it("binds close and dismissal callbacks to the capture request", async () => {
+    const timerSpy = vi.spyOn(globalThis, "setTimeout");
+    const currentSettings = deferred<{ sourceLanguage: string; targetLanguage: string }>();
+    mocks.invoke.mockImplementation((command: string) => {
+      if (command === "get_settings") return Promise.resolve({ sourceLanguage: "en", targetLanguage: "de" });
+      if (command === "translate_text") return Promise.resolve({ translatedText: "translated" });
+      if (command === "save_native_capture") return Promise.resolve(savedCard("old"));
+      return Promise.resolve();
+    });
+    render(FloatingCapture);
+    await waitFor(() => expect(mocks.handlers.has("capture-ready")).toBe(true));
+    mocks.handlers.get("capture-ready")?.({
+      payload: { requestId: "request-a", candidate: candidate("old") },
+    });
+    await screen.findByRole("button", { name: "Undo" });
+    const oldDismiss = timerSpy.mock.calls.find(([, delay]) => delay === 4_000)?.[0];
+    expect(oldDismiss).toBeTypeOf("function");
+
+    mocks.invoke.mockImplementation((command: string) => {
+      if (command === "get_settings") return currentSettings.promise;
+      return Promise.resolve();
+    });
+    mocks.handlers.get("capture-ready")?.({
+      payload: { requestId: "request-b", candidate: candidate("current") },
+    });
+    (oldDismiss as () => void)();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(mocks.invoke.mock.calls.filter(([command]) => command === "hide_capture_window")).toHaveLength(0);
+
+    await fireEvent.click(screen.getByRole("button", { name: "Close capture" }));
+    expect(mocks.invoke).toHaveBeenCalledWith(
+      "hide_capture_window", { requestId: "request-b" },
+    );
+  });
+
   it("shows the permission action from a permission_required code despite misleading diagnostics", async () => {
     render(FloatingCapture);
     await waitFor(() => expect(mocks.handlers.has("capture-error")).toBe(true));
@@ -226,7 +456,7 @@ describe("floating capture request freshness", () => {
     expect(screen.queryByRole("button", { name: "Allow Accessibility" })).not.toBeInTheDocument();
   });
 
-  it("offers save without translation only for translation_unavailable", async () => {
+  it("offers save without translation and retry for translation_unavailable", async () => {
     mocks.invoke.mockImplementation((command: string) => {
       if (command === "get_settings") return Promise.resolve({ sourceLanguage: "en", targetLanguage: "de" });
       if (command === "translate_text") return Promise.reject({
@@ -244,17 +474,18 @@ describe("floating capture request freshness", () => {
     } });
 
     expect(await screen.findByRole("button", { name: "Save without translation" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Retry translation" })).toBeVisible();
     expect(screen.getByText("No provider for this language pair")).toBeVisible();
   });
 
-  it("does not offer save without translation for operation despite misleading diagnostics", async () => {
+  it("offers typed translation recovery for translation_failed without reading diagnostics", async () => {
     mocks.invoke.mockImplementation((command: string) => {
       if (command === "get_settings") {
         return Promise.resolve({ sourceLanguage: "en", targetLanguage: "de" });
       }
       if (command === "translate_text") {
         return Promise.reject({
-          code: "operation",
+          code: "translation_failed",
           message: "translationUnavailable no provider for this language pair",
         });
       }
@@ -269,7 +500,37 @@ describe("floating capture request freshness", () => {
     } });
 
     expect(await screen.findByText(/translationUnavailable/)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Save without translation" })).toBeVisible();
+    await fireEvent.click(screen.getByRole("button", { name: "Retry translation" }));
+    await waitFor(() => expect(mocks.invoke.mock.calls.filter(
+      ([command]) => command === "translate_text",
+    )).toHaveLength(2));
+  });
+
+  it("does not offer translation recovery for generic operation diagnostics", async () => {
+    mocks.invoke.mockImplementation((command: string) => {
+      if (command === "get_settings") {
+        return Promise.resolve({ sourceLanguage: "en", targetLanguage: "de" });
+      }
+      if (command === "translate_text") {
+        return Promise.reject({
+          code: "operation",
+          message: "translationFailed translationUnavailable retry and save without translation",
+        });
+      }
+      return Promise.resolve();
+    });
+    render(FloatingCapture);
+    await waitFor(() => expect(mocks.handlers.has("capture-ready")).toBe(true));
+
+    mocks.handlers.get("capture-ready")?.({ payload: {
+      requestId: "operation-translation-request",
+      candidate: candidate("portable"),
+    } });
+
+    expect(await screen.findByText(/translationFailed/)).toBeVisible();
     expect(screen.queryByRole("button", { name: "Save without translation" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Retry translation" })).not.toBeInTheDocument();
   });
 
   it("never derives actions from arbitrary operation diagnostics", async () => {

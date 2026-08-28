@@ -15,7 +15,7 @@
   type NativeCaptureErrorEvent = CaptureFailure & { requestId: string };
   const failureCodes = new Set<CaptureFailureCode>([
     "permission_required", "permission_denied", "empty_selection", "unsupported_element",
-    "translation_unavailable", "cancelled", "operation",
+    "translation_unavailable", "translation_failed", "cancelled", "operation",
   ]);
   const unavailableCapabilities: PlatformCapabilities = {
     selectionCapture: false,
@@ -36,6 +36,15 @@
   let activeRequest = "";
   let mounted = false;
 
+  function isActiveRequest(requestId: string) {
+    return mounted && Boolean(requestId) && requestId === activeRequest;
+  }
+
+  function clearDismissTimer() {
+    if (dismissTimer) clearTimeout(dismissTimer);
+    dismissTimer = undefined;
+  }
+
   function asCaptureFailure(cause: unknown): CaptureFailure {
     if (typeof cause === "object" && cause !== null) {
       const value = cause as { code?: unknown; message?: unknown };
@@ -52,15 +61,27 @@
     };
   }
 
-  async function hide() {
-    if (dismissTimer) clearTimeout(dismissTimer);
-    await invoke("hide_capture_window");
+  async function hide(requestId = activeRequest) {
+    if (!isActiveRequest(requestId)) return;
+    clearDismissTimer();
+    try {
+      await invoke("hide_capture_window", { requestId });
+    } catch (cause) {
+      if (isActiveRequest(requestId)) failure = asCaptureFailure(cause);
+    }
+  }
+
+  function scheduleDismissal(requestId: string) {
+    if (!isActiveRequest(requestId)) return;
+    clearDismissTimer();
+    dismissTimer = setTimeout(() => { void hide(requestId); }, 4_000);
   }
 
   async function accept(event: NativeCaptureEvent, confirmOcr = false) {
     const { requestId, candidate: next } = event;
+    if (!mounted) return;
     activeRequest = requestId;
-    if (dismissTimer) clearTimeout(dismissTimer);
+    clearDismissTimer();
     candidate = next;
     saved = null;
     failure = null;
@@ -69,8 +90,12 @@
     permissionAction = "accessibility";
     saving = true;
     try {
-      if (confirmOcr) await invoke("confirm_ocr", { requestId });
+      if (confirmOcr) {
+        await invoke("confirm_ocr", { requestId });
+        if (!isActiveRequest(requestId)) return;
+      }
       const settings = await invoke<{ sourceLanguage: string; targetLanguage: string }>("get_settings");
+      if (!isActiveRequest(requestId)) return;
       try {
         await invoke<{ translatedText: string }>("translate_text", {
           requestId,
@@ -79,29 +104,36 @@
           targetLanguage: settings.targetLanguage,
         });
       } catch (cause) {
-        if (requestId !== activeRequest) return;
+        if (!isActiveRequest(requestId)) return;
         translationFailure = asCaptureFailure(cause);
         return;
       }
-      if (requestId === activeRequest) await persist(requestId, false);
+      if (isActiveRequest(requestId)) await persist(requestId, false);
     } catch (cause) {
-      if (requestId === activeRequest) failure = asCaptureFailure(cause);
+      if (isActiveRequest(requestId)) failure = asCaptureFailure(cause);
     } finally {
-      if (requestId === activeRequest) saving = false;
+      if (isActiveRequest(requestId)) saving = false;
     }
   }
 
   async function persist(requestId = activeRequest, withoutTranslation = false) {
-    if (!mounted || !requestId || requestId !== activeRequest) return;
-    const nextSaved = await invoke<CaptureCard>("save_native_capture", { requestId, withoutTranslation });
-    if (!mounted || requestId !== activeRequest) return;
-    saved = nextSaved;
-    dismissTimer = setTimeout(hide, 4_000);
+    if (!isActiveRequest(requestId)) return;
+    try {
+      const nextSaved = await invoke<CaptureCard>("save_native_capture", { requestId, withoutTranslation });
+      if (!isActiveRequest(requestId)) return;
+      saved = nextSaved;
+      scheduleDismissal(requestId);
+    } catch (cause) {
+      if (!isActiveRequest(requestId)) return;
+      if (withoutTranslation) translationFailure = asCaptureFailure(cause);
+      else failure = asCaptureFailure(cause);
+    }
   }
 
   function offerOcr(event: NativeCaptureEvent) {
+    if (!mounted) return;
     activeRequest = event.requestId;
-    if (dismissTimer) clearTimeout(dismissTimer);
+    clearDismissTimer();
     candidate = event.candidate;
     saved = null;
     failure = null;
@@ -112,28 +144,48 @@
   }
 
   async function undo() {
-    if (!saved) return;
-    await invoke("undo_capture", { encounterId: saved.encounterId });
-    saved = null;
-    await hide();
+    const requestId = activeRequest;
+    const encounterId = saved?.encounterId;
+    if (!encounterId || !isActiveRequest(requestId)) return;
+    clearDismissTimer();
+    try {
+      await invoke("undo_capture", { encounterId });
+      if (!isActiveRequest(requestId)) return;
+      saved = null;
+      await hide(requestId);
+    } catch (cause) {
+      if (isActiveRequest(requestId)) failure = asCaptureFailure(cause);
+    }
   }
 
   async function grantAccessibility() {
-    await invoke("request_accessibility_permission");
-    failure = { code: "operation", message: "Permission requested. Select text and press your shortcut again." };
+    const requestId = activeRequest;
+    if (!isActiveRequest(requestId)) return;
+    try {
+      await invoke("request_accessibility_permission");
+      if (!isActiveRequest(requestId)) return;
+      failure = { code: "operation", message: "Permission requested. Select text and press your shortcut again." };
+    } catch (cause) {
+      if (isActiveRequest(requestId)) failure = asCaptureFailure(cause);
+    }
   }
 
   async function useOcr() {
+    const requestId = activeRequest;
+    if (!isActiveRequest(requestId)) return;
     permissionAction = "screen_recording";
     try {
       const status = await invoke<string>("request_screen_recording_permission");
+      if (!isActiveRequest(requestId)) return;
       if (status !== "granted") {
         permissionAction = "screen_recording";
         failure = { code: "permission_required", message: "Screen Recording permission was requested. Enable it in System Settings, then try OCR again." };
         return;
       }
-      await invoke("capture_with_ocr", { requestId: activeRequest });
-    } catch (cause) { failure = asCaptureFailure(cause); }
+      await invoke("capture_with_ocr", { requestId });
+    } catch (cause) {
+      if (isActiveRequest(requestId)) failure = asCaptureFailure(cause);
+    }
   }
 
   onMount(() => {
@@ -141,15 +193,15 @@
     void backend.getPlatformCapabilities()
       .then((capabilities) => { if (mounted) platformCapabilities = capabilities; })
       .catch(() => { /* Conservative defaults remain active. */ });
-    const ready = listen<NativeCaptureEvent>("capture-ready", ({ payload }) => accept(payload));
-    const failed = listen<NativeCaptureErrorEvent>("capture-error", ({ payload }) => { activeRequest = payload.requestId; candidate = null; saved = null; translationFailure = null; permissionAction = "accessibility"; failure = payload; });
-    const ocr = listen<NativeCaptureEvent>("ocr-candidate", ({ payload }) => offerOcr(payload));
-    return () => { mounted = false; ready.then((unlisten) => unlisten()); failed.then((unlisten) => unlisten()); ocr.then((unlisten) => unlisten()); if (dismissTimer) clearTimeout(dismissTimer); };
+    const ready = listen<NativeCaptureEvent>("capture-ready", ({ payload }) => { if (mounted) void accept(payload); });
+    const failed = listen<NativeCaptureErrorEvent>("capture-error", ({ payload }) => { if (mounted) { activeRequest = payload.requestId; clearDismissTimer(); candidate = null; saved = null; translationFailure = null; permissionAction = "accessibility"; failure = payload; } });
+    const ocr = listen<NativeCaptureEvent>("ocr-candidate", ({ payload }) => { if (mounted) offerOcr(payload); });
+    return () => { mounted = false; ready.then((unlisten) => unlisten()); failed.then((unlisten) => unlisten()); ocr.then((unlisten) => unlisten()); clearDismissTimer(); };
   });
 </script>
 
-<main class="native-capture" onmouseenter={() => dismissTimer && clearTimeout(dismissTimer)} onmouseleave={() => saved && (dismissTimer = setTimeout(hide, 4_000))}>
-  <header><span><i></i> Vocab Collector</span><button aria-label="Close capture" onclick={hide}>×</button></header>
+<main class="native-capture" onmouseenter={clearDismissTimer} onmouseleave={() => saved && scheduleDismissal(activeRequest)}>
+  <header><span><i></i> Vocab Collector</span><button aria-label="Close capture" onclick={() => hide(activeRequest)}>×</button></header>
   {#if failure}
     <section class="capture-message"><strong>Capture needs attention</strong><p>{failure.message}</p>
       {#if failure.code === "permission_required" && permissionAction === "accessibility"}<button class="primary" onclick={grantAccessibility}>Allow Accessibility</button>{/if}
@@ -162,7 +214,7 @@
   {:else if candidate}
     <section class="capture-result"><div><small>{ocrNeedsConfirmation ? "OCR suggestion · Confirm before saving" : saving ? "Translating…" : "Captured"}</small><h1>{candidate.selectedText}</h1><p>“{candidate.sentence}”</p><small>{candidate.sourceApp ?? "Current application"}</small>
       {#if ocrNeedsConfirmation}<button class="primary" onclick={() => candidate && accept({ requestId: activeRequest, candidate }, true)}>Use this text</button>
-      {:else if translationFailure}<p>{translationFailure.message}</p>{#if translationFailure.code === "translation_unavailable"}<button class="primary" onclick={() => persist(activeRequest, true)}>Save without translation</button>{/if}{/if}
+      {:else if translationFailure}<p>{translationFailure.message}</p>{#if translationFailure.code === "translation_unavailable" || translationFailure.code === "translation_failed"}<button class="primary" onclick={() => candidate && accept({ requestId: activeRequest, candidate })}>Retry translation</button><button class="primary" onclick={() => persist(activeRequest, true)}>Save without translation</button>{/if}{/if}
     </div></section>
   {:else}
     <section class="capture-message"><strong>Ready to capture</strong><p>Select text in another app, then press your shortcut.</p></section>

@@ -12,6 +12,7 @@ pub enum CaptureFailureCode {
     EmptySelection,
     UnsupportedElement,
     TranslationUnavailable,
+    TranslationFailed,
     Cancelled,
     Operation,
 }
@@ -27,6 +28,16 @@ impl CaptureFailure {
         Self {
             code: CaptureFailureCode::Operation,
             message: message.into(),
+        }
+    }
+
+    pub fn from_translation(error: PlatformCaptureError) -> Self {
+        match error {
+            PlatformCaptureError::Platform(PlatformError::Operation(message)) => Self {
+                code: CaptureFailureCode::TranslationFailed,
+                message: PlatformError::Operation(message).to_string(),
+            },
+            error => error.into(),
         }
     }
 }

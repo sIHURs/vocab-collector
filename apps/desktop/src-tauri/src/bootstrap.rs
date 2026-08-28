@@ -131,7 +131,10 @@ impl AppState {
         self.workflow.prepare_selection_for(request_id).await
     }
 
-    pub(crate) fn configure_capture_window(&self) -> Result<(), PlatformError> {
+    pub fn configure_capture_window(&self) -> Result<(), PlatformError> {
+        if !self.capabilities.non_activating_window {
+            return Ok(());
+        }
         self.window.configure_capture_window()
     }
 

@@ -7,6 +7,7 @@ export type CaptureFailureCode =
   | "empty_selection"
   | "unsupported_element"
   | "translation_unavailable"
+  | "translation_failed"
   | "cancelled"
   | "operation";
 

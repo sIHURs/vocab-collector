@@ -15,8 +15,6 @@ use crate::{AppService, ApplicationError, CaptureRequest};
 pub struct PreparedCapture {
     pub request_id: Uuid,
     pub candidate: CaptureCandidate,
-    pub translation: Option<TranslationResult>,
-    pub translation_error: Option<PlatformError>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -130,26 +128,9 @@ impl PlatformCaptureWorkflow {
         self.coordinator
             .set_candidate(request_id, candidate.clone())?;
 
-        let settings = self.application.get_settings()?;
-        let (translation, translation_error) = match self
-            .translate(
-                request_id,
-                &candidate.selected_text,
-                &settings.source_language,
-                &settings.target_language,
-            )
-            .await
-        {
-            Ok(translation) => (Some(translation), None),
-            Err(PlatformCaptureError::Platform(error)) => (None, Some(error)),
-            Err(error) => return Err(error),
-        };
-
         Ok(PreparedCapture {
             request_id,
             candidate,
-            translation,
-            translation_error,
         })
     }
 

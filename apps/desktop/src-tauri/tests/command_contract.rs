@@ -1,6 +1,9 @@
 use std::{
     future::Future,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
     task::{Context, Poll, Wake, Waker},
     thread,
 };
@@ -12,8 +15,9 @@ use vocab_desktop_lib::{
     bootstrap::build_app_state,
     commands::capture::{
         capture_selected_text, capture_with_ocr, confirm_ocr, get_permission_status,
-        get_platform_capabilities, hide_capture_window, request_accessibility_permission,
-        request_screen_recording_permission, save_native_capture, translate_text,
+        get_platform_capabilities, hide_capture_window, hide_capture_window_for,
+        request_accessibility_permission, request_screen_recording_permission, save_native_capture,
+        translate_text,
     },
     events::{CaptureFailure, CaptureFailureCode, NativeCaptureError, NativeCaptureErrorEvent},
 };
@@ -123,6 +127,19 @@ fn non_translation_unsupported_and_internal_failures_map_to_operation() {
 }
 
 #[test]
+fn translation_operation_failures_have_a_typed_retryable_context() {
+    let failure = CaptureFailure::from_translation(PlatformCaptureError::Platform(
+        PlatformError::Operation("native translation timed out".into()),
+    ));
+
+    assert_eq!(failure.code, CaptureFailureCode::TranslationFailed);
+    assert_eq!(
+        serde_json::to_value(&failure).unwrap()["code"],
+        "translation_failed"
+    );
+}
+
+#[test]
 fn app_state_routes_capture_operations_through_injected_platform_services() {
     let calls = Arc::new(Mutex::new(Vec::new()));
     let capabilities = PlatformCapabilities {
@@ -174,6 +191,67 @@ fn app_state_routes_capture_operations_through_injected_platform_services() {
 }
 
 #[test]
+fn unavailable_non_activating_window_capability_skips_window_configuration() {
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    let state = build_app_state(
+        Arc::new(SqliteStore::open_in_memory().unwrap()),
+        platform_services(
+            PlatformCapabilities {
+                non_activating_window: false,
+                ..PlatformCapabilities::default()
+            },
+            calls.clone(),
+        ),
+    );
+
+    state.configure_capture_window().unwrap();
+
+    assert!(!calls.lock().unwrap().iter().any(|call| call == "window"));
+}
+
+#[test]
+fn available_non_activating_window_capability_configures_the_window() {
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    let state = build_app_state(
+        Arc::new(SqliteStore::open_in_memory().unwrap()),
+        platform_services(
+            PlatformCapabilities {
+                non_activating_window: true,
+                ..PlatformCapabilities::default()
+            },
+            calls.clone(),
+        ),
+    );
+
+    state.configure_capture_window().unwrap();
+
+    assert_eq!(calls.lock().unwrap().as_slice(), ["window"]);
+}
+
+#[test]
+fn stale_hide_does_not_run_the_window_side_effect() {
+    let state = build_app_state(
+        Arc::new(SqliteStore::open_in_memory().unwrap()),
+        platform_services(
+            PlatformCapabilities::default(),
+            Arc::new(Mutex::new(Vec::new())),
+        ),
+    );
+    let stale = state.start_capture_request();
+    let current = state.start_capture_request();
+    let hidden = AtomicBool::new(false);
+
+    let result = hide_capture_window_for(&state, stale, || {
+        hidden.store(true, Ordering::SeqCst);
+        Ok(())
+    });
+
+    assert!(result.is_err());
+    assert!(!hidden.load(Ordering::SeqCst));
+    assert!(state.is_current_capture_request(current));
+}
+
+#[test]
 fn app_state_uses_one_request_for_selection_translation_and_save() {
     let calls = Arc::new(Mutex::new(Vec::new()));
     let state = build_app_state(
@@ -216,8 +294,10 @@ fn platform_services(
         translation: Arc::new(FakeTranslation {
             calls: calls.clone(),
         }),
-        permissions: Arc::new(FakePermissions { calls }),
-        window: Arc::new(FakeWindow),
+        permissions: Arc::new(FakePermissions {
+            calls: calls.clone(),
+        }),
+        window: Arc::new(FakeWindow { calls }),
     }
 }
 
@@ -310,10 +390,13 @@ impl PermissionProvider for FakePermissions {
     }
 }
 
-struct FakeWindow;
+struct FakeWindow {
+    calls: Arc<Mutex<Vec<String>>>,
+}
 
 impl WindowProvider for FakeWindow {
     fn configure_capture_window(&self) -> Result<(), PlatformError> {
+        self.calls.lock().unwrap().push("window".into());
         Ok(())
     }
 }

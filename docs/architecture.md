@@ -1,29 +1,94 @@
 # Architecture
 
-Vocab Collector is local-first. The Rust domain owns durable product rules, while the Svelte UI receives typed view models through a narrow desktop API. SQLite is the source of truth on every device. Supabase is an optional replication target and never blocks capture or review.
+Vocab Collector is a local-first application with one shared product core and
+replaceable operating-system adapters. SQLite is the source of truth on every
+device. Supabase is an optional replication target and never blocks capture or
+review.
 
 ```text
 Svelte UI
-   │ typed commands
-Desktop application service
-   ├── Domain rules and repository contracts
-   ├── SQLite repositories + transactional outbox
-   ├── Platform provider traits
-   └── Optional sync engine → Supabase
+    │ typed Tauri commands and events
+vocab-desktop (composition and presentation boundary)
+    ├── vocab-application + vocab-capture (product workflow)
+    ├── vocab-storage + vocab-domain (durable rules and data)
+    └── vocab-platform-api (portable capability ports)
+            ▲
+            ├── vocab-platform-macos → Swift native package
+            ├── vocab-platform-linux (Plan B skeleton)
+            └── vocab-platform-windows (Plan B skeleton)
 ```
 
-The prototype ships a deterministic capture simulator so the complete frontend flow can run without Accessibility or Translation permissions. Production macOS providers will implement the same `PlatformCapture` and `TranslationProvider` contracts.
+Dependencies point inward: shared crates never import Tauri, Swift FFI,
+AT-SPI, XDG Portal, UI Automation, Win32, or an OS adapter. Target selection is
+confined to `apps/desktop/src-tauri/src/bootstrap.rs` and target-specific Cargo
+dependency tables.
 
-## Runtime boundaries
+## Shared boundaries
 
-- `vocab-domain` contains serializable entities, normalization, review scheduling, and view models.
-- `vocab-storage` owns SQLite, migrations, repository implementations, and the transactional outbox. A duplicate lemma reuses one word and appends a new encounter.
-- `vocab-application` composes capture, Today, vocabulary detail, review, Undo, and settings use cases.
-- `vocab-desktop` initializes the per-scope database and exposes only typed Tauri commands.
-- `ui/src/lib/backend.ts` selects the Tauri adapter in the desktop runtime and a deterministic in-memory adapter in an ordinary browser.
+- `vocab-domain` owns entities, normalization, review scheduling, and
+  repository contracts.
+- `vocab-storage` owns SQLite, migrations, repository implementations, and the
+  transactional outbox. Duplicate lemmas reuse a word and append encounters.
+- `vocab-capture` owns request identity, stale-result rejection, explicit OCR
+  confirmation, translation state, save-once behavior, shortcut validation,
+  and portable window placement.
+- `vocab-application` composes capture and the remaining product use cases. Its
+  `PlatformCaptureWorkflow` publishes a captured candidate before translation,
+  then records translation success or failure against the same request.
+- `vocab-platform-api` contains portable DTOs, typed errors, capability flags,
+  and the small `SelectionProvider`, `OcrProvider`, `TranslationProvider`,
+  `PermissionProvider`, and `WindowProvider` traits.
+- `vocab-platform-contract-tests` provides reusable adapter contract checks;
+  application tests use fake providers without native permissions.
+- `vocab-desktop` selects one platform service bundle, constructs the shared
+  workflow, normalizes Tauri presentation data, and exposes stable commands and
+  events. It does not call the Swift ABI directly.
 
-## Account and AI seams
+All coordinates crossing `vocab-platform-api` use logical units in a top-left
+virtual-desktop space. Native adapters perform native-coordinate conversion;
+the desktop boundary normalizes Tauri monitor and pointer data before portable
+placement.
 
-The Supabase migration is account-scoped and protected by RLS. Guest data remains in a separate local database; sign-in, credential storage, guest merge, and delta transport are deliberately left outside this prototype foundation.
+## Capture lifecycle and concurrency
 
-Future AI enrichment implements `EnrichmentProvider`. Its output has provenance fields and remains separate from the user translation, so adding an assistant cannot silently overwrite vocabulary data.
+Each shortcut starts one coordinator-owned request ID. Selection is published
+as `capture-ready` before translation begins, so the UI can show the captured
+text immediately. Translation runs separately and may be retried or explicitly
+bypassed. Provider unavailability is `translation_unavailable`; a native
+translation operation failure is `translation_failed`. Only those typed codes
+offer retry and save-without-translation actions; diagnostic text never controls
+UI behavior.
+
+Every asynchronous UI continuation revalidates both component lifetime and its
+captured request ID before changing state or starting dependent work. Close and
+timed-dismiss commands carry that request ID, and the Rust publication guard
+serializes the hide side effect with request replacement. The same guarded
+publication boundary protects capture-ready, capture-error, and OCR events.
+
+Blocking macOS translation and OCR bridge calls run on Tokio blocking workers.
+Swift pointers and bridge envelopes remain private to the macOS Rust adapter,
+and native diagnostics must not include captured text, translations, URLs, or
+screenshots.
+
+## Capabilities and platform status
+
+The UI branches on `PlatformCapabilities`, never on an OS name. Window setup is
+invoked only when `nonActivatingWindow` is reported; unavailable providers
+return explicit typed errors.
+
+The macOS adapter and Swift package are the Plan A runtime implementation.
+Linux and Windows crates are contract-compatible skeletons only. Their source
+may be statically formatted on macOS, but their compilation, automated tests,
+and runtime behavior are verified on their target-specific CI lanes and
+physical Plan B hosts as documented in `linux-development.md` and
+`windows-development.md`.
+
+## Account and enrichment seams
+
+The Supabase migration is account-scoped and protected by RLS. Guest data stays
+in a separate local database; sign-in, credential storage, guest merge, and
+delta transport remain outside the current foundation.
+
+Future AI enrichment implements `EnrichmentProvider`. Its output retains
+provenance and remains separate from the user translation so an assistant
+cannot silently overwrite vocabulary data.
