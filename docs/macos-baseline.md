@@ -55,7 +55,8 @@ so that Tauri could invoke Cargo; no repository configuration was changed.
 
 ## Plan A handoff verification
 
-Run on 2026-08-27 after macOS adapter encapsulation and the history rewrite.
+Run on 2026-08-28 after macOS adapter encapsulation, final review fixes, and
+the history rewrite.
 Linux and Windows adapter packages and targets were not compiled, checked,
 tested, or run on this Mac. `cargo fmt --all --check` is a static formatting
 check only; every other Rust workspace command explicitly excluded
@@ -66,10 +67,10 @@ check only; every other Rust workspace command explicitly excluded
 | `swift test --package-path platform/macos/native` | PASS: 9 Swift tests |
 | `cargo fmt --all --check` | PASS |
 | `cargo clippy --workspace --all-targets --exclude vocab-platform-linux --exclude vocab-platform-windows -- -D warnings` | PASS |
-| `cargo test --workspace --exclude vocab-platform-linux --exclude vocab-platform-windows` | PASS: 77 Rust tests; all doc tests pass |
+| `cargo test --workspace --exclude vocab-platform-linux --exclude vocab-platform-windows` | PASS: 83 Rust tests; all doc tests pass |
 | `cargo build --workspace --exclude vocab-platform-linux --exclude vocab-platform-windows` | PASS |
 | `pnpm check` | PASS: 0 errors and 0 warnings |
-| `pnpm test` | PASS: 4 test files and 17 tests |
+| `pnpm test` | PASS: 4 test files and 26 tests |
 | `pnpm build` | PASS: Vite production bundle built |
 | `pnpm tauri build --bundles app` | PASS: built `target/release/bundle/macos/Vocab Collector.app` |
 
@@ -84,6 +85,12 @@ Mach-O at `Contents/MacOS/vocab-desktop`, and the required `/usr/lib/swift`
 runtime search path. This command-line gate did not distribution-sign, notarize,
 launch, or interact with the bundle; signing and notarization remain separate
 release steps.
+
+The transferable backup `vocab-collector-app-plan-a.bundle` was created from
+the final Plan A branch and verified with `git bundle verify`. It contains the
+`plan-a-macos-platform-encapsulation` branch and the `macos-mvp-v0.1.0` tag.
+Record its SHA-256 alongside the final handoff because regenerating the bundle
+after a later commit necessarily changes that checksum.
 
 Focused regressions now cover OCR result bounds on the primary display and on
 secondary displays above, below, and left of a nonzero primary origin. Rust FFI
