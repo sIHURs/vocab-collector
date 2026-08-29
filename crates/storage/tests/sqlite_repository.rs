@@ -49,6 +49,7 @@ fn capture_origin_survives_sqlite_and_outbox_round_trips() {
         serde_json::from_str::<serde_json::Value>(&payload).unwrap()["captureOrigin"],
         "accessibility"
     );
+    drop(connection);
     std::fs::remove_file(path).unwrap();
 }
 
@@ -79,6 +80,7 @@ fn version_one_database_migrates_existing_encounters_to_manual_origin() {
         )
         .unwrap();
     assert_eq!(origin, "\"manual\"");
+    drop(connection);
     std::fs::remove_file(path).unwrap();
 }
 
@@ -135,6 +137,43 @@ fn databases_are_initialized_with_foreign_keys_and_schema_version() {
 
     assert!(store.foreign_keys_enabled().unwrap());
     assert_eq!(store.schema_version().unwrap(), 2);
+}
+
+#[test]
+fn predefined_diagnostics_report_database_state_without_mutating_it() {
+    let store = SqliteStore::open_in_memory().unwrap();
+    let first = store
+        .capture(&capture("Serendipity", "A lucky moment."))
+        .unwrap();
+    store
+        .capture(&capture("serendipity", "Another moment."))
+        .unwrap();
+
+    let summary = store.database_summary().unwrap();
+    assert_eq!(summary.schema_version, 2);
+    assert!(summary.foreign_keys_enabled);
+    assert_eq!(summary.word_count, 1);
+    assert_eq!(summary.active_encounter_count, 2);
+    assert_eq!(summary.review_log_count, 0);
+    assert_eq!(summary.pending_outbox_count, 3);
+
+    let outbox = store.outbox_debug_entries().unwrap();
+    assert_eq!(outbox.len(), 3);
+    assert_eq!(
+        outbox
+            .iter()
+            .filter(|entry| entry.entity_type == "word")
+            .count(),
+        1
+    );
+    assert_eq!(
+        outbox
+            .iter()
+            .filter(|entry| entry.entity_type == "encounter")
+            .count(),
+        2
+    );
+    assert_eq!(store.list_for_word(first.word.id).unwrap().len(), 2);
 }
 
 #[test]

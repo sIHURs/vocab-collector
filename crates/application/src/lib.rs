@@ -2,6 +2,7 @@
 
 //! Application use cases exposed to desktop IPC.
 
+pub mod debug;
 mod platform_capture;
 
 use std::sync::Arc;

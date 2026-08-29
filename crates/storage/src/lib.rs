@@ -66,6 +66,29 @@ pub struct StoredCapture {
     pub is_existing_word: bool,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DatabaseSummary {
+    pub schema_version: u32,
+    pub foreign_keys_enabled: bool,
+    pub word_count: usize,
+    pub active_encounter_count: usize,
+    pub review_log_count: usize,
+    pub pending_outbox_count: usize,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OutboxDebugEntry {
+    pub mutation_id: Uuid,
+    pub entity_type: String,
+    pub entity_id: Uuid,
+    pub operation: String,
+    pub payload: serde_json::Value,
+    pub created_at: DateTime<Utc>,
+    pub attempt_count: u32,
+}
+
 pub struct SqliteStore {
     connection: Mutex<Connection>,
 }
@@ -194,6 +217,60 @@ impl SqliteStore {
     pub fn schema_version(&self) -> Result<u32, RepositoryError> {
         self.lock()?
             .query_row("PRAGMA user_version", [], |row| row.get(0))
+            .map_err(repo_error)
+    }
+
+    pub fn database_summary(&self) -> Result<DatabaseSummary, RepositoryError> {
+        let connection = self.lock()?;
+        let count = |sql: &str| -> Result<usize, RepositoryError> {
+            let value: i64 = connection
+                .query_row(sql, [], |row| row.get(0))
+                .map_err(repo_error)?;
+            usize::try_from(value).map_err(repo_error)
+        };
+        let schema_version = connection
+            .query_row("PRAGMA user_version", [], |row| row.get(0))
+            .map_err(repo_error)?;
+        let foreign_keys_enabled = connection
+            .query_row("PRAGMA foreign_keys", [], |row| row.get::<_, bool>(0))
+            .map_err(repo_error)?;
+
+        Ok(DatabaseSummary {
+            schema_version,
+            foreign_keys_enabled,
+            word_count: count("SELECT COUNT(*) FROM words WHERE deleted_at IS NULL")?,
+            active_encounter_count: count(
+                "SELECT COUNT(*) FROM encounters WHERE deleted_at IS NULL",
+            )?,
+            review_log_count: count("SELECT COUNT(*) FROM review_logs")?,
+            pending_outbox_count: count("SELECT COUNT(*) FROM outbox")?,
+        })
+    }
+
+    pub fn outbox_debug_entries(&self) -> Result<Vec<OutboxDebugEntry>, RepositoryError> {
+        let connection = self.lock()?;
+        let mut statement = connection
+            .prepare(
+                "SELECT mutation_id, entity_type, entity_id, operation, payload, created_at,
+                 attempt_count FROM outbox ORDER BY created_at, mutation_id",
+            )
+            .map_err(repo_error)?;
+        statement
+            .query_map([], |row| {
+                let attempt_count =
+                    u32::try_from(row.get::<_, i64>(6)?).map_err(sql_conversion_error)?;
+                Ok(OutboxDebugEntry {
+                    mutation_id: parse_uuid(row.get(0)?)?,
+                    entity_type: row.get(1)?,
+                    entity_id: parse_uuid(row.get(2)?)?,
+                    operation: row.get(3)?,
+                    payload: parse_json(&row.get::<_, String>(4)?)?,
+                    created_at: parse_time(row.get(5)?)?,
+                    attempt_count,
+                })
+            })
+            .map_err(repo_error)?
+            .collect::<Result<Vec<_>, _>>()
             .map_err(repo_error)
     }
 

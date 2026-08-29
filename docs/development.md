@@ -22,6 +22,20 @@ cargo fetch
 
 The browser backend and Rust application service implement the same frontend-facing contract. New UI interactions must be added to that contract and the Tauri command layer together.
 
+## Core debugging
+
+Run the lightweight core REPL without Tauri or a platform adapter:
+
+```powershell
+cargo run -p vocab-application --example core_debug
+```
+
+It uses session-local in-memory SQLite unless `--db <path>` is supplied. See
+the [core debug REPL guide](core-debug-repl.md) for copyable capture,
+deduplication, review, Undo, settings, database-summary, outbox, and
+error-isolation cases. The REPL validates shared core behavior only; it does
+not establish native adapter support.
+
 ## Quality gates
 
 On macOS, exclude the Linux and Windows adapter skeletons from native Rust
