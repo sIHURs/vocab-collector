@@ -109,9 +109,9 @@ Physical-only follow-up: `pnpm tauri dev` plus Manual Capture, SQLite restart pe
 
 **Acceptance criteria:**
 
-- [ ] Settings round-trip through SQLite.
-- [ ] System/light/dark and reduced motion apply without false success states.
-- [ ] Windows presentation retains the established Vocab Collector visual identity.
+- [x] Settings round-trip through SQLite.
+- [x] System/light/dark and reduced motion apply without false success states.
+- [x] Windows presentation retains the established Vocab Collector visual identity.
 
 **Verification:** `pnpm check`, `pnpm test`, storage/application tests, and desktop command-contract tests.
 

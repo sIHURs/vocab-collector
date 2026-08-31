@@ -248,3 +248,59 @@ TDD seam:
 ### Next ticket starting point
 
 W-05 starts with a Windows presentation whose Today, Vocabulary, Manual Capture, and Review workflows all use the stable frontend backend contract. It should implement persisted Settings plus theme and reduced-motion effects without adding OS shortcut registration, tray, notifications, autostart side effects, or any Windows-native API.
+
+## 2026-09-01 - W-05 Windows Settings and visual preferences
+
+### Implementation
+
+- Added a Windows Settings page for source and target languages, daily Review limit, capture-shortcut preference, theme, and reduced motion.
+- Saves through the existing portable `Backend.updateSettings` contract and applies the persisted Settings immediately after reading them back; Today then refreshes separately, with a refresh failure reported as stale page data rather than a Settings failure.
+- Applied dark, light, and system-aware color tokens across the Windows shell, vocabulary rows, Review, Manual Capture, saved feedback, and Vocabulary detail while retaining the existing Vocab Collector accent and compact Windows 11 styling.
+- Applied the saved reduced-motion preference and the operating system `prefers-reduced-motion` preference to the complete Windows presentation, including fixed overlays.
+- Kept the presentation hidden over a transparent document background until the initial Settings load attempt finishes, preventing an asynchronously loaded preference from first painting the wrong theme.
+- Added visible, retryable Settings persistence errors while retaining the edited draft and the last successfully applied visual preferences.
+
+### Key decisions
+
+- W-05 uses only the existing portable Settings and backend contracts. No Windows type or API was added to `crates/application`, `crates/domain`, or the frontend data model.
+- Theme and reduced motion are driven by the last Settings value successfully read from persistence, not by the editable draft. A failed save or read-back cannot produce a success message or apply the requested visual change.
+- Capture shortcut is persisted as a preference through `update_settings`; W-05 deliberately does not call `replace_shortcut`, because that command performs operating-system registration and conflict rollback owned by W-06.
+- Review-time and launch-at-login controls remain out of the W-05 Windows UI. Exposing them with a generic save-success message before notification scheduling and autostart exist would falsely imply that their Windows side effects are active. W-06 owns those controls and their per-setting failure states.
+- Existing shared/macOS presentation files were not changed. The Windows-owned CSS adopts the same established accent and component proportions without importing unfinished shared presentation behavior.
+
+### Main files changed
+
+- `ui/src/windows/WindowsApp.svelte`
+- `ui/src/windows/WindowsApp.test.ts`
+- `ui/src/windows/WindowsWordRow.svelte`
+- `docs/windows-platform-tickets.md`
+- `docs/windows-development-log.md`
+
+No file in `crates/domain`, `crates/application`, `crates/storage`, `crates/capture`, `crates/platform-api`, `platform/windows`, or `apps/desktop` changed.
+
+### Tests and results
+
+TDD seam:
+
+- Windows Settings through the public `Backend` contract was red while Settings remained a placeholder, then green after all W-05-owned values could be edited, persisted, read back, and reflected in the presentation.
+- Save-failure behavior was red before Settings existed, then green after a failed update retained the draft, withheld the success state, and kept the previous theme and motion preference applied.
+- Existing application/storage tests remain the contract evidence for Settings visibility in Today and SQLite persistence; W-05 did not duplicate those rules in frontend code.
+
+| Command | Result | Evidence |
+|---|---|---|
+| `pnpm check` | PASS | Verified automated; `svelte-check` reported 0 errors and 0 warnings |
+| `pnpm test` | PASS | Verified automated; 7 files and 40 tests passed |
+| `cargo test -p vocab-storage -p vocab-application` | PASS | Verified automated; application and storage suites passed, including `settings_update_is_visible_to_today_view` and `settings_round_trip_without_an_account` |
+| `cargo test -p vocab-desktop --test command_contract` | PASS | Verified automated; 11 desktop contract tests passed |
+
+### Not yet verified
+
+- **Not run:** interactive Settings save/restart verification in the Windows 11 WebView2 application against the real guest SQLite database.
+- **Not run:** visual inspection of light, dark, and live Windows system-theme changes in WebView2; automated tests verify the applied presentation attributes and persistence sequencing, not rendered pixels.
+- **Not run:** Windows system reduced-motion and keyboard/accessibility inspection in WebView2; the CSS media and saved-preference paths are present, while physical validation remains in W-13.
+- **Not run:** global shortcut replacement, conflict rollback, tray lifecycle, launch-at-login, and review-time notifications. These are W-06 behaviors and no W-05 success state claims they are active.
+- No UIA, OCR, translation, floating-window, or Windows adapter capability behavior changed in W-05.
+
+### Next ticket starting point
+
+W-06 starts with portable Settings persisted and visual preferences applied by the Windows presentation. It should add tray Open/Exit and close-to-tray lifecycle, connect shortcut changes through the existing register-before-unregister rollback command, and expose launch-at-login plus review-time notifications only when their Windows side effects and per-setting error recovery are real. It must preserve the portable Settings boundary and must not begin UIA, clipboard fallback, OCR, or translation work.

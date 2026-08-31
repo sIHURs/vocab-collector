@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/svelte";
 import { describe, expect, it } from "vitest";
 import { DemoBackend, type Backend } from "../lib/backend";
+import type { Settings } from "../lib/types";
 import WindowsApp from "./WindowsApp.svelte";
 
 class TrackingReviewBackend extends DemoBackend {
@@ -18,6 +19,25 @@ class FlakyReviewRefreshBackend extends TrackingReviewBackend {
   override async getToday() {
     this.reads += 1;
     if (this.reads === 2) throw new Error("Could not refresh Review");
+    return super.getToday();
+  }
+}
+
+class TrackingSettingsBackend extends DemoBackend {
+  updates: Settings[] = [];
+
+  override async updateSettings(settings: Settings) {
+    this.updates.push({ ...settings });
+    await super.updateSettings(settings);
+  }
+}
+
+class FlakySettingsRefreshBackend extends TrackingSettingsBackend {
+  todayReads = 0;
+
+  override async getToday() {
+    this.todayReads += 1;
+    if (this.todayReads === 2) throw new Error("Could not refresh Today");
     return super.getToday();
   }
 }
@@ -188,5 +208,60 @@ describe("Windows main presentation", () => {
 
     release?.();
     expect(await screen.findByRole("heading", { name: "nuance" })).toBeVisible();
+  });
+
+  it("persists and reads back Windows settings before applying visual preferences", async () => {
+    const api = new TrackingSettingsBackend(false);
+    const { container } = render(WindowsApp, { api });
+    await screen.findByText("No captures yet");
+
+    await fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    await fireEvent.change(screen.getByLabelText("Source language"), { target: { value: "fr" } });
+    await fireEvent.change(screen.getByLabelText("Translate into"), { target: { value: "es" } });
+    await fireEvent.input(screen.getByLabelText("Daily limit"), { target: { value: "4" } });
+    await fireEvent.input(screen.getByLabelText("Capture shortcut"), { target: { value: "Control+Shift+W" } });
+    await fireEvent.change(screen.getByLabelText("Theme"), { target: { value: "light" } });
+    await fireEvent.click(screen.getByLabelText("Reduce motion"));
+    await fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent("Settings saved");
+    expect(api.updates).toEqual([{
+      sourceLanguage: "fr", targetLanguage: "es", reviewTime: "18:00", dailyLimit: 4,
+      captureShortcut: "Control+Shift+W", launchAtLogin: false, appearance: "light",
+      reducedMotion: true,
+    }]);
+    expect(screen.getByLabelText("Capture shortcut")).toHaveValue("Control+Shift+W");
+    expect(container.querySelector(".windows-shell")).toHaveAttribute("data-appearance", "light");
+    expect(container.querySelector(".windows-shell")).toHaveAttribute("data-reduced-motion", "true");
+  });
+
+  it("keeps saved visual preferences active when a settings save fails", async () => {
+    const api = new TrackingSettingsBackend(false);
+    api.updateSettings = async () => { throw new Error("Could not save settings"); };
+    const { container } = render(WindowsApp, { api });
+    await screen.findByText("No captures yet");
+
+    await fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    await fireEvent.change(screen.getByLabelText("Theme"), { target: { value: "light" } });
+    await fireEvent.click(screen.getByLabelText("Reduce motion"));
+    await fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not save settings");
+    expect(container.querySelector(".windows-shell")).toHaveAttribute("data-appearance", "system");
+    expect(container.querySelector(".windows-shell")).toHaveAttribute("data-reduced-motion", "false");
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("applies persisted visual settings when the subsequent Today refresh fails", async () => {
+    const { container } = render(WindowsApp, { api: new FlakySettingsRefreshBackend(false) });
+    await screen.findByText("No captures yet");
+
+    await fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    await fireEvent.change(screen.getByLabelText("Theme"), { target: { value: "light" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent("Settings saved");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not refresh Today");
+    expect(container.querySelector(".windows-shell")).toHaveAttribute("data-appearance", "light");
   });
 });

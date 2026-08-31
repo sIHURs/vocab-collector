@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { createBackend, type Backend } from "../lib/backend";
-  import type { CaptureCard, ReviewCard, ReviewRating, TodayView, WordDetail, WordListItem } from "../lib/types";
+  import type { CaptureCard, ReviewCard, ReviewRating, Settings, TodayView, WordDetail, WordListItem } from "../lib/types";
   import WindowsWordRow from "./WindowsWordRow.svelte";
 
   type Route = "Today" | "Vocabulary" | "Review" | "Settings";
@@ -27,6 +27,12 @@
   let reviewCompleting = false;
   let reviewSubmitting = false;
   let reviewError = "";
+  let settingsDraft: Settings | null = null;
+  let appliedSettings: Settings | null = null;
+  let settingsSaving = false;
+  let settingsError = "";
+  let settingsSaved = false;
+  let initialLoadComplete = false;
 
   $: filteredWords = words.filter((word) => `${word.displayForm} ${word.translation ?? ""}`.toLowerCase().includes(search.trim().toLowerCase()));
   $: activeReview = today?.reviewQueue[reviewIndex] as ReviewCard | undefined;
@@ -35,11 +41,15 @@
     loading = true;
     error = "";
     try {
-      [today, words] = await Promise.all([api.getToday(), api.listWords()]);
+      const [nextToday, nextWords, nextSettings] = await Promise.all([api.getToday(), api.listWords(), api.getSettings()]);
+      today = nextToday;
+      words = nextWords;
+      settingsDraft = { ...nextSettings };
+      appliedSettings = { ...nextSettings };
       if (selectedDetail) selectedDetail = await api.getWord(selectedDetail.item.id);
       return true;
     } catch (cause) { error = cause instanceof Error ? cause.message : String(cause); }
-    finally { loading = false; }
+    finally { loading = false; initialLoadComplete = true; }
     return false;
   }
 
@@ -128,11 +138,31 @@
     finally { reviewSubmitting = false; }
   }
 
+  async function saveSettings() {
+    if (!settingsDraft || settingsSaving) return;
+    settingsSaving = true;
+    settingsError = "";
+    settingsSaved = false;
+    error = "";
+    const candidate = { ...settingsDraft, dailyLimit: Number(settingsDraft.dailyLimit) };
+    try {
+      await api.updateSettings(candidate);
+      const persisted = await api.getSettings();
+      settingsDraft = { ...persisted };
+      appliedSettings = { ...persisted };
+      settingsSaved = true;
+      try { today = await api.getToday(); }
+      catch (cause) { error = cause instanceof Error ? cause.message : String(cause); }
+    } catch (cause) { settingsError = cause instanceof Error ? cause.message : String(cause); }
+    finally { settingsSaving = false; }
+  }
+
   const encounterLabel = (count: number) => `${count} encounter${count === 1 ? "" : "s"}`;
   onMount(refresh);
 </script>
 
-<div class="windows-shell" data-presentation="windows-main">
+<div class="windows-presentation" data-settings-ready={initialLoadComplete} data-appearance={appliedSettings?.appearance ?? "system"} data-reduced-motion={appliedSettings?.reducedMotion ?? false}>
+<div class="windows-shell" data-presentation="windows-main" data-appearance={appliedSettings?.appearance ?? "system"} data-reduced-motion={appliedSettings?.reducedMotion ?? false}>
   <aside>
     <div class="brand"><span aria-hidden="true">V</span><strong>Vocab Collector</strong></div>
     <nav aria-label="Main navigation">{#each navigation as item}<button class:active={route === item} aria-current={route === item ? "page" : undefined} onclick={() => { route = item; selectedDetail = null; }}>{item}</button>{/each}</nav>
@@ -163,8 +193,28 @@
         {:else}
           <div class="state"><strong>Nothing due</strong><span>Your review queue is clear for today.</span></div>
         {/if}
-      {:else}
-        <div class="state"><strong>{route}</strong><span>This area is scheduled for a later Windows ticket.</span></div>
+      {:else if settingsDraft}
+        <form class="settings" onsubmit={(event) => { event.preventDefault(); saveSettings(); }}>
+          {#if settingsError}<div class="dialog-error settings-message" role="alert">{settingsError}</div>{/if}
+          {#if settingsSaved}<div class="settings-success" role="status">Settings saved</div>{/if}
+          <div class="settings-grid">
+            <fieldset><legend>Languages</legend><p>Used for capture and translation.</p>
+              <label>Source language<select bind:value={settingsDraft.sourceLanguage}><option value="en">English</option><option value="de">German</option><option value="fr">French</option><option value="es">Spanish</option><option value="zh">Chinese</option></select></label>
+              <label>Translate into<select bind:value={settingsDraft.targetLanguage}><option value="en">English</option><option value="de">German</option><option value="fr">French</option><option value="es">Spanish</option><option value="zh">Chinese</option></select></label>
+            </fieldset>
+            <fieldset><legend>Review</legend><p>Set the size of your daily session.</p>
+              <label>Daily limit<input type="number" min="1" max="50" bind:value={settingsDraft.dailyLimit} /></label>
+            </fieldset>
+            <fieldset><legend>Capture</legend><p>Choose your preferred capture shortcut.</p>
+              <label>Capture shortcut<input bind:value={settingsDraft.captureShortcut} /></label>
+            </fieldset>
+            <fieldset><legend>Appearance</legend><p>Visual preferences apply after a successful save.</p>
+              <label>Theme<select bind:value={settingsDraft.appearance}><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
+              <label class="toggle-row"><span><strong>Reduce motion</strong><small>Minimize non-essential interface motion</small></span><input aria-label="Reduce motion" type="checkbox" bind:checked={settingsDraft.reducedMotion} /></label>
+            </fieldset>
+          </div>
+          <div class="settings-actions"><button class="primary" disabled={settingsSaving}>{settingsSaving ? "Saving..." : "Save settings"}</button></div>
+        </form>
       {/if}
     </section>
   </main>
@@ -175,28 +225,36 @@
 {#if savedCard}<div class="toast" role="dialog" aria-label="Capture saved"><span class="saved-mark" aria-hidden="true">✓</span><div><strong>{savedCard.displayForm}</strong><span>{encounterLabel(savedCard.encounterCount)}</span></div><button onclick={undoSaved}>Undo</button><button class="icon" aria-label="Dismiss saved capture" onclick={() => (savedCard = null)}>×</button></div>{/if}
 
 {#if selectedDetail}<div class="drawer" role="dialog" aria-label="Vocabulary detail"><button class="icon close" aria-label="Close vocabulary detail" onclick={() => (selectedDetail = null)}>×</button><span class="eyebrow">Vocabulary detail</span><h2>{selectedDetail.item.displayForm}</h2><strong class="translation">{selectedDetail.item.translation ?? "No translation"}</strong><span class="count">{selectedDetail.item.status} · {encounterLabel(selectedDetail.item.encounterCount)}</span><div class="timeline"><h3>Contexts</h3>{#each selectedDetail.encounters as encounter}<article><p>{encounter.sentence}</p><small>{[encounter.sourceApp, encounter.sourceTitle, encounter.sourceUrl].filter(Boolean).join(" · ") || "Manual entry"}</small></article>{/each}</div></div>{/if}
+</div>
 
 <style>
   :global(html), :global(body), :global(#app) { min-width: 100%; min-height: 100%; margin: 0; }
-  :global(body) { background: #15161c; } :global(*) { box-sizing: border-box; }
-  button, input, textarea { font: inherit; } button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid #9aa5ff; outline-offset: 2px; }
-  .windows-shell { min-height: 100vh; display: grid; grid-template-columns: 220px minmax(0, 1fr); color: #eeeef3; background: #15161c; font: 14px "Segoe UI Variable", "Segoe UI", sans-serif; }
-  aside { display: flex; flex-direction: column; padding: 18px 12px 14px; border-right: 1px solid #2c2e38; background: #191a21; }
+  :global(body) { background: transparent; } :global(*) { box-sizing: border-box; }
+  button, input, select, textarea { font: inherit; } button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid #9aa5ff; outline-offset: 2px; }
+  .windows-presentation { --page: #15161c; --sidebar: #191a21; --surface: #20212a; --surface-raised: #262832; --field: #181920; --text: #eeeef3; --muted: #9195a4; --line: #30323d; min-height: 100vh; color: var(--text); background: var(--page); font: 14px "Segoe UI Variable", "Segoe UI", sans-serif; }
+  .windows-presentation[data-appearance="light"] { --page: #f5f6fa; --sidebar: #eceef4; --surface: #fff; --surface-raised: #f1f2f7; --field: #fff; --text: #20212a; --muted: #606474; --line: #d6d9e2; }
+  .windows-presentation[data-settings-ready="false"] { visibility: hidden; }
+  .windows-shell { min-height: 100vh; display: grid; grid-template-columns: 220px minmax(0, 1fr); color: var(--text); background: var(--page); }
+  aside { display: flex; flex-direction: column; padding: 18px 12px 14px; border-right: 1px solid var(--line); background: var(--sidebar); }
   .brand { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 0 8px 18px; }.brand > span { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 6px; background: #7584ef; color: #fff; font-weight: 700; }.brand strong { font-size: 13px; }
-  nav { display: grid; gap: 3px; } nav button { min-height: 36px; padding: 0 10px; border: 0; border-radius: 6px; color: #a9acb8; background: transparent; text-align: left; cursor: pointer; } nav button:hover, nav button.active { color: #fff; background: #2a2d3b; }
-  .local-status { display: flex; align-items: center; gap: 8px; margin-top: auto; padding: 10px 8px; color: #8f93a1; font-size: 12px; }.local-status i { width: 7px; height: 7px; border-radius: 50%; background: #78c8a7; }
-  main { min-width: 0; } header { display: flex; align-items: center; justify-content: space-between; height: 86px; padding: 0 28px; border-bottom: 1px solid #2c2e38; } h1, h2, h3, p { margin: 0; } h1 { font-size: 22px; } header p { margin-top: 5px; color: #8f93a1; font-size: 12px; } section { min-height: calc(100vh - 87px); padding: 26px 28px; }
-  .primary, .secondary { min-height: 34px; padding: 0 14px; border-radius: 6px; border: 1px solid transparent; cursor: pointer; }.primary { color: #fff; background: #7584ef; }.primary:disabled { opacity: .45; cursor: default; }.secondary { color: #eeeef3; border-color: #3a3d49; background: #262832; }
-  .summary { display: grid; grid-template-columns: repeat(2, minmax(0, 190px)); gap: 12px; }.summary div { display: grid; gap: 8px; padding: 18px; border: 1px solid #30323d; border-radius: 7px; background: #20212a; }.summary span, .summary small { color: #9094a3; font-size: 12px; }.summary strong { font-size: 26px; }
-  .section-heading { margin: 24px 0 10px; }.section-heading h2 { font-size: 15px; }.section-heading p { margin-top: 4px; color: #8f93a1; font-size: 11px; }
-  .list { overflow: hidden; border: 1px solid #30323d; border-radius: 7px; background: #20212a; }
-  .state { min-height: 220px; display: grid; place-content: center; justify-items: center; gap: 8px; color: #9195a4; text-align: center; }.state strong { color: #eeeef3; font-size: 16px; }.state .primary { margin-top: 8px; }
-  .tools { display: flex; align-items: end; justify-content: space-between; margin-bottom: 12px; color: #9195a4; font-size: 11px; }.tools label { display: grid; gap: 6px; }.tools input { width: 310px; height: 34px; padding: 0 10px; border: 1px solid #3a3d49; border-radius: 6px; color: #eeeef3; background: #20212a; }
+  nav { display: grid; gap: 3px; } nav button { min-height: 36px; padding: 0 10px; border: 0; border-radius: 6px; color: var(--muted); background: transparent; text-align: left; cursor: pointer; } nav button:hover, nav button.active { color: var(--text); background: var(--surface-raised); }
+  .local-status { display: flex; align-items: center; gap: 8px; margin-top: auto; padding: 10px 8px; color: var(--muted); font-size: 12px; }.local-status i { width: 7px; height: 7px; border-radius: 50%; background: #78c8a7; }
+  main { min-width: 0; } header { display: flex; align-items: center; justify-content: space-between; height: 86px; padding: 0 28px; border-bottom: 1px solid var(--line); } h1, h2, h3, p { margin: 0; } h1 { font-size: 22px; } header p { margin-top: 5px; color: var(--muted); font-size: 12px; } section { min-height: calc(100vh - 87px); padding: 26px 28px; }
+  .primary, .secondary { min-height: 34px; padding: 0 14px; border-radius: 6px; border: 1px solid transparent; cursor: pointer; }.primary { color: #fff; background: #7584ef; }.primary:disabled { opacity: .45; cursor: default; }.secondary { color: var(--text); border-color: var(--line); background: var(--surface-raised); }
+  .summary { display: grid; grid-template-columns: repeat(2, minmax(0, 190px)); gap: 12px; }.summary div { display: grid; gap: 8px; padding: 18px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); }.summary span, .summary small { color: var(--muted); font-size: 12px; }.summary strong { font-size: 26px; }
+  .section-heading { margin: 24px 0 10px; }.section-heading h2 { font-size: 15px; }.section-heading p { margin-top: 4px; color: var(--muted); font-size: 11px; }
+  .list { overflow: hidden; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); }
+  .state { min-height: 220px; display: grid; place-content: center; justify-items: center; gap: 8px; color: var(--muted); text-align: center; }.state strong { color: var(--text); font-size: 16px; }.state .primary { margin-top: 8px; }
+  .tools { display: flex; align-items: end; justify-content: space-between; margin-bottom: 12px; color: var(--muted); font-size: 11px; }.tools label { display: grid; gap: 6px; }.tools input { width: 310px; height: 34px; padding: 0 10px; border: 1px solid var(--line); border-radius: 6px; color: var(--text); background: var(--surface); }
   .error { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 14px; padding: 11px 13px; border: 1px solid #724747; border-radius: 6px; color: #f0b4b4; background: #321f24; }.error button { border: 0; color: #cad0ff; background: transparent; cursor: pointer; }
   .dialog-error { padding: 9px 10px; border: 1px solid #724747; border-radius: 6px; color: #f0b4b4; background: #321f24; font-size: 12px; }
-  .review-card { max-width: 620px; margin: 24px auto; padding: 28px; border: 1px solid #30323d; border-radius: 8px; background: #20212a; }.review-progress { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; color: #9195a4; font-size: 11px; }.review-card h2 { margin: 10px 0; font-size: 30px; }.review-card > p { color: #b6b9c4; line-height: 1.6; }.review-translation { display: grid; gap: 5px; margin: 22px 0; padding: 14px; border-radius: 7px; background: rgba(117,132,239,.12); }.review-translation small { color: #9195a4; }.review-translation strong { color: #c5caff; font-size: 16px; }.review-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 18px; }
-  .backdrop { position: fixed; z-index: 30; inset: 0; display: grid; place-items: center; background: rgba(8,9,13,.65); }.dialog { width: min(460px, calc(100vw - 32px)); padding: 20px; border: 1px solid #3a3d49; border-radius: 8px; color: #eeeef3; background: #20212a; box-shadow: 0 24px 70px rgba(0,0,0,.5); }.dialog form { display: grid; gap: 13px; }.dialog-heading { display: flex; justify-content: space-between; }.dialog h2 { margin-top: 5px; font-size: 19px; }.eyebrow { color: #9da7ff; font-size: 10px; font-weight: 700; text-transform: uppercase; }.dialog label { display: grid; gap: 6px; color: #a6a9b5; font-size: 11px; }.dialog label small { margin-left: 4px; }.dialog input, .dialog textarea { width: 100%; padding: 9px 10px; border: 1px solid #3a3d49; border-radius: 6px; color: #eeeef3; background: #181920; }.dialog textarea { min-height: 80px; resize: vertical; }.actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
-  .icon { width: 32px; height: 32px; border: 0; color: #a6a9b5; background: transparent; cursor: pointer; font-size: 20px; }.toast { position: fixed; z-index: 35; right: 22px; bottom: 22px; min-width: 320px; display: grid; grid-template-columns: 28px 1fr auto 32px; gap: 10px; align-items: center; padding: 13px; border: 1px solid #3a3d49; border-radius: 8px; color: #eeeef3; background: #262832; box-shadow: 0 18px 50px rgba(0,0,0,.45); }.toast > div { display: grid; gap: 2px; }.toast span { color: #a6a9b5; font-size: 11px; }.toast button:not(.icon) { border: 0; color: #aeb6ff; background: transparent; cursor: pointer; }.saved-mark { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; color: #78c8a7!important; background: rgba(120,200,167,.14); }
-  .drawer { position: fixed; z-index: 25; top: 0; right: 0; width: min(400px, 100vw); height: 100vh; overflow: auto; padding: 62px 24px 24px; border-left: 1px solid #3a3d49; color: #eeeef3; background: #1d1e26; box-shadow: -20px 0 60px rgba(0,0,0,.38); }.close { position: absolute; top: 18px; right: 18px; }.drawer h2 { margin: 7px 0 5px; font-size: 27px; }.translation { display: block; color: #b8c0ff; }.count { display: block; margin-top: 10px; color: #9296a4; font-size: 11px; }.timeline { margin-top: 28px; }.timeline h3 { color: #9296a4; font-size: 11px; text-transform: uppercase; }.timeline article { margin-top: 12px; padding: 12px; border-left: 2px solid #7584ef; background: #242630; }.timeline article p { line-height: 1.5; }.timeline article small { display: block; margin-top: 7px; color: #9296a4; }
-  @media (max-width: 760px) { .windows-shell { grid-template-columns: 170px minmax(0,1fr); } header, section { padding-left: 18px; padding-right: 18px; }.summary { grid-template-columns: 1fr 1fr; } }
+  .settings { max-width: 900px; margin: 0 auto; }.settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }.settings fieldset { min-width: 0; display: grid; align-content: start; gap: 14px; margin: 0; padding: 18px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); }.settings legend { padding: 0; color: var(--text); font-size: 15px; font-weight: 700; }.settings fieldset > p { color: var(--muted); font-size: 11px; }.settings label { display: grid; gap: 6px; color: var(--muted); font-size: 11px; }.settings input:not([type="checkbox"]), .settings select { width: 100%; min-height: 36px; padding: 0 10px; border: 1px solid var(--line); border-radius: 6px; color: var(--text); background: var(--field); }.toggle-row { grid-template-columns: 1fr auto; align-items: center; }.toggle-row span { display: grid; gap: 3px; }.toggle-row strong { color: var(--text); font-size: 12px; }.toggle-row small { color: var(--muted); }.toggle-row input { width: 18px; height: 18px; accent-color: #7584ef; }.settings-actions { display: flex; justify-content: flex-end; margin-top: 14px; }.settings-message, .settings-success { margin-bottom: 12px; }.settings-success { padding: 9px 10px; border: 1px solid #3f755f; border-radius: 6px; color: #28624d; background: #dff4e9; font-size: 12px; }
+  .windows-presentation[data-reduced-motion="true"], .windows-presentation[data-reduced-motion="true"] * { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+  .review-card { max-width: 620px; margin: 24px auto; padding: 28px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }.review-progress { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; color: var(--muted); font-size: 11px; }.review-card h2 { margin: 10px 0; font-size: 30px; }.review-card > p { color: var(--muted); line-height: 1.6; }.review-translation { display: grid; gap: 5px; margin: 22px 0; padding: 14px; border-radius: 7px; background: rgba(117,132,239,.12); }.review-translation small { color: var(--muted); }.review-translation strong { color: #7a86e8; font-size: 16px; }.review-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 18px; }
+  .backdrop { position: fixed; z-index: 30; inset: 0; display: grid; place-items: center; background: rgba(8,9,13,.65); }.dialog { width: min(460px, calc(100vw - 32px)); padding: 20px; border: 1px solid var(--line); border-radius: 8px; color: var(--text); background: var(--surface); box-shadow: 0 24px 70px rgba(0,0,0,.5); }.dialog form { display: grid; gap: 13px; }.dialog-heading { display: flex; justify-content: space-between; }.dialog h2 { margin-top: 5px; font-size: 19px; }.eyebrow { color: #7a86e8; font-size: 10px; font-weight: 700; text-transform: uppercase; }.dialog label { display: grid; gap: 6px; color: var(--muted); font-size: 11px; }.dialog label small { margin-left: 4px; }.dialog input, .dialog textarea { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 6px; color: var(--text); background: var(--field); }.dialog textarea { min-height: 80px; resize: vertical; }.actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+  .icon { width: 32px; height: 32px; border: 0; color: var(--muted); background: transparent; cursor: pointer; font-size: 20px; }.toast { position: fixed; z-index: 35; right: 22px; bottom: 22px; min-width: 320px; display: grid; grid-template-columns: 28px 1fr auto 32px; gap: 10px; align-items: center; padding: 13px; border: 1px solid var(--line); border-radius: 8px; color: var(--text); background: var(--surface-raised); box-shadow: 0 18px 50px rgba(0,0,0,.45); }.toast > div { display: grid; gap: 2px; }.toast span { color: var(--muted); font-size: 11px; }.toast button:not(.icon) { border: 0; color: #7584ef; background: transparent; cursor: pointer; }.saved-mark { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; color: #78c8a7!important; background: rgba(120,200,167,.14); }
+  .drawer { position: fixed; z-index: 25; top: 0; right: 0; width: min(400px, 100vw); height: 100vh; overflow: auto; padding: 62px 24px 24px; border-left: 1px solid var(--line); color: var(--text); background: var(--surface); box-shadow: -20px 0 60px rgba(0,0,0,.38); }.close { position: absolute; top: 18px; right: 18px; }.drawer h2 { margin: 7px 0 5px; font-size: 27px; }.translation { display: block; color: #7a86e8; }.count { display: block; margin-top: 10px; color: var(--muted); font-size: 11px; }.timeline { margin-top: 28px; }.timeline h3 { color: var(--muted); font-size: 11px; text-transform: uppercase; }.timeline article { margin-top: 12px; padding: 12px; border-left: 2px solid #7584ef; background: var(--surface-raised); }.timeline article p { line-height: 1.5; }.timeline article small { display: block; margin-top: 7px; color: var(--muted); }
+  @media (prefers-color-scheme: light) { .windows-presentation[data-appearance="system"] { --page: #f5f6fa; --sidebar: #eceef4; --surface: #fff; --surface-raised: #f1f2f7; --field: #fff; --text: #20212a; --muted: #606474; --line: #d6d9e2; } }
+  @media (prefers-reduced-motion: reduce) { .windows-presentation, .windows-presentation * { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
+  @media (max-width: 760px) { .windows-shell { grid-template-columns: 170px minmax(0,1fr); } header, section { padding-left: 18px; padding-right: 18px; }.summary, .settings-grid { grid-template-columns: 1fr; } }
 </style>
