@@ -66,3 +66,70 @@ The deferred runtime checks remain owned by their corresponding Hybrid or Physic
 ### Next ticket starting point
 
 W-02 starts from a green automated baseline. It should centralize Windows presentation selection in the UI/desktop composition boundary, introduce a Windows-owned main and capture presentation without changing macOS page behavior, preserve the existing frontend backend contract, and omit the static Progress view. Before editing, rerun the narrow frontend and desktop command-contract baselines and review ADR 0001.
+
+## 2026-08-31 - W-02 independent Windows presentation
+
+### Implementation
+
+- Added a desktop composition command that reports the compile target's presentation family as `windows` or `shared` without exposing a Windows API or native type.
+- Centralized main/capture presentation selection in the frontend entry point.
+- Added independent Windows main and capture Svelte roots. The Windows main root provides Today, Vocabulary, Review, and Settings navigation and deliberately omits the static Progress view.
+- Preserved the existing shared/browser and macOS presentation roots as the fallback presentation family.
+- Kept the Windows roots intentionally free of backend data and native capture behavior; those remain owned by W-03 and later tickets.
+
+### Key decisions
+
+- Presentation family is a desktop composition concern, not a platform capability and not an application-layer concept. The command lives in the Tauri desktop crate and never enters `platform-api` or shared application crates.
+- `ui/src/main.ts` is the only point that combines presentation family with main/capture window kind. Windows feature components do not inspect an OS string.
+- Browser/demo mode has no Tauri internals and therefore selects the existing shared presentation.
+- A failed presentation-family invocation falls back to the existing shared presentation instead of leaving the WebView blank.
+- W-02 establishes only the Windows shell. It does not copy the existing monolithic product page into Windows, which would prematurely implement W-03 through W-05 and import unfinished macOS behavior.
+- The Windows capture root scopes a `windows-capture-document` body class to its mounted lifetime so the shared main-window `840x600` minimum does not overflow the configured `380x280` capture WebView. The class is removed on unmount to avoid leaking capture-window constraints into another presentation.
+
+### Main files changed
+
+- `apps/desktop/src-tauri/src/commands/mod.rs`
+- `apps/desktop/src-tauri/src/commands/presentation.rs`
+- `apps/desktop/src-tauri/src/lib.rs`
+- `apps/desktop/src-tauri/tests/command_contract.rs`
+- `ui/src/lib/presentation.ts`
+- `ui/src/lib/presentation.test.ts`
+- `ui/src/main.ts`
+- `ui/src/windows/WindowsApp.svelte`
+- `ui/src/windows/WindowsApp.test.ts`
+- `ui/src/windows/WindowsFloatingCapture.svelte`
+- `ui/src/windows/WindowsFloatingCapture.test.ts`
+- `docs/windows-platform-tickets.md`
+- `docs/windows-development-log.md`
+
+No file in `crates/domain`, `crates/application`, `crates/storage`, `crates/capture`, `crates/platform-api`, or `platform/windows` changed.
+
+### Tests and results
+
+TDD seams:
+
+- Frontend composition mapping: red because `ui/src/lib/presentation.ts` did not exist; green after the centralized mapping was added.
+- Desktop presentation-family command: red because the command module did not exist; green after the target-aware composition command was registered.
+- Windows main presentation behavior: red because the Windows root did not exist; green after the independent navigation shell was added.
+- Windows capture document sizing: red because the capture root inherited the main-window minimum dimensions; green after capture-only document sizing and lifecycle cleanup were added.
+
+| Command | Result | Evidence |
+|---|---|---|
+| `pnpm check` | PASS | Verified automated; `svelte-check` reported 0 errors and 0 warnings |
+| `pnpm test` | PASS | Verified automated; 7 files and 29 tests passed |
+| `pnpm build` | PASS | Verified automated; Vite transformed 124 modules and produced the production bundle |
+| `cargo test -p vocab-desktop --test command_contract` | PASS | Verified automated; 11 tests passed |
+| `cargo fmt --all --check` | PASS | Verified automated; exit code 0 during the ticket verification run |
+
+### Not yet verified
+
+- **Not run:** `pnpm tauri dev`; W-02's required commands do not include a runtime launch.
+- **Not run:** visual inspection of the Windows main and capture roots in WebView2.
+- **Not run:** macOS runtime presentation selection. Its compile-target mapping and browser fallback are covered automatically, but no macOS physical-machine run occurred.
+- **Not run:** Manual Capture, SQLite persistence, Today/Vocabulary data, and Undo in the Windows presentation; owned by W-03.
+- **Not run:** Review behavior, Settings behavior, tray, native capture, UIA, floating-window behavior, OCR, packaging, upgrade, and uninstall; owned by later tickets.
+- Windows adapter capability flags remain unchanged and false.
+
+### Next ticket starting point
+
+W-03 starts with independent Windows roots selected through a green composition contract. It should connect the Windows presentation to the existing `Backend` for Manual Capture, Today, Vocabulary, detail, repeat Encounter, Undo, and their loading/empty/error states. It must not add Review behavior beyond its entry point, Settings side effects, tray integration, or any Windows native API.

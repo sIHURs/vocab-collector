@@ -11,7 +11,7 @@ pub mod commands;
 pub mod events;
 
 use bootstrap::build_app_state;
-use commands::{capture, library};
+use commands::{capture, library, presentation};
 use events::NativeCaptureErrorEvent;
 
 pub fn run() {
@@ -85,6 +85,7 @@ pub fn run() {
             capture::save_native_capture,
             capture::hide_capture_window,
             capture::get_platform_capabilities,
+            presentation::get_presentation_family,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Vocab Collector");

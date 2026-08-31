@@ -19,6 +19,7 @@ use vocab_desktop_lib::{
         request_accessibility_permission, request_screen_recording_permission, save_native_capture,
         translate_text,
     },
+    commands::presentation::get_presentation_family,
     events::{CaptureFailure, CaptureFailureCode, NativeCaptureError, NativeCaptureErrorEvent},
 };
 use vocab_domain::CaptureOrigin;
@@ -41,6 +42,16 @@ fn capture_command_names_are_available_on_the_platform_neutral_surface() {
     let _ = save_native_capture;
     let _ = hide_capture_window;
     let _ = get_platform_capabilities;
+}
+
+#[test]
+fn desktop_exposes_the_target_presentation_family() {
+    let expected = if cfg!(target_os = "windows") {
+        "windows"
+    } else {
+        "shared"
+    };
+    assert_eq!(get_presentation_family(), expected);
 }
 
 #[test]

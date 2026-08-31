@@ -55,9 +55,9 @@ Physical-only follow-up: `pnpm tauri dev` plus Manual Capture, SQLite restart pe
 
 **Acceptance criteria:**
 
-- [ ] Windows presentation selection is centralized at composition, not scattered through feature components.
-- [ ] Browser/demo mode and macOS presentation remain usable.
-- [ ] Windows navigation contains no static Progress claim.
+- [x] Windows presentation selection is centralized at composition, not scattered through feature components.
+- [x] Browser/demo mode and macOS presentation remain usable.
+- [x] Windows navigation contains no static Progress claim.
 
 **Verification:** `pnpm check`, `pnpm test`, `pnpm build`, and `cargo test -p vocab-desktop --test command_contract`.
 
