@@ -133,3 +133,62 @@ TDD seams:
 ### Next ticket starting point
 
 W-03 starts with independent Windows roots selected through a green composition contract. It should connect the Windows presentation to the existing `Backend` for Manual Capture, Today, Vocabulary, detail, repeat Encounter, Undo, and their loading/empty/error states. It must not add Review behavior beyond its entry point, Settings side effects, tray integration, or any Windows native API.
+
+## 2026-08-31 - W-03 Manual Capture through Today and Vocabulary
+
+### Implementation
+
+- Connected the independent Windows main presentation to the existing frontend `Backend` contract.
+- Added Manual Capture with required word/context, optional user translation, disabled/saving states, and recoverable errors.
+- Added Today summary and recent captures, Vocabulary search/list, Vocabulary detail with Encounter contexts, repeat Encounter feedback, and Undo.
+- Refreshes Today, Vocabulary, and an open detail view after save or Undo so visible counts and contexts share one backend source of truth.
+- Added explicit loading, empty collection, no search result, and recoverable backend failure states.
+- Added status and last-seen metadata to reusable Windows vocabulary rows, plus review duration/empty-queue context on Today and source metadata in detail.
+- Left Review and Settings as entry placeholders; their behavior remains owned by W-04 and W-05.
+
+### Key decisions
+
+- W-03 reuses the stable `Backend` and existing Tauri library commands. No new desktop command, application use case, storage API, or Windows-native type was required.
+- The Windows root accepts a `Backend` dependency with `createBackend()` as its production default. Tests exercise the same public UI behavior with the existing `DemoBackend`, without mocking component internals.
+- Repeat normalization, one Vocabulary Item with multiple Encounters, transactional persistence, and soft-delete Undo remain in shared application/storage. Windows UI only requests operations and refreshes frontend-ready views.
+- The saved result remains independently visible while the user opens Vocabulary detail, allowing Undo to refresh both the list and the open detail.
+- Manual Capture save failures remain inside the active dialog with the user's input intact; retry submits the same form rather than running an unrelated page refresh.
+- Manual Capture sets only `captureOrigin: manual`; it does not fabricate a source application when none was supplied.
+
+### Main files changed
+
+- `ui/src/windows/WindowsApp.svelte`
+- `ui/src/windows/WindowsApp.test.ts`
+- `ui/src/windows/WindowsWordRow.svelte`
+- `docs/windows-platform-tickets.md`
+- `docs/windows-development-log.md`
+
+No file in `crates/domain`, `crates/application`, `crates/storage`, `crates/capture`, `crates/platform-api`, `platform/windows`, or `apps/desktop` changed.
+
+### Tests and results
+
+TDD seam:
+
+- Windows user workflow through the public `Backend` contract: red while the Windows root exposed only empty page sections; green after Manual Capture, repeat Encounter, Today/Vocabulary refresh, detail, Undo, and recoverable load failure behavior were added.
+- Manual Capture retry: red while a failed save was reported behind the modal; green after the dialog received its own visible error state while preserving form input for retry.
+- Existing application/storage public tests were retained as the contract evidence for normalization, repeat Encounter ownership, SQLite persistence, and Undo; no shared implementation changed.
+
+| Command | Result | Evidence |
+|---|---|---|
+| `pnpm check` | PASS | Verified automated; `svelte-check` reported 0 errors and 0 warnings |
+| `pnpm test` | PASS | Verified automated; 7 files and 32 tests passed |
+| `cargo test -p vocab-application -p vocab-storage` | PASS | Verified automated; application and storage suites passed, including repeat Encounter, Undo, and cross-process SQLite persistence |
+| `cargo test -p vocab-desktop --test command_contract` | PASS | Verified automated; 11 tests passed |
+| `pnpm tauri dev` | PASS for startup only | Verified Windows physical; on Windows build 26100.7171 x64, Vite started at `127.0.0.1:5173`, the Rust dev build completed, and `vocab-desktop.exe` launched. The process was then intentionally stopped with Ctrl+C; this does not verify the manual workflow or restart retention |
+
+### Not yet verified
+
+- **Not run:** the interactive portion of the `pnpm tauri dev` restart smoke test against the real Windows WebView2 and SQLite application database; the executable launch was observed, but the native window could not be operated through the available tool channel.
+- **Not run:** Manual Capture, repeat Encounter, detail, Undo, and restart retention through a packaged or development Tauri WebView on the Windows physical session.
+- **Not run:** visual inspection at Windows scaling levels and with keyboard/accessibility tools; comprehensive coverage remains owned by W-13.
+- Review workflow, Settings persistence/effects, tray, native selection, OCR, translation, and native floating-window behavior remain outside W-03 and unchanged.
+- Windows adapter capability flags remain unchanged and false.
+
+### Next ticket starting point
+
+W-04 starts from a Windows presentation whose Today data refreshes through the shared backend after library mutations. It should implement only the shared due-queue Review workflow, forgotten/remembered outcomes, close/completion states, and Today refresh. It must not calculate review dates in the UI or introduce Settings/native Windows behavior.

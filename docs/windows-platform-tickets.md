@@ -73,9 +73,9 @@ Physical-only follow-up: `pnpm tauri dev` plus Manual Capture, SQLite restart pe
 
 **Acceptance criteria:**
 
-- [ ] One Vocabulary Item owns repeat Encounters.
-- [ ] Today, Vocabulary, detail, and Undo refresh from the backend contract.
-- [ ] Loading, empty, no-result, and recoverable failure states are observable.
+- [x] One Vocabulary Item owns repeat Encounters.
+- [x] Today, Vocabulary, detail, and Undo refresh from the backend contract.
+- [x] Loading, empty, no-result, and recoverable failure states are observable.
 
 **Verification:** `pnpm check`, `pnpm test`, `cargo test -p vocab-application -p vocab-storage`, `cargo test -p vocab-desktop --test command_contract`, and physical `pnpm tauri dev` restart smoke test.
 
