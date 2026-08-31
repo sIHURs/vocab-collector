@@ -192,3 +192,59 @@ TDD seam:
 ### Next ticket starting point
 
 W-04 starts from a Windows presentation whose Today data refreshes through the shared backend after library mutations. It should implement only the shared due-queue Review workflow, forgotten/remembered outcomes, close/completion states, and Today refresh. It must not calculate review dates in the UI or introduce Settings/native Windows behavior.
+
+## 2026-09-01 - W-04 Windows Review workflow
+
+### Implementation
+
+- Added a Start Review action to Windows Today using `TodayView.reviewQueue` and the backend-provided estimate.
+- Added Windows Review empty, ready, in-progress, paused, recoverable failure, and completed states.
+- Added Forgotten and Remembered actions through the existing `Backend.submitReview` contract.
+- Closing a partially completed queue refreshes Today from the backend and preserves a paused session entry point for the remaining due queue.
+- Completing the queue refreshes Today and exposes a completion state before returning to Today.
+
+### Key decisions
+
+- The Windows UI treats `TodayView.reviewQueue` as the authoritative due queue and submits only the existing `forgot` and `remembered` ratings.
+- Review dates, stability, due ordering, queue limits, and persistence remain entirely in `vocab-domain` and `vocab-application`; the UI performs no date arithmetic.
+- A close refreshes the backend queue and resumes from its first remaining item instead of retaining a stale frontend snapshot.
+- A failed rating keeps the current Review card visible, preserves its position, and allows the same action to be retried.
+- A failed close/completion refresh cannot expose Resume or claim that Today was refreshed. The already-saved rating is never resubmitted; a dedicated refresh retry reloads the authoritative queue first.
+- Close is disabled while a rating submission is in flight so queue refresh and rating persistence cannot race.
+- The global error retry delegates to Review recovery while the queue is gated, so a successful refresh from Today also re-enables Start Review without a second hidden recovery step.
+- W-04 does not implement Settings, notifications, tray behavior, native capture, or Windows platform capabilities.
+
+### Main files changed
+
+- `ui/src/windows/WindowsApp.svelte`
+- `ui/src/windows/WindowsApp.test.ts`
+- `docs/windows-platform-tickets.md`
+- `docs/windows-development-log.md`
+
+No file in `crates/domain`, `crates/application`, `crates/storage`, `crates/capture`, `crates/platform-api`, `platform/windows`, or `apps/desktop` changed.
+
+### Tests and results
+
+TDD seam:
+
+- Windows Review through the public `Backend`: red while Today had no Start Review action and Review was a placeholder; green after start, Forgotten/Remembered submission, close/refresh/resume, completion, and Today refresh were implemented.
+- Empty queue and recoverable rating failure are covered through visible UI states. Rating tests assert the portable rating values but never derive or inspect review dates.
+- Close-refresh failure, global retry recovery, and rating/close serialization have regression coverage to prevent duplicate scheduling, blocked starts, or skipped due items.
+
+| Command | Result | Evidence |
+|---|---|---|
+| `pnpm check` | PASS | Verified automated; `svelte-check` reported 0 errors and 0 warnings |
+| `pnpm test` | PASS | Verified automated; 7 files and 37 tests passed |
+| `cargo test -p vocab-domain -p vocab-application` | PASS | Verified automated; shared queue ordering, rating scheduling, persistence, and application flow tests passed |
+| `cargo test -p vocab-desktop --test command_contract` | PASS | Verified automated; desktop command-contract tests passed |
+
+### Not yet verified
+
+- **Not run:** interactive Review flow in the Windows WebView2 application. W-04 is a Current ticket and its required behavior is covered automatically; no runtime claim is made.
+- **Not run:** keyboard, Narrator, high-contrast, and text-scaling review checks; comprehensive physical accessibility evidence remains owned by W-13.
+- Review notifications and scheduled launch behavior remain owned by W-06.
+- Settings behavior, native selection, OCR, translation, native floating-window behavior, and Windows capability flags remain unchanged.
+
+### Next ticket starting point
+
+W-05 starts with a Windows presentation whose Today, Vocabulary, Manual Capture, and Review workflows all use the stable frontend backend contract. It should implement persisted Settings plus theme and reduced-motion effects without adding OS shortcut registration, tray, notifications, autostart side effects, or any Windows-native API.

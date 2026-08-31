@@ -3,6 +3,25 @@ import { describe, expect, it } from "vitest";
 import { DemoBackend, type Backend } from "../lib/backend";
 import WindowsApp from "./WindowsApp.svelte";
 
+class TrackingReviewBackend extends DemoBackend {
+  ratings: Array<{ wordId: string; rating: "forgot" | "remembered" }> = [];
+
+  override async submitReview(wordId: string, rating: "forgot" | "remembered") {
+    this.ratings.push({ wordId, rating });
+    await super.submitReview(wordId, rating);
+  }
+}
+
+class FlakyReviewRefreshBackend extends TrackingReviewBackend {
+  reads = 0;
+
+  override async getToday() {
+    this.reads += 1;
+    if (this.reads === 2) throw new Error("Could not refresh Review");
+    return super.getToday();
+  }
+}
+
 async function saveManualCapture(word: string, sentence: string) {
   await fireEvent.click(screen.getAllByRole("button", { name: "Manual capture" })[0]);
   await fireEvent.input(screen.getByLabelText("Word or phrase"), { target: { value: word } });
@@ -86,5 +105,88 @@ describe("Windows main presentation", () => {
 
     await fireEvent.click(within(dialog).getByRole("button", { name: "Save capture" }));
     expect(await screen.findByRole("dialog", { name: "Capture saved" })).toBeVisible();
+  });
+
+  it("runs, closes, resumes, and completes the shared due queue", async () => {
+    const api = new TrackingReviewBackend(true);
+    render(WindowsApp, { api });
+
+    await fireEvent.click(await screen.findByRole("button", { name: "Start review (3)" }));
+    expect(screen.getByRole("heading", { name: "serendipity" })).toBeVisible();
+    expect(screen.getByText("1 of 3")).toBeVisible();
+
+    await fireEvent.click(screen.getByRole("button", { name: "Forgot" }));
+    expect(await screen.findByRole("heading", { name: "nuance" })).toBeVisible();
+    await fireEvent.click(screen.getByRole("button", { name: "Close review" }));
+
+    expect(screen.getByRole("heading", { level: 1, name: "Review" })).toBeVisible();
+    expect(await screen.findByText("2 words remaining.")).toBeVisible();
+    await fireEvent.click(screen.getByRole("button", { name: "Resume review" }));
+    expect(screen.getByRole("heading", { name: "nuance" })).toBeVisible();
+
+    await fireEvent.click(screen.getByRole("button", { name: "Remembered" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Remembered" }));
+    expect(await screen.findByRole("heading", { name: "Review complete" })).toBeVisible();
+    expect(api.ratings.map(({ rating }) => rating)).toEqual(["forgot", "remembered", "remembered"]);
+
+    await fireEvent.click(screen.getByRole("button", { name: "Today" }));
+    expect(await screen.findByText("Review queue is clear")).toBeVisible();
+  });
+
+  it("shows an empty Review state when nothing is due", async () => {
+    render(WindowsApp, { api: new DemoBackend(false) });
+    await screen.findByText("No captures yet");
+
+    await fireEvent.click(screen.getByRole("button", { name: "Review" }));
+    expect(screen.getByText("Nothing due")).toBeVisible();
+  });
+
+  it("keeps the current review card available when rating fails", async () => {
+    const api = new TrackingReviewBackend(true);
+    const submit = api.submitReview.bind(api);
+    let attempts = 0;
+    api.submitReview = async (wordId, rating) => {
+      if (attempts++ === 0) throw new Error("Could not save review");
+      await submit(wordId, rating);
+    };
+    render(WindowsApp, { api });
+
+    await fireEvent.click(await screen.findByRole("button", { name: "Start review (3)" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Remembered" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("Could not save review");
+    expect(screen.getByRole("heading", { name: "serendipity" })).toBeVisible();
+
+    await fireEvent.click(screen.getByRole("button", { name: "Remembered" }));
+    expect(await screen.findByRole("heading", { name: "nuance" })).toBeVisible();
+  });
+
+  it("blocks stale Resume until a failed close refresh succeeds", async () => {
+    const api = new FlakyReviewRefreshBackend(true);
+    render(WindowsApp, { api });
+
+    await fireEvent.click(await screen.findByRole("button", { name: "Start review (3)" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Forgot" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Close review" }));
+
+    expect(await screen.findByRole("button", { name: "Retry Review refresh" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Resume review" })).toBeNull();
+    await fireEvent.click(screen.getByRole("button", { name: "Today" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    await fireEvent.click(await screen.findByRole("button", { name: "Start review (2)" }));
+    expect(screen.getByRole("heading", { name: "nuance" })).toBeVisible();
+  });
+
+  it("does not allow Close while a rating submission is pending", async () => {
+    const api = new TrackingReviewBackend(true);
+    let release: (() => void) | undefined;
+    api.submitReview = () => new Promise<void>((resolve) => { release = resolve; });
+    render(WindowsApp, { api });
+
+    await fireEvent.click(await screen.findByRole("button", { name: "Start review (3)" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Remembered" }));
+    expect(screen.getByRole("button", { name: "Close review" })).toBeDisabled();
+
+    release?.();
+    expect(await screen.findByRole("heading", { name: "nuance" })).toBeVisible();
   });
 });

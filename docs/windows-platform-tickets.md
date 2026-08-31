@@ -91,9 +91,9 @@ Physical-only follow-up: `pnpm tauri dev` plus Manual Capture, SQLite restart pe
 
 **Acceptance criteria:**
 
-- [ ] Review uses the shared due queue and existing ratings.
-- [ ] Empty, in-progress, closed, and completed states are covered.
-- [ ] UI does not calculate review dates.
+- [x] Review uses the shared due queue and existing ratings.
+- [x] Empty, in-progress, closed, and completed states are covered.
+- [x] UI does not calculate review dates.
 
 **Verification:** `pnpm check`, `pnpm test`, `cargo test -p vocab-domain -p vocab-application`, and desktop command-contract tests.
 
