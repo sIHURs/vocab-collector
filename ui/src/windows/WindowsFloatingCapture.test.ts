@@ -57,6 +57,41 @@ describe("Windows floating capture presentation", () => {
     expect(mocks.save).toHaveBeenCalledWith("request-plain", { selectedText: "nuance", sentence: "A useful nuance." }, true);
   });
 
+  it("ignores a save completion after a newer request arrives", async () => {
+    let finishSave: ((card: Awaited<ReturnType<WindowsCaptureBackend["save"]>>) => void) | undefined;
+    mocks.save.mockImplementationOnce(() => new Promise((resolve) => { finishSave = resolve; }));
+    render(WindowsFloatingCapture, { captureBackend });
+    await waitFor(() => expect(mocks.ready).toBeTypeOf("function"));
+    mocks.ready?.({ requestId: "old-request", candidate: { selectedText: "old", sentence: "Old context.", origin: "accessibility" } });
+    await fireEvent.click(await screen.findByRole("button", { name: "Save without translation" }));
+    mocks.ready?.({ requestId: "new-request", candidate: { selectedText: "new", sentence: "New context.", origin: "accessibility" } });
+
+    finishSave?.({ wordId: "old-word", encounterId: "old-encounter", displayForm: "old", context: "Old context.", encounterCount: 1, isExistingWord: false });
+
+    expect(await screen.findByRole("heading", { name: "new" })).toBeInTheDocument();
+    expect(screen.queryByText("Saved")).not.toBeInTheDocument();
+    expect(mocks.releaseFocus).not.toHaveBeenCalled();
+  });
+
+  it("dismisses a saved result after four unpaused seconds", async () => {
+    const view = render(WindowsFloatingCapture, { captureBackend });
+    await waitFor(() => expect(mocks.ready).toBeTypeOf("function"));
+    mocks.ready?.({ requestId: "timed-request", candidate: { selectedText: "nuance", sentence: "A useful nuance.", origin: "accessibility" } });
+    vi.useFakeTimers();
+    try {
+      await fireEvent.click(await screen.findByRole("button", { name: "Save without translation" }));
+      vi.advanceTimersByTime(3_000);
+      await fireEvent.mouseEnter(view.container.querySelector("main")!);
+      vi.advanceTimersByTime(5_000);
+      expect(mocks.hide).not.toHaveBeenCalled();
+      await fireEvent.mouseLeave(view.container.querySelector("main")!);
+      vi.advanceTimersByTime(4_000);
+      expect(mocks.hide).toHaveBeenCalledWith("timed-request");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("removes main-window minimum dimensions from the capture document", () => {
     const view = render(WindowsFloatingCapture, { captureBackend });
 

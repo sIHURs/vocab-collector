@@ -16,43 +16,71 @@
   let saved: CaptureCard | null = null;
   let busy = false;
   let error = "";
+  let mounted = false;
+  let dismissTimer: ReturnType<typeof setTimeout> | undefined;
+
+  function clearDismissTimer() {
+    if (dismissTimer) clearTimeout(dismissTimer);
+    dismissTimer = undefined;
+  }
+
+  function scheduleDismiss(requestId = activeRequest) {
+    clearDismissTimer();
+    if (!saved || !mounted || requestId !== activeRequest) return;
+    dismissTimer = setTimeout(() => {
+      if (mounted && requestId === activeRequest) void captureBackend.hide(requestId);
+    }, 4_000);
+  }
 
   async function beginEditing() {
+    const requestId = activeRequest;
     await captureBackend.focus();
+    if (!mounted || requestId !== activeRequest) return;
     editing = true;
   }
 
   async function save(withoutTranslation: boolean) {
     if (!candidate || busy) return;
+    const requestId = activeRequest;
     busy = true;
     error = "";
     try {
-      saved = await captureBackend.save(activeRequest, {
+      const result = await captureBackend.save(requestId, {
         selectedText: selectedText.trim(),
         sentence: sentence.trim(),
         ...(translation.trim() ? { translation: translation.trim() } : {}),
       }, withoutTranslation);
+      if (!mounted || requestId !== activeRequest) return;
+      saved = result;
       editing = false;
       await captureBackend.releaseFocus();
+      if (!mounted || requestId !== activeRequest) return;
+      scheduleDismiss(requestId);
     } catch (cause) {
+      if (!mounted || requestId !== activeRequest) return;
       error = cause instanceof Error ? cause.message : String(cause);
     } finally {
-      busy = false;
+      if (mounted && requestId === activeRequest) busy = false;
     }
   }
 
   async function undo() {
     if (!saved || busy) return;
+    const requestId = activeRequest;
+    const encounterId = saved.encounterId;
     busy = true;
     error = "";
     try {
-      await captureBackend.undo(activeRequest, saved.encounterId);
+      await captureBackend.undo(requestId, encounterId);
+      if (!mounted || requestId !== activeRequest) return;
       saved = null;
-      await captureBackend.hide(activeRequest);
+      clearDismissTimer();
+      await captureBackend.hide(requestId);
     } catch (cause) {
+      if (!mounted || requestId !== activeRequest) return;
       error = cause instanceof Error ? cause.message : String(cause);
     } finally {
-      busy = false;
+      if (mounted && requestId === activeRequest) busy = false;
     }
   }
 
@@ -65,9 +93,11 @@
   }
 
   onMount(() => {
+    mounted = true;
     document.body.classList.add("windows-capture-document");
     const ready = captureBackend.listenReady((event) => {
       activeRequest = event.requestId;
+      clearDismissTimer();
       candidate = event.candidate;
       selectedText = event.candidate.selectedText;
       sentence = event.candidate.sentence;
@@ -77,6 +107,8 @@
       editing = false;
     });
     return () => {
+      mounted = false;
+      clearDismissTimer();
       document.body.classList.remove("windows-capture-document");
       ready.then((unlisten) => unlisten());
     };
@@ -85,7 +117,7 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-<main class="windows-capture" data-presentation="windows-capture" aria-label="Capture">
+<main class="windows-capture" data-presentation="windows-capture" aria-label="Capture" onmouseenter={clearDismissTimer} onmouseleave={() => scheduleDismiss()} onfocusin={clearDismissTimer} onfocusout={() => scheduleDismiss()}>
   <header><span><i aria-hidden="true"></i>Vocab Collector</span><button aria-label="Cancel capture" onclick={cancel}>×</button></header>
   <section aria-live="polite">
     {#if saved}

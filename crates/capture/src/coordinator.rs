@@ -29,6 +29,7 @@ struct Session {
     phase: Phase,
     candidate: Option<CaptureCandidate>,
     translation: Option<TranslationResult>,
+    saved_entity_id: Option<Uuid>,
 }
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
@@ -100,6 +101,7 @@ impl CaptureCoordinator {
             phase: Phase::Capturing,
             candidate: None,
             translation: None,
+            saved_entity_id: None,
         });
         request_id
     }
@@ -224,6 +226,28 @@ impl CaptureCoordinator {
         without_translation: bool,
         persist: impl FnOnce(&CaptureSnapshot) -> Result<T, E>,
     ) -> Result<T, CoordinatorError> {
+        self.save_with_optional_id(request_id, without_translation, persist, |_| None)
+    }
+
+    pub fn save_with_id<T, E: Display>(
+        &self,
+        request_id: Uuid,
+        without_translation: bool,
+        persist: impl FnOnce(&CaptureSnapshot) -> Result<T, E>,
+        entity_id: impl FnOnce(&T) -> Uuid,
+    ) -> Result<T, CoordinatorError> {
+        self.save_with_optional_id(request_id, without_translation, persist, |value| {
+            Some(entity_id(value))
+        })
+    }
+
+    fn save_with_optional_id<T, E: Display>(
+        &self,
+        request_id: Uuid,
+        without_translation: bool,
+        persist: impl FnOnce(&CaptureSnapshot) -> Result<T, E>,
+        entity_id: impl FnOnce(&T) -> Option<Uuid>,
+    ) -> Result<T, CoordinatorError> {
         let mut guard = self.current(request_id)?;
         let session = guard.as_mut().ok_or(CoordinatorError::StaleRequest)?;
         let previous_phase = session.phase;
@@ -245,6 +269,7 @@ impl CaptureCoordinator {
         session.phase = Phase::Saving;
         match persist(&snapshot) {
             Ok(value) => {
+                session.saved_entity_id = entity_id(&value);
                 session.phase = Phase::Saved;
                 Ok(value)
             }
@@ -258,11 +283,12 @@ impl CaptureCoordinator {
     pub fn undo_with<T, E: Display>(
         &self,
         request_id: Uuid,
+        entity_id: Uuid,
         undo: impl FnOnce() -> Result<T, E>,
     ) -> Result<T, CoordinatorError> {
         let mut guard = self.current(request_id)?;
         let session = guard.as_mut().ok_or(CoordinatorError::StaleRequest)?;
-        if session.phase != Phase::Saved {
+        if session.phase != Phase::Saved || session.saved_entity_id != Some(entity_id) {
             return Err(CoordinatorError::InvalidTransition);
         }
         match undo() {

@@ -466,6 +466,27 @@ fn corrected_native_capture_and_manual_translation_use_the_shared_workflow() {
 }
 
 #[test]
+fn blank_manual_translation_still_requires_explicit_untranslated_save() {
+    let (workflow, _) = workflow(Ok(candidate("serendipity")));
+    let prepared = block_on(workflow.prepare_selection()).unwrap();
+    workflow
+        .correct(
+            prepared.request_id,
+            "serendipity".into(),
+            "A sentence preserving serendipity exactly.".into(),
+            Some("   ".into()),
+        )
+        .unwrap();
+
+    assert!(matches!(
+        workflow.save(prepared.request_id, false, captured_at()),
+        Err(PlatformCaptureError::Coordinator(
+            CoordinatorError::TranslationRequired
+        ))
+    ));
+}
+
+#[test]
 fn operation_translation_failure_can_save_without_translation() {
     let calls = Arc::new(AtomicUsize::new(0));
     let translation: Arc<dyn TranslationProvider> = Arc::new(RetryTranslationProvider {

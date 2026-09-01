@@ -98,11 +98,14 @@ impl PlatformCaptureWorkflow {
         let mut candidate = self.coordinator.candidate(request_id)?;
         candidate.selected_text = selected_text;
         candidate.sentence = sentence;
-        let translation = manual_translation.map(|translated_text| TranslationResult {
-            translated_text,
-            source_language: settings.source_language,
-            target_language: settings.target_language,
-        });
+        let translation = manual_translation
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+            .map(|translated_text| TranslationResult {
+                translated_text,
+                source_language: settings.source_language,
+                target_language: settings.target_language,
+            });
         self.coordinator
             .correct(request_id, candidate, translation)?;
         Ok(())
@@ -162,9 +165,10 @@ impl PlatformCaptureWorkflow {
         captured_at: DateTime<Utc>,
     ) -> Result<CaptureCard, PlatformCaptureError> {
         let settings = self.application.get_settings()?;
-        Ok(self
-            .coordinator
-            .save_with(request_id, without_translation, |snapshot| {
+        Ok(self.coordinator.save_with_id(
+            request_id,
+            without_translation,
+            |snapshot| {
                 let candidate = &snapshot.candidate;
                 let translation = snapshot.translation.as_ref();
                 self.application.capture(CaptureRequest {
@@ -187,12 +191,14 @@ impl PlatformCaptureWorkflow {
                     capture_origin: candidate.origin,
                     captured_at,
                 })
-            })?)
+            },
+            |card| card.encounter_id,
+        )?)
     }
 
     pub fn undo(&self, request_id: Uuid, encounter_id: Uuid) -> Result<(), PlatformCaptureError> {
-        Ok(self
-            .coordinator
-            .undo_with(request_id, || self.application.undo_capture(encounter_id))?)
+        Ok(self.coordinator.undo_with(request_id, encounter_id, || {
+            self.application.undo_capture(encounter_id)
+        })?)
     }
 }

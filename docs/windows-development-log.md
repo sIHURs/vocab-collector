@@ -8,14 +8,16 @@ This log records implementation evidence for `docs/windows-platform-tickets.md`.
 
 - Added shared capture-session transitions for correcting a resolved Native Capture, attaching an optional user-entered translation, explicitly choosing no translation, saving once, and undoing once.
 - Routed correction and request-bound Undo through `PlatformCaptureWorkflow` and target-independent desktop commands; no Windows API or adapter type entered the shared application boundary.
-- Extended the independent Windows floating capture presentation with editable selected text/context, optional translation, explicit **Save without translation**, saved feedback, Undo, busy/error states, and request-aware backend calls.
+- Extended the independent Windows floating capture presentation with editable selected text/context, optional translation, explicit **Save without translation**, saved feedback, request-bound Undo, four-second dismissal paused by hover/focus, busy/error states, and request-aware backend calls.
 - Kept automatic translation unavailable on Windows and states that limitation directly in the capture card. W-10 does not enable the translation capability or call a hidden provider.
 
 ### Key decisions
 
 - The original portable `CaptureCandidate` remains owned by the shared coordinator. Correction replaces only its user-editable text/context while preserving origin, source metadata, URL, and bounds.
 - A manual translation becomes a portable `TranslationResult` using the persisted source/target language settings. An empty translation moves the session to the existing explicit save-without-translation gate.
-- Correction, save, Undo, and dismissal all validate the same request UUID. Save and Undo each have a single-success state; persistence failures leave the action retryable.
+- Correction, save, Undo, and dismissal all validate the same request UUID. The coordinator also binds Undo to the Encounter created by that request. Save and Undo each have a single-success state; persistence failures leave the action retryable.
+- Every asynchronous Windows capture UI continuation captures and revalidates its request ID and mounted lifetime before changing state or starting dependent focus/window work, so late completion cannot overwrite or dismiss a newer request.
+- Whitespace-only manual translation is normalized to absent in the shared workflow and therefore still requires the explicit untranslated-save path.
 - Windows-specific code is limited to its Svelte presentation/backend bridge. `platform/windows` and `platform-api` required no W-10 changes.
 - TDD was limited to the shared coordinator/application workflow, desktop command surface, and Windows capture UI seams because they contain the state transitions and regression risk.
 
@@ -41,9 +43,9 @@ This log records implementation evidence for `docs/windows-platform-tickets.md`.
 | `cargo clippy --workspace --all-targets --exclude vocab-platform-macos --exclude vocab-platform-linux -- -D warnings` | PASS | Verified automated; no warnings |
 | `cargo test -p vocab-capture -p vocab-application` | PASS | Verified automated; correction, manual translation, explicit untranslated save, save-once, request safety, persistence retry, and Undo tests passed |
 | `cargo test -p vocab-desktop --test command_contract` | PASS | Verified automated; 26 tests passed and the additive correction/Undo commands are present on the platform-neutral command surface |
-| `cargo test --workspace --exclude vocab-platform-macos --exclude vocab-platform-linux` | PASS | Verified automated; 112 tests passed and one physical Notepad test remained ignored |
+| `cargo test --workspace --exclude vocab-platform-macos --exclude vocab-platform-linux` | PASS | Verified automated; 114 tests passed and one physical Notepad test remained ignored |
 | `pnpm check` | PASS after sandbox-external rerun | Verified automated; 0 errors and 0 warnings. The managed-sandbox attempt was blocked by the known `esbuild spawn EPERM` restriction |
-| `pnpm test -- ui/src/windows/WindowsFloatingCapture.test.ts` | PASS after sandbox-external rerun | Verified automated; the repository test script ran all 7 frontend files and all 46 tests passed |
+| `pnpm test -- ui/src/windows/WindowsFloatingCapture.test.ts` | PASS after sandbox-external rerun | Verified automated; the repository test script ran all 7 frontend files and all 48 tests passed, including stale-completion and paused timed-dismissal regressions |
 
 ### Not yet verified
 

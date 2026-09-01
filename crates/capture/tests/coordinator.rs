@@ -7,6 +7,7 @@ use std::{
     thread,
     time::Duration,
 };
+use uuid::Uuid;
 
 use vocab_capture::{CaptureCoordinator, CoordinatorError};
 use vocab_platform_api::{CaptureCandidate, CaptureOrigin, TranslationResult};
@@ -313,21 +314,43 @@ fn undo_runs_once_and_rejects_stale_requests() {
     coordinator
         .correct(request, candidate(CaptureOrigin::Accessibility), None)
         .unwrap();
+    let encounter_id = Uuid::now_v7();
     coordinator
-        .save_with(request, true, |_| Ok::<_, &str>(()))
+        .save_with_id(request, true, |_| Ok::<_, &str>(encounter_id), |id| *id)
         .unwrap();
 
     coordinator
-        .undo_with(request, || Ok::<_, &str>(()))
+        .undo_with(request, encounter_id, || Ok::<_, &str>(()))
         .unwrap();
     assert_eq!(
-        coordinator.undo_with(request, || Ok::<_, &str>(())),
+        coordinator.undo_with(request, encounter_id, || Ok::<_, &str>(())),
         Err(CoordinatorError::InvalidTransition)
     );
     let current = coordinator.start();
     assert_eq!(
-        coordinator.undo_with(request, || Ok::<_, &str>(())),
+        coordinator.undo_with(request, encounter_id, || Ok::<_, &str>(())),
         Err(CoordinatorError::StaleRequest)
     );
     assert!(coordinator.is_current(current));
+}
+
+#[test]
+fn undo_rejects_an_encounter_that_was_not_saved_by_the_request() {
+    let coordinator = CaptureCoordinator::default();
+    let request = coordinator.start();
+    coordinator
+        .set_candidate(request, candidate(CaptureOrigin::Accessibility))
+        .unwrap();
+    coordinator
+        .correct(request, candidate(CaptureOrigin::Accessibility), None)
+        .unwrap();
+    let saved = Uuid::now_v7();
+    coordinator
+        .save_with_id(request, true, |_| Ok::<_, &str>(saved), |id| *id)
+        .unwrap();
+
+    assert_eq!(
+        coordinator.undo_with(request, Uuid::now_v7(), || Ok::<_, &str>(())),
+        Err(CoordinatorError::InvalidTransition)
+    );
 }
