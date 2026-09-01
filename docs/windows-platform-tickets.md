@@ -127,9 +127,9 @@ Physical-only follow-up: `pnpm tauri dev` plus Manual Capture, SQLite restart pe
 
 **Acceptance criteria:**
 
-- [ ] Close hides to tray; Open restores; Exit terminates and cleans session resources.
-- [ ] Shortcut replacement rolls back safely on conflicts.
-- [ ] Autostart and notifications match Settings and expose failures.
+- [x] Close hides to tray; Open restores; Exit terminates and cleans session resources.
+- [x] Shortcut replacement rolls back safely on conflicts.
+- [x] Autostart and notifications match Settings and expose failures.
 - [ ] Login/restart, Explorer restart, disabled notifications, and time-zone behavior have physical evidence.
 
 **Verification:** `pnpm check`, `pnpm test`, shortcut tests, desktop command-contract tests, `pnpm tauri dev`, and the physical lifecycle matrix.

@@ -35,6 +35,16 @@ export interface Settings {
   reducedMotion: boolean;
 }
 
+export interface SystemSettingsStatus {
+  shortcutError?: string;
+  autostartError?: string;
+  notificationError?: string;
+}
+
+export interface SettingsApplyResult extends SystemSettingsStatus {
+  settings: Settings;
+}
+
 export interface CaptureInput {
   selectedText: string;
   sentence: string;

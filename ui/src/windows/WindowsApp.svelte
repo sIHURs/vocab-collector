@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { createBackend, type Backend } from "../lib/backend";
-  import type { CaptureCard, ReviewCard, ReviewRating, Settings, TodayView, WordDetail, WordListItem } from "../lib/types";
+  import type { CaptureCard, ReviewCard, ReviewRating, Settings, SystemSettingsStatus, TodayView, WordDetail, WordListItem } from "../lib/types";
   import WindowsWordRow from "./WindowsWordRow.svelte";
 
   type Route = "Today" | "Vocabulary" | "Review" | "Settings";
@@ -33,6 +33,7 @@
   let settingsError = "";
   let settingsSaved = false;
   let initialLoadComplete = false;
+  let systemStatus: SystemSettingsStatus = {};
 
   $: filteredWords = words.filter((word) => `${word.displayForm} ${word.translation ?? ""}`.toLowerCase().includes(search.trim().toLowerCase()));
   $: activeReview = today?.reviewQueue[reviewIndex] as ReviewCard | undefined;
@@ -46,6 +47,7 @@
       words = nextWords;
       settingsDraft = { ...nextSettings };
       appliedSettings = { ...nextSettings };
+      if (api.getWindowsSettingsStatus) systemStatus = await api.getWindowsSettingsStatus();
       if (selectedDetail) selectedDetail = await api.getWord(selectedDetail.item.id);
       return true;
     } catch (cause) { error = cause instanceof Error ? cause.message : String(cause); }
@@ -146,8 +148,20 @@
     error = "";
     const candidate = { ...settingsDraft, dailyLimit: Number(settingsDraft.dailyLimit) };
     try {
-      await api.updateSettings(candidate);
-      const persisted = await api.getSettings();
+      let persisted: Settings;
+      if (api.applyWindowsSettings) {
+        const result = await api.applyWindowsSettings(candidate);
+        persisted = result.settings;
+        systemStatus = {
+          shortcutError: result.shortcutError,
+          autostartError: result.autostartError,
+          notificationError: result.notificationError,
+        };
+      } else {
+        await api.updateSettings(candidate);
+        persisted = await api.getSettings();
+        systemStatus = {};
+      }
       settingsDraft = { ...persisted };
       appliedSettings = { ...persisted };
       settingsSaved = true;
@@ -155,6 +169,15 @@
       catch (cause) { error = cause instanceof Error ? cause.message : String(cause); }
     } catch (cause) { settingsError = cause instanceof Error ? cause.message : String(cause); }
     finally { settingsSaving = false; }
+  }
+
+  async function selectRoute(item: Route) {
+    route = item;
+    selectedDetail = null;
+    if (item === "Settings" && api.getWindowsSettingsStatus) {
+      try { systemStatus = await api.getWindowsSettingsStatus(); }
+      catch (cause) { settingsError = cause instanceof Error ? cause.message : String(cause); }
+    }
   }
 
   const encounterLabel = (count: number) => `${count} encounter${count === 1 ? "" : "s"}`;
@@ -165,7 +188,7 @@
 <div class="windows-shell" data-presentation="windows-main" data-appearance={appliedSettings?.appearance ?? "system"} data-reduced-motion={appliedSettings?.reducedMotion ?? false}>
   <aside>
     <div class="brand"><span aria-hidden="true">V</span><strong>Vocab Collector</strong></div>
-    <nav aria-label="Main navigation">{#each navigation as item}<button class:active={route === item} aria-current={route === item ? "page" : undefined} onclick={() => { route = item; selectedDetail = null; }}>{item}</button>{/each}</nav>
+    <nav aria-label="Main navigation">{#each navigation as item}<button class:active={route === item} aria-current={route === item ? "page" : undefined} onclick={() => selectRoute(item)}>{item}</button>{/each}</nav>
     <div class="local-status"><i aria-hidden="true"></i><span>Local mode</span></div>
   </aside>
   <main>
@@ -203,10 +226,15 @@
               <label>Translate into<select bind:value={settingsDraft.targetLanguage}><option value="en">English</option><option value="de">German</option><option value="fr">French</option><option value="es">Spanish</option><option value="zh">Chinese</option></select></label>
             </fieldset>
             <fieldset><legend>Review</legend><p>Set the size of your daily session.</p>
+              <label>Review time<input type="time" bind:value={settingsDraft.reviewTime} /></label>
+              {#if systemStatus.notificationError}<small class="field-error" role="alert">{systemStatus.notificationError}</small>{/if}
               <label>Daily limit<input type="number" min="1" max="50" bind:value={settingsDraft.dailyLimit} /></label>
             </fieldset>
             <fieldset><legend>Capture</legend><p>Choose your preferred capture shortcut.</p>
               <label>Capture shortcut<input bind:value={settingsDraft.captureShortcut} /></label>
+              {#if systemStatus.shortcutError}<small class="field-error" role="alert">{systemStatus.shortcutError}</small>{/if}
+              <label class="toggle-row"><span><strong>Launch at login</strong><small>Start hidden and remain available in the system tray</small></span><input aria-label="Launch at login" type="checkbox" bind:checked={settingsDraft.launchAtLogin} /></label>
+              {#if systemStatus.autostartError}<small class="field-error" role="alert">{systemStatus.autostartError}</small>{/if}
             </fieldset>
             <fieldset><legend>Appearance</legend><p>Visual preferences apply after a successful save.</p>
               <label>Theme<select bind:value={settingsDraft.appearance}><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
@@ -249,6 +277,7 @@
   .error { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 14px; padding: 11px 13px; border: 1px solid #724747; border-radius: 6px; color: #f0b4b4; background: #321f24; }.error button { border: 0; color: #cad0ff; background: transparent; cursor: pointer; }
   .dialog-error { padding: 9px 10px; border: 1px solid #724747; border-radius: 6px; color: #f0b4b4; background: #321f24; font-size: 12px; }
   .settings { max-width: 900px; margin: 0 auto; }.settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }.settings fieldset { min-width: 0; display: grid; align-content: start; gap: 14px; margin: 0; padding: 18px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); }.settings legend { padding: 0; color: var(--text); font-size: 15px; font-weight: 700; }.settings fieldset > p { color: var(--muted); font-size: 11px; }.settings label { display: grid; gap: 6px; color: var(--muted); font-size: 11px; }.settings input:not([type="checkbox"]), .settings select { width: 100%; min-height: 36px; padding: 0 10px; border: 1px solid var(--line); border-radius: 6px; color: var(--text); background: var(--field); }.toggle-row { grid-template-columns: 1fr auto; align-items: center; }.toggle-row span { display: grid; gap: 3px; }.toggle-row strong { color: var(--text); font-size: 12px; }.toggle-row small { color: var(--muted); }.toggle-row input { width: 18px; height: 18px; accent-color: #7584ef; }.settings-actions { display: flex; justify-content: flex-end; margin-top: 14px; }.settings-message, .settings-success { margin-bottom: 12px; }.settings-success { padding: 9px 10px; border: 1px solid #3f755f; border-radius: 6px; color: #28624d; background: #dff4e9; font-size: 12px; }
+  .field-error { color: #f0b4b4; font-size: 11px; line-height: 1.4; }
   .windows-presentation[data-reduced-motion="true"], .windows-presentation[data-reduced-motion="true"] * { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
   .review-card { max-width: 620px; margin: 24px auto; padding: 28px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }.review-progress { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; color: var(--muted); font-size: 11px; }.review-card h2 { margin: 10px 0; font-size: 30px; }.review-card > p { color: var(--muted); line-height: 1.6; }.review-translation { display: grid; gap: 5px; margin: 22px 0; padding: 14px; border-radius: 7px; background: rgba(117,132,239,.12); }.review-translation small { color: var(--muted); }.review-translation strong { color: #7a86e8; font-size: 16px; }.review-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 18px; }
   .backdrop { position: fixed; z-index: 30; inset: 0; display: grid; place-items: center; background: rgba(8,9,13,.65); }.dialog { width: min(460px, calc(100vw - 32px)); padding: 20px; border: 1px solid var(--line); border-radius: 8px; color: var(--text); background: var(--surface); box-shadow: 0 24px 70px rgba(0,0,0,.5); }.dialog form { display: grid; gap: 13px; }.dialog-heading { display: flex; justify-content: space-between; }.dialog h2 { margin-top: 5px; font-size: 19px; }.eyebrow { color: #7a86e8; font-size: 10px; font-weight: 700; text-transform: uppercase; }.dialog label { display: grid; gap: 6px; color: var(--muted); font-size: 11px; }.dialog label small { margin-left: 4px; }.dialog input, .dialog textarea { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 6px; color: var(--text); background: var(--field); }.dialog textarea { min-height: 80px; resize: vertical; }.actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }

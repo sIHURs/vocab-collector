@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
-  CaptureCard, CaptureInput, Encounter, PlatformCapabilities, ReviewRating, Settings, TodayView,
+  CaptureCard, CaptureInput, Encounter, PlatformCapabilities, ReviewRating, Settings,
+  SettingsApplyResult, SystemSettingsStatus, TodayView,
   WordDetail, WordListItem,
 } from "./types";
 
@@ -14,6 +15,8 @@ export interface Backend {
   getSettings(): Promise<Settings>;
   updateSettings(settings: Settings): Promise<void>;
   replaceShortcut(candidate: string): Promise<Settings>;
+  applyWindowsSettings?(settings: Settings): Promise<SettingsApplyResult>;
+  getWindowsSettingsStatus?(): Promise<SystemSettingsStatus>;
   getPlatformCapabilities(): Promise<PlatformCapabilities>;
 }
 
@@ -130,6 +133,11 @@ export class DemoBackend implements Backend {
   async getSettings() { return { ...this.settings }; }
   async updateSettings(settings: Settings) { this.settings = { ...settings }; }
   async replaceShortcut(candidate: string) { this.settings.captureShortcut = candidate; return { ...this.settings }; }
+  async applyWindowsSettings(settings: Settings): Promise<SettingsApplyResult> {
+    await this.updateSettings(settings);
+    return { settings: await this.getSettings() };
+  }
+  async getWindowsSettingsStatus(): Promise<SystemSettingsStatus> { return {}; }
   async getPlatformCapabilities() { return { ...unavailablePlatformCapabilities }; }
 }
 
@@ -151,6 +159,10 @@ class TauriBackend implements Backend {
   getSettings() { return invoke<Settings>("get_settings"); }
   updateSettings(settings: Settings) { return invoke<void>("update_settings", { settings }); }
   replaceShortcut(candidate: string) { return invoke<Settings>("replace_shortcut", { candidate }); }
+  applyWindowsSettings(settings: Settings) {
+    return invoke<SettingsApplyResult>("apply_windows_settings", { settings });
+  }
+  getWindowsSettingsStatus() { return invoke<SystemSettingsStatus>("get_windows_settings_status"); }
   getPlatformCapabilities() { return invoke<PlatformCapabilities>("get_platform_capabilities"); }
 }
 

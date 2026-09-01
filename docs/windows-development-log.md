@@ -304,3 +304,82 @@ TDD seam:
 ### Next ticket starting point
 
 W-06 starts with portable Settings persisted and visual preferences applied by the Windows presentation. It should add tray Open/Exit and close-to-tray lifecycle, connect shortcut changes through the existing register-before-unregister rollback command, and expose launch-at-login plus review-time notifications only when their Windows side effects and per-setting error recovery are real. It must preserve the portable Settings boundary and must not begin UIA, clipboard fallback, OCR, or translation work.
+
+## 2026-09-01 - W-06 Tray lifecycle and Windows system settings
+
+### Implementation
+
+- Added a Windows tray icon with Open and Exit commands. Closing the main window now hides it without stopping the process; Open restores and focuses it; Exit attempts shortcut cleanup and always terminates.
+- Kept the global capture shortcut registered while the main window is hidden. Settings replacement registers and validates the candidate before persistence and removal of the previous shortcut.
+- Added launch-at-login through the Tauri autostart plugin and Review notifications through the Tauri notification plugin. These plugins are installed only in Windows desktop composition.
+- Added Windows Settings controls for launch at login and local Review time, with independent shortcut, autostart, and notification error messages.
+- Added startup recovery for unavailable persisted shortcuts and invalid persisted Review times. The safe defaults are persisted when possible and session-only recovery is stated when persistence fails.
+- Added a process-owned Review scheduler. It checks current local time every 15 seconds, sends at most one successful notification per local calendar date when the due queue is nonempty, and retries failed delivery or due-queue reads no more frequently than every five minutes.
+- Preserved unresolved system errors when a user saves an unrelated preference. Incomplete shortcut rollback is surfaced explicitly rather than reported as a successful restore.
+
+### Key decisions
+
+- `UserSettings` remains portable. Tauri commands translate persisted values into Windows side effects; no Win32, plugin, or Tauri type enters `vocab-domain` or `vocab-application`.
+- The shared application remains the source of truth for Settings and the Today due count. The scheduler owns only timing and delivery acknowledgement.
+- A notification date is marked delivered only after Windows accepts the notification, or after the application confirms there are no due words. Delivery and due-queue read failures remain retryable and visible; editing Review time does not clear them or reset the current date's successful-delivery state.
+- Review time uses Windows local wall-clock time read on each poll. Local-date delivery prevents a repeated wall-clock hour from producing two successful notifications; physical DST and time-zone-change behavior remains unverified.
+- Windows autostart state is applied and read back. A mismatch or plugin error is visible and does not falsely change the persisted setting.
+- Tray Open/Exit and close interception stay in `apps/desktop/src-tauri`; portable frontend/backend contracts contain only serializable settings and error values.
+
+### Main files changed
+
+- `apps/desktop/src-tauri/src/lifecycle.rs`
+- `apps/desktop/src-tauri/src/system_settings.rs`
+- `apps/desktop/src-tauri/src/commands/settings.rs`
+- `apps/desktop/src-tauri/src/commands/mod.rs`
+- `apps/desktop/src-tauri/src/lib.rs`
+- `apps/desktop/src-tauri/Cargo.toml`
+- `apps/desktop/src-tauri/tests/command_contract.rs`
+- `ui/src/lib/backend.ts`
+- `ui/src/lib/types.ts`
+- `ui/src/windows/WindowsApp.svelte`
+- `ui/src/windows/WindowsApp.test.ts`
+- `Cargo.lock`
+- `docs/windows-platform-tickets.md`
+- `docs/windows-development-log.md`
+
+No Windows native adapter, UIA, clipboard, OCR, translation, or platform capability flag changed.
+
+### Tests and results
+
+TDD seam:
+
+- Desktop settings transaction contract: candidate-first shortcut replacement, persistence ordering, complete rollback, rollback-failure reporting, and preservation of errors for effects not attempted.
+- Startup recovery contract: shortcut conflicts and invalid Review times fall back without preventing application startup.
+- Review scheduling contract: successful delivery is once per local date, while a failed delivery can retry after a bounded interval.
+- Desktop lifecycle contract: restore shows before focus; Exit runs even when explicit cleanup reports an error.
+- Windows Settings UI contract: partial Windows side-effect failures restore only the affected draft values while successfully persisted portable preferences remain applied.
+
+| Command | Result | Evidence |
+|---|---|---|
+| `pnpm check` | PASS | Verified automated outside the restricted sandbox after its child-process policy blocked esbuild; 0 errors and 0 warnings |
+| `pnpm test` | PASS | Verified automated; 7 files and 41 tests passed |
+| `cargo test -p vocab-capture --test shortcut` | PASS | Verified automated; 4 tests passed |
+| `cargo test -p vocab-desktop --test command_contract` | PASS | Verified automated; 24 tests passed, including schedule reconfiguration and bounded retry across a backward local time-zone change |
+| `cargo fmt --all --check` | PASS | Verified automated after formatting |
+| `cargo clippy -p vocab-desktop --all-targets -- -D warnings` | PASS | Verified automated; no warnings |
+| `pnpm tauri dev` | PASS for latest-code startup | Verified on a physical HP Windows 11 Pro x64 device, build 26100; Vite started, the Rust desktop binary compiled, `vocab-desktop.exe` launched, and WebView2 processes were observed |
+| Close main window | PASS | Verified physical; WM_CLOSE hid both Vocab Collector windows while the desktop process remained alive and responsive |
+| Shortcut while hidden | PASS | Verified physical; `Alt+Shift+V` made the Capture window visible while the main window remained hidden |
+
+The development process was intentionally stopped with Ctrl+C after the smoke test. Its `STATUS_CONTROL_C_EXIT` and WebView class-unregistration message are not evidence for the product Exit command.
+
+### Not yet verified
+
+- **Not run:** tray Open and tray Exit through the visible Windows notification-area UI; automated lifecycle contracts cover ordering and cleanup behavior, but no physical interaction evidence was captured.
+- **Not run:** login/restart and launch-at-login registration across a real Windows sign-in.
+- **Not run:** Explorer restart with tray icon recreation or continued access to the running application.
+- **Not run:** notification delivery with notifications enabled, disabled, or restored after failure.
+- **Not run:** changing Windows time zone, daylight-saving transitions, sleep/wake across Review time, and notification behavior after restart.
+- **Not run:** physical shortcut conflict replacement and rollback against another installed application.
+- **Not run:** macOS runtime regression. Windows-only autostart/notification plugin installation and scheduler ownership are compile-gated, while the existing global-shortcut composition remains shared.
+- The W-06 physical-evidence acceptance criterion remains incomplete until the lifecycle matrix above is executed and recorded.
+
+### Next ticket starting point
+
+W-07 starts from a Windows desktop process that remains available in the tray and can invoke the existing capture pipeline from a global shortcut. It should implement only Notepad selection capture through the Windows UI Automation adapter, normalize native results into portable `CaptureCandidate` values, and update capability evidence only after a physical Notepad Unicode capture. It must not begin browser/editor compatibility expansion, clipboard fallback, OCR, translation, or floating-window positioning work.

@@ -42,6 +42,25 @@ class FlakySettingsRefreshBackend extends TrackingSettingsBackend {
   }
 }
 
+class PartiallyFailingSystemSettingsBackend extends TrackingSettingsBackend {
+  override async applyWindowsSettings(settings: Settings) {
+    const current = await this.getSettings();
+    const persisted = {
+      ...settings,
+      captureShortcut: current.captureShortcut,
+      launchAtLogin: current.launchAtLogin,
+      reviewTime: current.reviewTime,
+    };
+    await this.updateSettings(persisted);
+    return {
+      settings: persisted,
+      shortcutError: "Shortcut unavailable",
+      autostartError: "Startup registration failed",
+      notificationError: "Notification schedule failed",
+    };
+  }
+}
+
 async function saveManualCapture(word: string, sentence: string) {
   await fireEvent.click(screen.getAllByRole("button", { name: "Manual capture" })[0]);
   await fireEvent.input(screen.getByLabelText("Word or phrase"), { target: { value: word } });
@@ -263,5 +282,27 @@ describe("Windows main presentation", () => {
     expect(await screen.findByRole("status")).toHaveTextContent("Settings saved");
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not refresh Today");
     expect(container.querySelector(".windows-shell")).toHaveAttribute("data-appearance", "light");
+  });
+
+  it("shows per-setting system failures while preserving unrelated saved values", async () => {
+    const api = new PartiallyFailingSystemSettingsBackend(false);
+    const { container } = render(WindowsApp, { api });
+    await screen.findByText("No captures yet");
+
+    await fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    await fireEvent.input(screen.getByLabelText("Review time"), { target: { value: "08:30" } });
+    await fireEvent.input(screen.getByLabelText("Capture shortcut"), { target: { value: "Control+Shift+W" } });
+    await fireEvent.click(screen.getByLabelText("Launch at login"));
+    await fireEvent.change(screen.getByLabelText("Theme"), { target: { value: "light" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
+
+    expect(await screen.findByText("Shortcut unavailable")).toBeVisible();
+    expect(screen.getByText("Startup registration failed")).toBeVisible();
+    expect(screen.getByText("Notification schedule failed")).toBeVisible();
+    expect(screen.getByLabelText("Review time")).toHaveValue("18:00");
+    expect(screen.getByLabelText("Capture shortcut")).toHaveValue("Alt+Shift+V");
+    expect(screen.getByLabelText("Launch at login")).not.toBeChecked();
+    expect(container.querySelector(".windows-shell")).toHaveAttribute("data-appearance", "light");
+    expect(screen.getByRole("status")).toHaveTextContent("Settings saved");
   });
 });

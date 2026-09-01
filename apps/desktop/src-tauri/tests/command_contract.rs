@@ -21,8 +21,13 @@ use vocab_desktop_lib::{
     },
     commands::presentation::get_presentation_family,
     events::{CaptureFailure, CaptureFailureCode, NativeCaptureError, NativeCaptureErrorEvent},
+    lifecycle::{open_main_window, terminate_session},
+    system_settings::{
+        ReviewSchedule, SettingsEffects, SystemSettingsStatus, apply_settings_transaction,
+        merge_attempted_status, restore_startup_review_schedule, restore_startup_shortcut,
+    },
 };
-use vocab_domain::CaptureOrigin;
+use vocab_domain::{CaptureOrigin, UserSettings};
 use vocab_platform_api::{
     CaptureCandidate, OcrCandidate, OcrProvider, PermissionKind, PermissionProvider,
     PermissionStatus, PlatformCapabilities, PlatformError, PlatformServices, ScreenPoint,
@@ -52,6 +57,335 @@ fn desktop_exposes_the_target_presentation_family() {
         "shared"
     };
     assert_eq!(get_presentation_family(), expected);
+}
+
+#[derive(Default)]
+struct RecordingSettingsEffects {
+    calls: Vec<String>,
+    reject_persistence: bool,
+    reject_unregister: Vec<String>,
+}
+
+impl SettingsEffects for RecordingSettingsEffects {
+    fn register_shortcut(&mut self, shortcut: &str) -> Result<(), String> {
+        self.calls.push(format!("register:{shortcut}"));
+        Ok(())
+    }
+
+    fn unregister_shortcut(&mut self, shortcut: &str) -> Result<(), String> {
+        self.calls.push(format!("unregister:{shortcut}"));
+        if self.reject_unregister.iter().any(|value| value == shortcut) {
+            Err(format!("cannot unregister {shortcut}"))
+        } else {
+            Ok(())
+        }
+    }
+
+    fn set_autostart(&mut self, enabled: bool) -> Result<(), String> {
+        self.calls.push(format!("autostart:{enabled}"));
+        Ok(())
+    }
+
+    fn set_review_time(&mut self, review_time: &str) -> Result<(), String> {
+        self.calls.push(format!("review:{review_time}"));
+        Ok(())
+    }
+
+    fn persist(&mut self, settings: &UserSettings) -> Result<(), String> {
+        self.calls
+            .push(format!("persist:{}", settings.capture_shortcut));
+        if self.reject_persistence {
+            Err("database unavailable".into())
+        } else {
+            Ok(())
+        }
+    }
+}
+
+#[test]
+fn settings_status_keeps_errors_for_system_effects_that_were_not_attempted() {
+    let existing = SystemSettingsStatus {
+        shortcut_error: None,
+        autostart_error: Some("startup registration is unresolved".into()),
+        notification_error: None,
+    };
+    let result = vocab_desktop_lib::system_settings::SettingsApplyResult {
+        settings: UserSettings::default(),
+        shortcut_error: None,
+        autostart_error: None,
+        notification_error: None,
+    };
+
+    assert_eq!(
+        merge_attempted_status(existing, &result, false, false, false).autostart_error,
+        Some("startup registration is unresolved".into())
+    );
+}
+
+#[test]
+fn shortcut_rollback_reports_when_the_staged_shortcut_cannot_be_removed() {
+    let current = UserSettings::default();
+    let mut requested = current.clone();
+    requested.capture_shortcut = "Control+Shift+W".into();
+    let mut effects = RecordingSettingsEffects {
+        reject_unregister: vec!["Alt+Shift+V".into(), "Control+Shift+W".into()],
+        ..Default::default()
+    };
+
+    let result = apply_settings_transaction(current, requested, &mut effects).unwrap();
+
+    assert_eq!(result.settings.capture_shortcut, "Alt+Shift+V");
+    assert_eq!(
+        result.shortcut_error.as_deref(),
+        Some(
+            "The previous shortcut could not be released, and the staged shortcut could not be removed. Restart the app to restore a single shortcut."
+        )
+    );
+}
+
+#[test]
+fn settings_effects_commit_before_the_previous_shortcut_is_removed() {
+    let current = UserSettings::default();
+    let mut requested = current.clone();
+    requested.capture_shortcut = "Control+Shift+W".into();
+    requested.launch_at_login = true;
+    requested.review_time = "08:30".into();
+    let mut effects = RecordingSettingsEffects::default();
+
+    let result = apply_settings_transaction(current, requested.clone(), &mut effects).unwrap();
+
+    assert_eq!(result.settings, requested);
+    assert!(result.shortcut_error.is_none());
+    assert!(result.autostart_error.is_none());
+    assert!(result.notification_error.is_none());
+    assert_eq!(
+        effects.calls,
+        [
+            "register:Control+Shift+W",
+            "autostart:true",
+            "review:08:30",
+            "persist:Control+Shift+W",
+            "unregister:Alt+Shift+V",
+        ]
+    );
+}
+
+#[test]
+fn settings_persistence_failure_rolls_back_every_staged_system_effect() {
+    let current = UserSettings::default();
+    let mut requested = current.clone();
+    requested.capture_shortcut = "Control+Shift+W".into();
+    requested.launch_at_login = true;
+    requested.review_time = "08:30".into();
+    let mut effects = RecordingSettingsEffects {
+        reject_persistence: true,
+        ..Default::default()
+    };
+
+    assert_eq!(
+        apply_settings_transaction(current, requested, &mut effects).unwrap_err(),
+        "database unavailable"
+    );
+    assert_eq!(
+        effects.calls,
+        [
+            "register:Control+Shift+W",
+            "autostart:true",
+            "review:08:30",
+            "persist:Control+Shift+W",
+            "review:18:00",
+            "autostart:false",
+            "unregister:Control+Shift+W",
+        ]
+    );
+}
+
+#[test]
+fn startup_shortcut_conflict_falls_back_without_blocking_application_start() {
+    let mut settings = UserSettings {
+        capture_shortcut: "Control+Shift+W".into(),
+        ..UserSettings::default()
+    };
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    let register_calls = Arc::clone(&calls);
+    let persist_calls = Arc::clone(&calls);
+
+    let error = restore_startup_shortcut(
+        &mut settings,
+        move |shortcut| {
+            register_calls
+                .lock()
+                .unwrap()
+                .push(format!("register:{shortcut}"));
+            if shortcut == "Control+Shift+W" {
+                Err("conflict".into())
+            } else {
+                Ok(())
+            }
+        },
+        move |settings| {
+            persist_calls
+                .lock()
+                .unwrap()
+                .push(format!("persist:{}", settings.capture_shortcut));
+            Ok(())
+        },
+    );
+
+    assert_eq!(settings.capture_shortcut, "Alt+Shift+V");
+    assert_eq!(
+        error.as_deref(),
+        Some("The saved shortcut was unavailable. Alt+Shift+V is active instead.")
+    );
+    assert_eq!(
+        *calls.lock().unwrap(),
+        [
+            "register:Control+Shift+W",
+            "register:Alt+Shift+V",
+            "persist:Alt+Shift+V",
+        ]
+    );
+}
+
+#[test]
+fn invalid_startup_review_time_falls_back_without_blocking_application_start() {
+    let mut settings = UserSettings {
+        review_time: "25:99".into(),
+        ..UserSettings::default()
+    };
+    let persisted = Arc::new(Mutex::new(Vec::new()));
+    let observed = Arc::clone(&persisted);
+
+    let (schedule, error) = restore_startup_review_schedule(&mut settings, move |settings| {
+        observed.lock().unwrap().push(settings.review_time.clone());
+        Ok(())
+    });
+
+    assert_eq!(settings.review_time, "18:00");
+    assert_eq!(*persisted.lock().unwrap(), ["18:00"]);
+    assert_eq!(
+        error.as_deref(),
+        Some("The saved Review time was invalid. 18:00 is active instead.")
+    );
+    let due = chrono::DateTime::parse_from_rfc3339("2026-09-01T18:00:05+02:00").unwrap();
+    assert!(schedule.take_due(due).is_some());
+}
+
+#[test]
+fn review_schedule_fires_once_per_local_date() {
+    let mut schedule = ReviewSchedule::parse("18:00").unwrap();
+    let first = chrono::DateTime::parse_from_rfc3339("2026-09-01T18:00:05+02:00").unwrap();
+    let repeated = chrono::DateTime::parse_from_rfc3339("2026-09-01T18:00:45+02:00").unwrap();
+    let next_day = chrono::DateTime::parse_from_rfc3339("2026-09-02T18:00:01+02:00").unwrap();
+
+    let date = schedule.take_due(first).unwrap();
+    schedule.mark_delivered(date);
+    assert!(schedule.take_due(repeated).is_none());
+    assert!(schedule.take_due(next_day).is_some());
+}
+
+#[test]
+fn failed_review_delivery_retries_at_a_bounded_interval() {
+    let mut schedule = ReviewSchedule::parse("18:00").unwrap();
+    let first = chrono::DateTime::parse_from_rfc3339("2026-09-01T18:00:05+02:00").unwrap();
+    let too_soon = chrono::DateTime::parse_from_rfc3339("2026-09-01T18:04:59+02:00").unwrap();
+    let retry = chrono::DateTime::parse_from_rfc3339("2026-09-01T18:05:05+02:00").unwrap();
+
+    assert!(schedule.take_due(first).is_some());
+    assert!(schedule.take_due(too_soon).is_none());
+    assert!(schedule.take_due(retry).is_some());
+}
+
+#[test]
+fn review_retry_interval_is_not_extended_when_the_local_time_zone_moves_backward() {
+    let mut schedule = ReviewSchedule::parse("18:00").unwrap();
+    let first = chrono::DateTime::parse_from_rfc3339("2026-09-01T18:00:05+12:00").unwrap();
+    let after_zone_change =
+        chrono::DateTime::parse_from_rfc3339("2026-09-01T18:01:05-12:00").unwrap();
+
+    assert!(schedule.take_due(first).is_some());
+    assert!(schedule.take_due(after_zone_change).is_some());
+}
+
+#[test]
+fn changing_review_time_keeps_a_successful_delivery_suppressed_for_that_date() {
+    let scheduler = vocab_desktop_lib::system_settings::ReviewScheduler::new("18:00").unwrap();
+    let delivered = chrono::DateTime::parse_from_rfc3339("2026-09-01T18:00:05+02:00").unwrap();
+    let date = scheduler.take_due(delivered).unwrap();
+    scheduler.mark_delivered(date);
+
+    scheduler.configure("19:00").unwrap();
+
+    let same_date = chrono::DateTime::parse_from_rfc3339("2026-09-01T19:00:05+02:00").unwrap();
+    assert!(scheduler.take_due(same_date).is_none());
+}
+
+#[test]
+fn changing_review_time_does_not_clear_an_unresolved_delivery_failure() {
+    let existing = SystemSettingsStatus {
+        shortcut_error: None,
+        autostart_error: None,
+        notification_error: Some(
+            vocab_desktop_lib::system_settings::NOTIFICATION_DELIVERY_ERROR.into(),
+        ),
+    };
+    let result = vocab_desktop_lib::system_settings::SettingsApplyResult {
+        settings: UserSettings::default(),
+        shortcut_error: None,
+        autostart_error: None,
+        notification_error: None,
+    };
+
+    assert_eq!(
+        merge_attempted_status(existing, &result, false, false, true).notification_error,
+        Some(vocab_desktop_lib::system_settings::NOTIFICATION_DELIVERY_ERROR.into())
+    );
+}
+
+#[test]
+fn desktop_lifecycle_opens_then_focuses_and_cleans_before_exit() {
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    let show_calls = Arc::clone(&calls);
+    let focus_calls = Arc::clone(&calls);
+    open_main_window(
+        move || {
+            show_calls.lock().unwrap().push("show");
+            Ok(())
+        },
+        move || {
+            focus_calls.lock().unwrap().push("focus");
+            Ok(())
+        },
+    )
+    .unwrap();
+    let cleanup_calls = Arc::clone(&calls);
+    let exit_calls = Arc::clone(&calls);
+    terminate_session(
+        move || {
+            cleanup_calls.lock().unwrap().push("cleanup");
+            Ok(())
+        },
+        move || exit_calls.lock().unwrap().push("exit"),
+    )
+    .unwrap();
+
+    assert_eq!(*calls.lock().unwrap(), ["show", "focus", "cleanup", "exit"]);
+}
+
+#[test]
+fn desktop_exit_still_terminates_when_explicit_cleanup_reports_an_error() {
+    let exited = Arc::new(AtomicBool::new(false));
+    let exit_observer = Arc::clone(&exited);
+
+    assert_eq!(
+        terminate_session(
+            || Err("shortcut cleanup failed".into()),
+            move || exit_observer.store(true, Ordering::SeqCst),
+        )
+        .unwrap_err(),
+        "shortcut cleanup failed"
+    );
+    assert!(exited.load(Ordering::SeqCst));
 }
 
 #[test]
