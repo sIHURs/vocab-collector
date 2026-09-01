@@ -981,6 +981,30 @@ The guiding principle is:
 
 > Different operating systems may have completely different ways to capture text, but everything above the platform boundary should receive the same resolved `CaptureCandidate`.
 
+---
+
+## 2026-09-01 W-08 automated handoff
+
+Commit: pending at the time this evidence entry was written.
+
+Environment: managed Windows workspace. These results are automated build/test evidence only; no W-08 interactive physical UIA compatibility run was performed.
+
+Implemented bounded Windows UIA discovery with a focused fast path, four-ancestor limit, focused-subtree depth limit of four, and total inspection limit of 64 elements. TextPattern2 is attempted before TextPattern. Default diagnostics contain only pattern/outcome, counts, lengths, cap state, and metadata-presence booleans.
+
+Verified automated:
+
+- `cargo test -p vocab-platform-windows`: pass; 9 unit tests and 2 capability tests passed, with the physical Notepad test ignored.
+- `cargo test -p vocab-platform-contract-tests`: pass; 8 tests.
+- `cargo test -p vocab-application --test platform_fakes`: pass; 11 tests.
+- `cargo clippy -p vocab-platform-windows -p vocab-platform-contract-tests -p vocab-application --all-targets -- -D warnings`: pass.
+- `cargo fmt --all --check`: pass.
+
+Capability changes: none. `selection_capture` and `selection_bounds` remain false.
+
+Not run: live TextPattern2/TextPattern behavior and UIA text/bounds/context/source metadata for Windows Terminal, VS Code, Edge, Chrome, Firefox, Word, and PDF readers. The required physical compatibility matrix remains unchanged at `Not run`. The previous W-07 physical Notepad focus-transfer blocker was not re-tested.
+
+Next milestone: first complete the W-08 physical UIA compatibility matrix. Only after that evidence gate should W-09 consume the existing portable bounds for non-activating mixed-DPI placement.
+
 
 Windows capture 可以概括成一个 多级 fallback pipeline：
 

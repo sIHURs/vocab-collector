@@ -448,3 +448,58 @@ The Tauri smoke process was intentionally stopped with Ctrl+C. Its `STATUS_CONTR
 ### Next ticket starting point
 
 W-08 starts from a focused-element `TextPattern` implementation with content-free errors and portable normalization, but without a verified capability claim. Before expanding compatibility, complete the physical Notepad shortcut check and enable selection capability only if it passes. W-08 may then add bounded `TextPattern2`/`TextPattern` discovery, ancestor/descendant traversal, safe diagnostics, UTF-16 and multi-rectangle fixtures, and the required application matrix. It must not add clipboard fallback, OCR, translation, or floating-window behavior.
+
+## 2026-09-01 - W-08 Bounded UIA compatibility discovery and safe diagnostics
+
+### Implementation
+
+- Expanded the Windows selection provider from focused-element-only discovery to a deterministic sequence: focused fast path, at most four nearby ancestors, then a breadth-first focused-subtree search limited to depth four and 64 total inspected elements.
+- Added `TextPattern2` discovery before the existing `TextPattern` fallback. Both paths still return only the portable `CaptureCandidate` and existing typed `PlatformError` values.
+- Continued past controls that expose no text pattern or only an empty/collapsed selection, returning `EmptySelection` when a text-capable element was found and `UnsupportedElement` otherwise.
+- Added default content-safe diagnostics containing outcome, pattern kind, inspected-node/cap state, selected UTF-16 length, rectangle count, and source-metadata presence. Captured text, context, titles, URLs, HRESULT details, and process content are not printed.
+- Added fixture coverage for traversal order and limits, UTF-16 preservation, multiple rectangles, empty selection, unsupported discovery, and missing metadata. Extended the shared platform privacy helper to check arbitrary diagnostic strings.
+
+### Key decisions
+
+- UIA traversal and COM interfaces remain entirely under `platform/windows`; shared application behavior continues to depend only on `platform-api`.
+- Ancestors are checked before descendants because browser/editor document patterns are commonly owned above the focused leaf. Descendant search remains bounded and application-name-independent.
+- TextPattern2 is capability-detected, with TextPattern as the fallback; there are no browser, Office, Terminal, editor, or PDF-reader name-specific branches.
+- Capability flags remain false. Automated fixtures and compilation do not replace the required physical Notepad and compatibility-matrix evidence.
+- W-08 does not add clipboard fallback, OCR, translation, capture-window positioning, or later-ticket UI behavior.
+
+### Main files changed
+
+- `platform/windows/src/selection.rs`
+- `crates/platform-contract-tests/src/privacy.rs`
+- `docs/windows-platform-tickets.md`
+- `docs/windows-development-log.md`
+- `docs/windows-development.md`
+
+No Windows-specific type or conditional was added to `crates/application`, `crates/domain`, `crates/storage`, or `crates/capture`.
+
+### Tests and results
+
+TDD seams:
+
+- Windows selection discovery policy through deterministic fixture trees: red before the bounded policy existed, then green for focused-first ordering, stop-on-selection, maximum depth, and maximum node count.
+- Content-safe diagnostic rendering: red before the diagnostic type existed, then green for metadata/length output without private selected text or context.
+- Existing public platform and application fake-provider seams verify exact Unicode and typed empty/unsupported failures without coupling tests to COM call order.
+
+| Command | Result | Evidence |
+|---|---|---|
+| `cargo test -p vocab-platform-windows` | PASS | Verified automated; 9 unit tests and 2 capability tests passed; 1 physical-only Notepad test remained ignored |
+| `cargo test -p vocab-platform-contract-tests` | PASS | Verified automated; 8 tests passed |
+| `cargo test -p vocab-application --test platform_fakes` | PASS | Verified automated; 11 tests passed |
+| `cargo clippy -p vocab-platform-windows -p vocab-platform-contract-tests -p vocab-application --all-targets -- -D warnings` | PASS | Verified automated; no warnings |
+| `cargo fmt --all --check` | PASS | Verified automated |
+
+### Not yet verified
+
+- **Not run:** UIA text, bounds, context, and source metadata in Windows Terminal, VS Code, Edge, Chrome, Firefox, Word, and PDF readers. No interactive physical compatibility run was performed for W-08.
+- **Not run:** TextPattern2 versus TextPattern behavior on real controls, traversal timing on large real UIA trees, and safe diagnostic output from a live capture session.
+- **Blocked:** the W-07 physical Notepad Unicode selection remains without successful evidence; the earlier focus-transfer blocker has not been re-tested in this ticket.
+- The required physical UIA compatibility-matrix columns remain `Not run`, and `selection_capture` plus `selection_bounds` remain false.
+
+### Next ticket starting point
+
+W-08 remains open at its physical evidence gate. Run the required application matrix for UIA text, bounds, context, and source metadata, recording the device/build and results without enabling capability flags unless the required evidence passes. After that gate, W-09 starts from portable selection bounds and should implement only non-activating capture-window presentation plus mixed-DPI/negative-origin placement.

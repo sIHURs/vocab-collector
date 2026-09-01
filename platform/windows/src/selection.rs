@@ -1,3 +1,5 @@
+use std::{collections::VecDeque, fmt};
+
 use async_trait::async_trait;
 use vocab_platform_api::{
     CaptureCandidate, CaptureOrigin, PlatformError, ScreenRect, SelectionProvider,
@@ -17,8 +19,9 @@ use windows::{
         },
         UI::{
             Accessibility::{
-                CUIAutomation, IUIAutomation, IUIAutomationTextPattern, IUIAutomationTextRange,
-                TextUnit, TextUnit_Line, TextUnit_Paragraph, UIA_TextPatternId,
+                CUIAutomation, IUIAutomation, IUIAutomationElement, IUIAutomationTextPattern,
+                IUIAutomationTextPattern2, IUIAutomationTextRange, IUIAutomationTreeWalker,
+                TextUnit, TextUnit_Line, TextUnit_Paragraph, UIA_TextPattern2Id, UIA_TextPatternId,
             },
             HiDpi::PhysicalToLogicalPointForPerMonitorDPI,
             WindowsAndMessaging::{GetForegroundWindow, GetWindowTextW},
@@ -28,6 +31,48 @@ use windows::{
 };
 
 pub(crate) struct WindowsSelectionProvider;
+
+const TRAVERSAL_LIMITS: TraversalLimits = TraversalLimits {
+    max_depth: 4,
+    max_nodes: 64,
+    max_ancestors: 4,
+};
+
+#[derive(Clone, Copy, Debug)]
+struct TraversalLimits {
+    max_depth: usize,
+    max_nodes: usize,
+    max_ancestors: usize,
+}
+
+#[derive(Debug)]
+struct DiscoveryDiagnostics {
+    pattern: Option<&'static str>,
+    examined_nodes: usize,
+    traversal_capped: bool,
+    selected_utf16_length: usize,
+    rectangle_count: usize,
+    has_source_app: bool,
+    has_source_title: bool,
+    outcome: &'static str,
+}
+
+impl fmt::Display for DiscoveryDiagnostics {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            formatter,
+            "uia_selection outcome={} pattern={} examined_nodes={} traversal_capped={} selected_utf16_length={} rectangle_count={} source_app_present={} source_title_present={}",
+            self.outcome,
+            self.pattern.unwrap_or("none"),
+            self.examined_nodes,
+            self.traversal_capped,
+            self.selected_utf16_length,
+            self.rectangle_count,
+            self.has_source_app,
+            self.has_source_title
+        )
+    }
+}
 
 #[derive(Debug)]
 struct SelectionSnapshot {
@@ -63,20 +108,37 @@ unsafe fn capture_focused_selection_in_apartment() -> Result<SelectionSnapshot, 
     // SAFETY: `automation` is a live interface in the current COM apartment.
     let focused = unsafe { automation.GetFocusedElement() }
         .map_err(|_| operation("UI Automation could not read the focused element"))?;
-    // SAFETY: the typed query requests only the standard TextPattern interface.
-    let pattern =
-        unsafe { focused.GetCurrentPatternAs::<IUIAutomationTextPattern>(UIA_TextPatternId) }
-            .map_err(|_| PlatformError::UnsupportedElement)?;
-    // SAFETY: the range array is owned by the returned COM interface and is accessed in bounds.
-    let ranges = unsafe { pattern.GetSelection() }
-        .map_err(|_| operation("UI Automation could not read the selection"))?;
-    // SAFETY: `ranges` is a live UI Automation array.
-    if unsafe { ranges.Length() }.unwrap_or_default() <= 0 {
-        return Err(PlatformError::EmptySelection);
-    }
-    // SAFETY: index zero is valid after the positive length check.
-    let range =
-        unsafe { ranges.GetElement(0) }.map_err(|_| PlatformError::InvalidSelectionRange)?;
+    // SAFETY: query the focused element before requiring any traversal infrastructure.
+    let focused_result = unsafe { selected_range(&focused) };
+    let (focused_range, saw_focused_text_pattern) = match focused_result {
+        Ok(Some((range, pattern))) => (Some((range, pattern)), true),
+        Ok(None) => (None, true),
+        Err(PlatformError::UnsupportedElement) => (None, false),
+        Err(error) => return Err(error),
+    };
+    let discovery = if let Some((range, pattern)) = focused_range {
+        SelectionDiscovery {
+            element: focused.clone(),
+            range,
+            pattern,
+            examined_nodes: 1,
+            traversal_capped: false,
+        }
+    } else {
+        // SAFETY: the walker and all visited elements remain in this COM apartment.
+        let walker = unsafe { automation.ControlViewWalker() }
+            .map_err(|_| operation("UI Automation could not create a tree walker"))?;
+        // SAFETY: traversal is bounded and every queried interface remains local to this call.
+        unsafe {
+            discover_nearby_selection(
+                &walker,
+                &focused,
+                TRAVERSAL_LIMITS,
+                saw_focused_text_pattern,
+            )
+        }?
+    };
+    let range = discovery.range;
     // SAFETY: `range` is a live selected text range; `-1` requests all text in that range.
     let selected_text = unsafe { range.GetText(-1) }
         .map_err(|_| PlatformError::InvalidSelectionRange)?
@@ -91,15 +153,204 @@ unsafe fn capture_focused_selection_in_apartment() -> Result<SelectionSnapshot, 
         physical_to_logical(foreground, x, y)
     });
     // SAFETY: property access is on the live focused element.
-    let process_id = unsafe { focused.CurrentProcessId() }.ok();
+    let process_id = unsafe { discovery.element.CurrentProcessId() }.ok();
+    let source_app = process_id.and_then(process_name);
+    let source_title = foreground_window_title();
+    eprintln!(
+        "{}",
+        DiscoveryDiagnostics {
+            pattern: Some(discovery.pattern),
+            examined_nodes: discovery.examined_nodes,
+            traversal_capped: discovery.traversal_capped,
+            selected_utf16_length: selected_text.encode_utf16().count(),
+            rectangle_count: bounds.len(),
+            has_source_app: source_app.is_some(),
+            has_source_title: source_title.is_some(),
+            outcome: "selected",
+        }
+    );
 
     Ok(SelectionSnapshot {
         selected_text,
         document_text,
-        source_app: process_id.and_then(process_name),
-        source_title: foreground_window_title(),
+        source_app,
+        source_title,
         bounds,
     })
+}
+
+struct SelectionDiscovery {
+    element: IUIAutomationElement,
+    range: IUIAutomationTextRange,
+    pattern: &'static str,
+    examined_nodes: usize,
+    traversal_capped: bool,
+}
+
+unsafe fn discover_nearby_selection(
+    walker: &IUIAutomationTreeWalker,
+    focused: &IUIAutomationElement,
+    limits: TraversalLimits,
+    saw_focused_text_pattern: bool,
+) -> Result<SelectionDiscovery, PlatformError> {
+    let mut examined_nodes = 1;
+    let mut saw_text_pattern = saw_focused_text_pattern;
+    let mut traversal_capped = false;
+
+    // Nearby ancestors often own the document TextPattern for browser and editor content.
+    let mut ancestor = focused.clone();
+    for _ in 0..limits.max_ancestors {
+        if examined_nodes >= limits.max_nodes {
+            traversal_capped = true;
+            break;
+        }
+        // SAFETY: the current ancestor and walker are live in this apartment.
+        let Ok(parent) = (unsafe { walker.GetParentElement(&ancestor) }) else {
+            break;
+        };
+        ancestor = parent.clone();
+        if let Some(discovery) = unsafe {
+            inspect_element(
+                parent,
+                &mut examined_nodes,
+                &mut saw_text_pattern,
+                traversal_capped,
+            )
+        }? {
+            return Ok(discovery);
+        }
+    }
+
+    // Finally inspect the focused subtree breadth-first within explicit depth and node budgets.
+    let mut queue = VecDeque::new();
+    if limits.max_depth > 0 && examined_nodes < limits.max_nodes {
+        // SAFETY: child/sibling navigation uses live UIA elements in this apartment.
+        let mut child = unsafe { walker.GetFirstChildElement(focused) }.ok();
+        while let Some(current) = child {
+            if examined_nodes + queue.len() >= limits.max_nodes {
+                traversal_capped = true;
+                break;
+            }
+            let next = unsafe { walker.GetNextSiblingElement(&current) }.ok();
+            queue.push_back((current, 1_usize));
+            child = next;
+        }
+    }
+
+    while let Some((element, depth)) = queue.pop_front() {
+        if examined_nodes >= limits.max_nodes {
+            traversal_capped = true;
+            break;
+        }
+        if let Some(discovery) = unsafe {
+            inspect_element(
+                element.clone(),
+                &mut examined_nodes,
+                &mut saw_text_pattern,
+                traversal_capped,
+            )
+        }? {
+            return Ok(discovery);
+        }
+        if depth >= limits.max_depth {
+            traversal_capped = true;
+            continue;
+        }
+        // SAFETY: child/sibling navigation uses live UIA elements and the bounded queue.
+        let mut child = unsafe { walker.GetFirstChildElement(&element) }.ok();
+        while let Some(current) = child {
+            if examined_nodes + queue.len() >= limits.max_nodes {
+                traversal_capped = true;
+                break;
+            }
+            // SAFETY: read the sibling before moving the current interface into the queue.
+            let next = unsafe { walker.GetNextSiblingElement(&current) }.ok();
+            queue.push_back((current, depth + 1));
+            child = next;
+        }
+    }
+
+    eprintln!(
+        "{}",
+        DiscoveryDiagnostics {
+            pattern: None,
+            examined_nodes,
+            traversal_capped: traversal_capped || !queue.is_empty(),
+            selected_utf16_length: 0,
+            rectangle_count: 0,
+            has_source_app: false,
+            has_source_title: false,
+            outcome: if saw_text_pattern {
+                "empty_selection"
+            } else {
+                "unsupported_element"
+            },
+        }
+    );
+    if saw_text_pattern {
+        Err(PlatformError::EmptySelection)
+    } else {
+        Err(PlatformError::UnsupportedElement)
+    }
+}
+
+unsafe fn inspect_element(
+    element: IUIAutomationElement,
+    examined_nodes: &mut usize,
+    saw_text_pattern: &mut bool,
+    traversal_capped: bool,
+) -> Result<Option<SelectionDiscovery>, PlatformError> {
+    *examined_nodes += 1;
+    // SAFETY: pattern discovery only queries standard UIA interfaces on this live element.
+    match unsafe { selected_range(&element) } {
+        Ok(Some((range, pattern))) => Ok(Some(SelectionDiscovery {
+            element,
+            range,
+            pattern,
+            examined_nodes: *examined_nodes,
+            traversal_capped,
+        })),
+        Ok(None) => {
+            *saw_text_pattern = true;
+            Ok(None)
+        }
+        Err(PlatformError::UnsupportedElement) => Ok(None),
+        Err(error) => Err(error),
+    }
+}
+
+unsafe fn selected_range(
+    element: &IUIAutomationElement,
+) -> Result<Option<(IUIAutomationTextRange, &'static str)>, PlatformError> {
+    // TextPattern2 inherits TextPattern. Query it first so newer providers get the preferred path.
+    let (pattern, name) = if let Ok(pattern2) =
+        unsafe { element.GetCurrentPatternAs::<IUIAutomationTextPattern2>(UIA_TextPattern2Id) }
+    {
+        (IUIAutomationTextPattern::from(pattern2), "TextPattern2")
+    } else if let Ok(pattern) =
+        unsafe { element.GetCurrentPatternAs::<IUIAutomationTextPattern>(UIA_TextPatternId) }
+    {
+        (pattern, "TextPattern")
+    } else {
+        return Err(PlatformError::UnsupportedElement);
+    };
+    // SAFETY: the selected ranges belong to the live pattern in this apartment.
+    let ranges = unsafe { pattern.GetSelection() }
+        .map_err(|_| operation("UI Automation could not read a selection range"))?;
+    if unsafe { ranges.Length() }.unwrap_or_default() <= 0 {
+        return Ok(None);
+    }
+    // SAFETY: index zero is valid after the positive length check.
+    let range =
+        unsafe { ranges.GetElement(0) }.map_err(|_| PlatformError::InvalidSelectionRange)?;
+    // Treat collapsed or whitespace ranges as empty so traversal can continue to another node.
+    let text = unsafe { range.GetText(-1) }
+        .map_err(|_| PlatformError::InvalidSelectionRange)?
+        .to_string();
+    if text.trim().is_empty() {
+        return Ok(None);
+    }
+    Ok(Some((range, name)))
 }
 
 unsafe fn enclosing_context(range: &IUIAutomationTextRange) -> Option<String> {
@@ -339,10 +590,124 @@ fn combined_bounds(bounds: &[ScreenRect]) -> Option<ScreenRect> {
 }
 
 #[cfg(test)]
+fn fixture_discovery_order(
+    children: &[&[usize]],
+    focused: usize,
+    selected: Option<usize>,
+    limits: TraversalLimits,
+) -> Vec<usize> {
+    let mut order = Vec::new();
+    let mut queue = VecDeque::from([(focused, 0_usize)]);
+    while let Some((node, depth)) = queue.pop_front() {
+        if order.len() >= limits.max_nodes {
+            break;
+        }
+        order.push(node);
+        if selected == Some(node) {
+            break;
+        }
+        if depth < limits.max_depth {
+            queue.extend(
+                children
+                    .get(node)
+                    .copied()
+                    .unwrap_or_default()
+                    .iter()
+                    .copied()
+                    .map(|child| (child, depth + 1)),
+            );
+        }
+    }
+    order
+}
+
+#[cfg(test)]
 mod tests {
     use vocab_platform_api::{CaptureOrigin, PlatformError, ScreenRect};
 
-    use super::{SelectionSnapshot, normalize_snapshot};
+    use super::{
+        DiscoveryDiagnostics, SelectionSnapshot, TraversalLimits, fixture_discovery_order,
+        normalize_snapshot,
+    };
+
+    #[test]
+    fn discovery_uses_the_focused_fast_path_then_stops_at_the_first_selected_node() {
+        let order = fixture_discovery_order(
+            &[&[1, 2][..], &[3][..], &[][..], &[][..]],
+            0,
+            Some(2),
+            TraversalLimits {
+                max_depth: 3,
+                max_nodes: 8,
+                max_ancestors: 2,
+            },
+        );
+
+        assert_eq!(order, vec![0, 1, 2]);
+    }
+
+    #[test]
+    fn discovery_never_exceeds_depth_node_or_ancestor_limits() {
+        let order = fixture_discovery_order(
+            &[
+                &[1, 2][..],
+                &[3][..],
+                &[4][..],
+                &[5][..],
+                &[6][..],
+                &[7][..],
+                &[8][..],
+                &[][..],
+                &[][..],
+            ],
+            0,
+            None,
+            TraversalLimits {
+                max_depth: 1,
+                max_nodes: 3,
+                max_ancestors: 0,
+            },
+        );
+
+        assert_eq!(order, vec![0, 1, 2]);
+    }
+
+    #[test]
+    fn discovery_caps_a_wide_focused_subtree_before_visiting_every_sibling() {
+        let wide_children: Vec<usize> = (1..100).collect();
+        let order = fixture_discovery_order(
+            &[wide_children.as_slice()],
+            0,
+            None,
+            TraversalLimits {
+                max_depth: 1,
+                max_nodes: 4,
+                max_ancestors: 0,
+            },
+        );
+
+        assert_eq!(order, vec![0, 1, 2, 3]);
+    }
+
+    #[test]
+    fn diagnostics_report_lengths_and_metadata_without_captured_content() {
+        let diagnostic = DiscoveryDiagnostics {
+            pattern: Some("TextPattern2"),
+            examined_nodes: 4,
+            traversal_capped: false,
+            selected_utf16_length: 18,
+            rectangle_count: 2,
+            has_source_app: true,
+            has_source_title: false,
+            outcome: "selected",
+        }
+        .to_string();
+
+        assert!(diagnostic.contains("selected_utf16_length=18"));
+        assert!(diagnostic.contains("rectangle_count=2"));
+        assert!(!diagnostic.contains("private selected text"));
+        assert!(!diagnostic.contains("private reading context"));
+    }
 
     #[test]
     fn normalizes_exact_unicode_context_metadata_and_combined_bounds() {
@@ -385,6 +750,23 @@ mod tests {
             }),
             Err(PlatformError::EmptySelection)
         );
+    }
+
+    #[test]
+    fn missing_metadata_and_bounds_remain_portable_optional_values() {
+        let candidate = normalize_snapshot(SelectionSnapshot {
+            selected_text: "portable".into(),
+            document_text: None,
+            source_app: None,
+            source_title: None,
+            bounds: Vec::new(),
+        })
+        .unwrap();
+
+        assert_eq!(candidate.sentence, "portable");
+        assert_eq!(candidate.source_app, None);
+        assert_eq!(candidate.source_title, None);
+        assert_eq!(candidate.selection_bounds, None);
     }
 
     #[test]

@@ -165,9 +165,9 @@ Physical-only follow-up: `pnpm tauri dev` plus Manual Capture, SQLite restart pe
 
 **Acceptance criteria:**
 
-- [ ] Focused fast path and bounded traversal terminate predictably.
-- [ ] UTF-16, multiple rectangles, empty selection, unsupported control, and missing metadata have fixture coverage.
-- [ ] Default diagnostics print metadata/lengths, not captured content.
+- [x] Focused fast path and bounded traversal terminate predictably.
+- [x] UTF-16, multiple rectangles, empty selection, unsupported control, and missing metadata have fixture coverage.
+- [x] Default diagnostics print metadata/lengths, not captured content.
 - [ ] Required compatibility-matrix UIA columns are recorded physically.
 
 **Verification:** Windows adapter, platform-contract, and application fake-provider tests plus the physical UIA matrix.
