@@ -146,9 +146,9 @@ Physical-only follow-up: `pnpm tauri dev` plus Manual Capture, SQLite restart pe
 
 **Acceptance criteria:**
 
-- [ ] COM ownership is deterministic and native objects do not leak across boundaries.
-- [ ] Exact Unicode text, context when available, source metadata, and bounds normalize into portable values.
-- [ ] HRESULT details do not leak into normal product UI.
+- [x] COM ownership is deterministic and native objects do not leak across boundaries.
+- [x] Exact Unicode text, context when available, source metadata, and bounds normalize into portable values.
+- [x] HRESULT details do not leak into normal product UI.
 - [ ] Selection capability becomes true only after Notepad physical evidence.
 
 **Verification:** Windows adapter and contract tests, desktop command-contract tests, Clippy, `pnpm tauri dev`, and physical Notepad Unicode capture.

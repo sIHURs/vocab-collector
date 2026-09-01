@@ -383,3 +383,68 @@ The development process was intentionally stopped with Ctrl+C after the smoke te
 ### Next ticket starting point
 
 W-07 starts from a Windows desktop process that remains available in the tray and can invoke the existing capture pipeline from a global shortcut. It should implement only Notepad selection capture through the Windows UI Automation adapter, normalize native results into portable `CaptureCandidate` values, and update capability evidence only after a physical Notepad Unicode capture. It must not begin browser/editor compatibility expansion, clipboard fallback, OCR, translation, or floating-window positioning work.
+
+## 2026-09-01 - W-07 Focused Notepad selection through UI Automation
+
+### Implementation
+
+- Replaced the Windows selection skeleton with a focused-element UI Automation `TextPattern` provider.
+- Copied selected Unicode text, an enclosing paragraph or line, source process name, foreground-window title, and selected-range rectangles into Rust-owned values before returning a portable `CaptureCandidate`.
+- Normalized UIA physical rectangle corners through the foreground window's per-monitor physical-to-logical conversion before they cross the adapter boundary. Bounds are omitted if conversion is unavailable rather than mixing coordinate spaces.
+- Merged multiple selection rectangles into one portable bounding rectangle and retained `CaptureOrigin::Accessibility` for the native UIA path.
+- Added a physical-only ignored contract for exact Notepad Unicode selection. The capability remains disabled because this physical check has not passed.
+
+### Key decisions
+
+- W-07 uses only the focused UIA element and `TextPattern`. It does not add `TextPattern2`, ancestor/descendant traversal, application-specific compatibility logic, clipboard fallback, OCR, translation, or window placement; those remain later tickets.
+- The full blocking UIA operation runs on a Tokio blocking worker. COM initialization, UIA interface creation, value copying, interface release, and `CoUninitialize` all occur on that same worker thread.
+- `RPC_E_CHANGED_MODE` means the worker thread already owns another valid COM apartment; the adapter uses that apartment without uninitializing ownership it did not acquire.
+- Native failures map to existing typed portable errors or stable content-free operation messages. HRESULT values, captured text, document context, titles, and URLs are not logged or returned in diagnostics.
+- Enclosing UIA context is bounded to paragraph with line fallback. When selected text occurs more than once in that context, the adapter keeps the whole enclosing context instead of guessing the wrong sentence.
+- `selection_capture` and `selection_bounds` remain `false`. Per the plan, code compilation and fixture tests are insufficient to claim the capability without a successful physical Notepad shortcut run.
+
+### Main files changed
+
+- `platform/windows/Cargo.toml`
+- `platform/windows/src/lib.rs`
+- `platform/windows/src/selection.rs`
+- `platform/windows/tests/capabilities.rs`
+- `platform/windows/tests/fixtures/notepad-unicode.txt`
+- `Cargo.lock`
+- `docs/windows-platform-tickets.md`
+- `docs/windows-development-log.md`
+
+No shared application/domain/storage/capture contract, desktop command, frontend component, clipboard behavior, OCR provider, translation provider, or floating-window behavior changed.
+
+### Tests and results
+
+TDD seam:
+
+- Windows adapter normalization: red before implementation, then green for exact Unicode, source metadata, enclosing context, multi-rectangle union, empty-selection errors, repeated-selection ambiguity, and physical-to-logical rectangle conversion.
+- Existing platform-contract tests remain the portable `SelectionProvider` evidence for exact surface form and typed failures.
+- The ignored Notepad test exercises the production provider and requires an exact `VOCAB_UIA_EXPECTED` value, nonempty source metadata, and available logical bounds.
+
+| Command | Result | Evidence |
+|---|---|---|
+| `cargo fmt --all --check` | PASS | Verified automated |
+| `cargo test -p vocab-platform-windows` | PASS | Verified automated; adapter tests passed and the physical-only Notepad test remained ignored in the normal suite |
+| `cargo test -p vocab-platform-contract-tests` | PASS | Verified automated; 7 tests passed |
+| `cargo test -p vocab-desktop --test command_contract` | PASS | Verified automated; 24 tests passed |
+| `cargo clippy --workspace --all-targets --exclude vocab-platform-macos --exclude vocab-platform-linux -- -D warnings` | PASS | Verified automated; no warnings |
+| `pnpm tauri dev` | PASS for startup only | Verified Windows physical on HP Windows 11 Pro 24H2 x64, build 26100.7171; the UIA-enabled adapter compiled into `vocab-desktop.exe` and the process launched |
+| `cargo test -p vocab-platform-windows physical_notepad_unicode_selection_matches_the_portable_contract -- --ignored --nocapture` | BLOCKED | Attempted on the same physical machine; the Codex execution session could not reliably transfer focus to the packaged Notepad fixture tab, so UIA observed another focused element and returned `UnsupportedElement` |
+
+The Tauri smoke process was intentionally stopped with Ctrl+C. Its `STATUS_CONTROL_C_EXIT` and WebView class-unregistration message do not describe product behavior.
+
+### Not yet verified
+
+- **Blocked:** exact Unicode selection from a manually focused Notepad document through the production provider. Next action: run the ignored test from an interactive Developer PowerShell, switch to Notepad during its two-second delay, and leave the exact fixture selected.
+- **Not run:** global shortcut over a selected Notepad fixture followed by visible `capture-ready` UI confirmation. This is required before enabling `selection_capture`.
+- **Not run:** Notepad selection bounds at non-100% scaling and on a secondary monitor. The conversion seam is automated, while physical mixed-DPI placement remains W-09.
+- **Not run:** empty selection and unsupported Notepad control through the physical application.
+- **Not run:** browser, editor, Terminal, Office, and PDF UIA compatibility; these belong to W-08.
+- `selection_capture` and `selection_bounds` remain false; the Windows UI must not present them as verified capabilities.
+
+### Next ticket starting point
+
+W-08 starts from a focused-element `TextPattern` implementation with content-free errors and portable normalization, but without a verified capability claim. Before expanding compatibility, complete the physical Notepad shortcut check and enable selection capability only if it passes. W-08 may then add bounded `TextPattern2`/`TextPattern` discovery, ancestor/descendant traversal, safe diagnostics, UTF-16 and multi-rectangle fixtures, and the required application matrix. It must not add clipboard fallback, OCR, translation, or floating-window behavior.

@@ -1,4 +1,4 @@
-#![forbid(unsafe_code)]
+#![deny(unsafe_op_in_unsafe_fn)]
 
 //! Static Windows adapter boundary prepared for Plan B implementation on Windows 11.
 
@@ -6,10 +6,12 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use vocab_platform_api::{
-    Capability, CaptureCandidate, OcrCandidate, OcrProvider, PermissionKind, PermissionProvider,
-    PermissionStatus, PlatformCapabilities, PlatformError, PlatformServices, ScreenPoint,
-    SelectionProvider, TranslationProvider, TranslationResult, WindowProvider,
+    Capability, OcrCandidate, OcrProvider, PermissionKind, PermissionProvider, PermissionStatus,
+    PlatformCapabilities, PlatformError, PlatformServices, ScreenPoint, TranslationProvider,
+    TranslationResult, WindowProvider,
 };
+
+mod selection;
 
 /// Builds the Windows provider bundle. Native providers are intentionally deferred to Plan B.
 #[derive(Clone, Copy, Debug, Default)]
@@ -20,21 +22,12 @@ impl WindowsPlatform {
     pub fn new() -> PlatformServices {
         PlatformServices {
             capabilities: PlatformCapabilities::default(),
-            selection: Arc::new(UnsupportedSelectionProvider),
+            selection: Arc::new(selection::WindowsSelectionProvider),
             ocr: Arc::new(UnsupportedOcrProvider),
             translation: Arc::new(UnsupportedTranslationProvider),
             permissions: Arc::new(UnsupportedPermissionProvider),
             window: Arc::new(UnsupportedWindowProvider),
         }
-    }
-}
-
-struct UnsupportedSelectionProvider;
-
-#[async_trait]
-impl SelectionProvider for UnsupportedSelectionProvider {
-    async fn capture_selection(&self) -> Result<CaptureCandidate, PlatformError> {
-        Err(PlatformError::Unsupported(Capability::Selection))
     }
 }
 

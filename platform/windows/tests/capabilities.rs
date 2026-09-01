@@ -31,20 +31,16 @@ fn block_on<F: Future>(future: F) -> F::Output {
 }
 
 #[test]
-fn skeleton_reports_no_verified_native_capabilities() {
+fn unverified_native_capabilities_remain_disabled() {
     let services = WindowsPlatform::new();
 
     assert_eq!(services.capabilities, PlatformCapabilities::default());
 }
 
 #[test]
-fn skeleton_providers_return_capability_specific_unsupported_errors() {
+fn deferred_providers_return_capability_specific_unsupported_errors() {
     let services = WindowsPlatform::new();
 
-    assert_eq!(
-        block_on(services.selection.capture_selection()),
-        Err(PlatformError::Unsupported(Capability::Selection))
-    );
     assert_eq!(
         block_on(services.ocr.recognize_near(ScreenPoint::new(12.0, 34.0))),
         Err(PlatformError::Unsupported(Capability::ScreenshotOcr))
@@ -76,5 +72,40 @@ fn skeleton_providers_return_capability_specific_unsupported_errors() {
     assert_eq!(
         services.window.configure_capture_window(),
         Err(PlatformError::Unsupported(Capability::NonActivatingWindow))
+    );
+}
+
+#[test]
+#[ignore = "requires a prepared, focused Notepad selection on a Windows 11 physical machine"]
+fn physical_notepad_unicode_selection_matches_the_portable_contract() {
+    let expected = std::env::var("VOCAB_UIA_EXPECTED")
+        .expect("set VOCAB_UIA_EXPECTED to the exact selected Notepad text");
+    std::thread::sleep(std::time::Duration::from_secs(2));
+
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .build()
+        .expect("build physical test runtime");
+    let candidate = runtime
+        .block_on(WindowsPlatform::new().selection.capture_selection())
+        .unwrap();
+
+    assert_eq!(candidate.selected_text, expected);
+    assert!(candidate.sentence.contains(&candidate.selected_text));
+    assert!(
+        candidate
+            .source_app
+            .as_deref()
+            .is_some_and(|name| name.eq_ignore_ascii_case("notepad.exe"))
+    );
+    assert!(
+        candidate
+            .source_title
+            .as_deref()
+            .is_some_and(|title| !title.is_empty())
+    );
+    assert!(
+        candidate
+            .selection_bounds
+            .is_some_and(|bounds| bounds.is_available())
     );
 }
