@@ -175,4 +175,23 @@ impl AppState {
         self.workflow
             .save(request_id, without_translation, chrono::Utc::now())
     }
+
+    pub fn correct_capture(
+        &self,
+        request_id: Uuid,
+        selected_text: String,
+        sentence: String,
+        manual_translation: Option<String>,
+    ) -> Result<(), vocab_application::PlatformCaptureError> {
+        self.workflow
+            .correct(request_id, selected_text, sentence, manual_translation)
+    }
+
+    pub fn undo_native_capture(
+        &self,
+        request_id: Uuid,
+        encounter_id: Uuid,
+    ) -> Result<(), vocab_application::PlatformCaptureError> {
+        self.workflow.undo(request_id, encounter_id)
+    }
 }

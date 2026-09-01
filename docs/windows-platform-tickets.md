@@ -202,9 +202,9 @@ Physical-only follow-up: `pnpm tauri dev` plus Manual Capture, SQLite restart pe
 
 **Acceptance criteria:**
 
-- [ ] Corrections enter through the shared application workflow, not the Windows adapter.
-- [ ] One request ID protects correction, save, Undo, and dismissal.
-- [ ] Windows reports automatic translation unavailable honestly.
+- [x] Corrections enter through the shared application workflow, not the Windows adapter.
+- [x] One request ID protects correction, save, Undo, and dismissal.
+- [x] Windows reports automatic translation unavailable honestly.
 
 **Verification:** capture/application tests, desktop command-contract tests, frontend tests, and physical floating-window interaction.
 

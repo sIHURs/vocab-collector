@@ -432,6 +432,40 @@ fn explicit_save_without_translation_persists_an_untranslated_capture_once() {
 }
 
 #[test]
+fn corrected_native_capture_and_manual_translation_use_the_shared_workflow() {
+    let (workflow, application) = workflow(Ok(candidate("mispelled")));
+    let prepared = block_on(workflow.prepare_selection()).unwrap();
+
+    workflow
+        .correct(
+            prepared.request_id,
+            "misspelled".into(),
+            "This word was misspelled.".into(),
+            Some("falsch geschrieben".into()),
+        )
+        .unwrap();
+    let card = workflow
+        .save(prepared.request_id, false, captured_at())
+        .unwrap();
+    let detail = application.get_word(card.word_id).unwrap();
+
+    assert_eq!(card.display_form, "misspelled");
+    assert_eq!(card.translation.as_deref(), Some("falsch geschrieben"));
+    assert_eq!(detail.encounters[0].sentence, "This word was misspelled.");
+
+    workflow
+        .undo(prepared.request_id, card.encounter_id)
+        .unwrap();
+    assert!(
+        application
+            .get_word(card.word_id)
+            .unwrap()
+            .encounters
+            .is_empty()
+    );
+}
+
+#[test]
 fn operation_translation_failure_can_save_without_translation() {
     let calls = Arc::new(AtomicUsize::new(0));
     let translation: Arc<dyn TranslationProvider> = Arc::new(RetryTranslationProvider {

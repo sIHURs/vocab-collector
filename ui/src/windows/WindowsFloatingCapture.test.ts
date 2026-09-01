@@ -7,6 +7,8 @@ const mocks = {
   focus: vi.fn(async () => {}),
   releaseFocus: vi.fn(async () => {}),
   hide: vi.fn(async (_requestId: string) => {}),
+  save: vi.fn(async () => ({ wordId: "word-1", encounterId: "encounter-1", displayForm: "nuance", context: "A useful nuance.", encounterCount: 1, isExistingWord: false })),
+  undo: vi.fn(async (_requestId: string, _encounterId: string) => {}),
   ready: undefined as ((event: CaptureReady) => void) | undefined,
 };
 
@@ -15,6 +17,8 @@ const captureBackend: WindowsCaptureBackend = {
   focus: mocks.focus,
   releaseFocus: mocks.releaseFocus,
   hide: mocks.hide,
+  save: mocks.save,
+  undo: mocks.undo,
 };
 
 describe("Windows floating capture presentation", () => {
@@ -22,7 +26,35 @@ describe("Windows floating capture presentation", () => {
     mocks.focus.mockClear();
     mocks.releaseFocus.mockClear();
     mocks.hide.mockClear();
+    mocks.save.mockClear();
+    mocks.undo.mockClear();
     mocks.ready = undefined;
+  });
+
+  it("corrects text and context, adds an optional translation, saves once, and undoes by request", async () => {
+    render(WindowsFloatingCapture, { captureBackend });
+    await waitFor(() => expect(mocks.ready).toBeTypeOf("function"));
+    mocks.ready?.({ requestId: "request-10", candidate: { selectedText: "nuanc", sentence: "A useful nuanc.", origin: "accessibility" } });
+
+    await fireEvent.click(await screen.findByRole("button", { name: "Edit capture" }));
+    await fireEvent.input(screen.getByLabelText("Selected text"), { target: { value: "nuance" } });
+    await fireEvent.input(screen.getByLabelText("Context"), { target: { value: "A useful nuance." } });
+    await fireEvent.input(screen.getByLabelText("Translation (optional)"), { target: { value: "Feinheit" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Save capture" }));
+
+    expect(mocks.save).toHaveBeenCalledWith("request-10", { selectedText: "nuance", sentence: "A useful nuance.", translation: "Feinheit" }, false);
+    await fireEvent.click(await screen.findByRole("button", { name: "Undo" }));
+    expect(mocks.undo).toHaveBeenCalledWith("request-10", "encounter-1");
+  });
+
+  it("requires an explicit save-without-translation action when translation is blank", async () => {
+    render(WindowsFloatingCapture, { captureBackend });
+    await waitFor(() => expect(mocks.ready).toBeTypeOf("function"));
+    mocks.ready?.({ requestId: "request-plain", candidate: { selectedText: "nuance", sentence: "A useful nuance.", origin: "accessibility" } });
+
+    await fireEvent.click(await screen.findByRole("button", { name: "Save without translation" }));
+
+    expect(mocks.save).toHaveBeenCalledWith("request-plain", { selectedText: "nuance", sentence: "A useful nuance." }, true);
   });
 
   it("removes main-window minimum dimensions from the capture document", () => {
@@ -34,7 +66,7 @@ describe("Windows floating capture presentation", () => {
     expect(document.body.classList.contains("windows-capture-document")).toBe(false);
   });
 
-  it("focuses only after explicit editing and restores source focus on done", async () => {
+  it("focuses only after explicit editing and restores source focus after save", async () => {
     render(WindowsFloatingCapture, { captureBackend });
     await waitFor(() => expect(mocks.ready).toBeTypeOf("function"));
     mocks.ready?.({
@@ -46,7 +78,7 @@ describe("Windows floating capture presentation", () => {
     await fireEvent.click(await screen.findByRole("button", { name: "Edit capture" }));
     expect(mocks.focus).toHaveBeenCalled();
 
-    await fireEvent.click(screen.getByRole("button", { name: "Done editing" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Save capture" }));
     expect(mocks.releaseFocus).toHaveBeenCalled();
   });
 

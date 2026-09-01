@@ -222,6 +222,30 @@ pub fn save_native_capture(
     )
 }
 
+#[tauri::command]
+pub fn correct_native_capture(
+    state: State<'_, AppState>,
+    request_id: Uuid,
+    selected_text: String,
+    sentence: String,
+    manual_translation: Option<String>,
+) -> Result<(), CaptureFailure> {
+    state
+        .correct_capture(request_id, selected_text, sentence, manual_translation)
+        .map_err(CaptureFailure::from)
+}
+
+#[tauri::command]
+pub fn undo_native_capture(
+    state: State<'_, AppState>,
+    request_id: Uuid,
+    encounter_id: Uuid,
+) -> Result<(), CaptureFailure> {
+    state
+        .undo_native_capture(request_id, encounter_id)
+        .map_err(CaptureFailure::from)
+}
+
 pub fn hide_capture_window_for(
     state: &AppState,
     request_id: Uuid,

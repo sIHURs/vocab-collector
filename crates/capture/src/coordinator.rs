@@ -13,6 +13,7 @@ enum Phase {
     ReadyToSave,
     Saving,
     Saved,
+    Undone,
 }
 
 #[derive(Clone, Debug)]
@@ -82,6 +83,14 @@ impl CaptureCoordinator {
         let guard = self.current(request_id)?;
         let session = guard.as_ref().ok_or(CoordinatorError::StaleRequest)?;
         Ok(session.translation.clone())
+    }
+
+    pub fn candidate(&self, request_id: Uuid) -> Result<CaptureCandidate, CoordinatorError> {
+        let guard = self.current(request_id)?;
+        guard
+            .as_ref()
+            .and_then(|session| session.candidate.clone())
+            .ok_or(CoordinatorError::InvalidTransition)
     }
 
     pub fn start(&self) -> Uuid {
@@ -187,6 +196,28 @@ impl CaptureCoordinator {
         Ok(())
     }
 
+    pub fn correct(
+        &self,
+        request_id: Uuid,
+        candidate: CaptureCandidate,
+        translation: Option<TranslationResult>,
+    ) -> Result<(), CoordinatorError> {
+        let mut guard = self.current(request_id)?;
+        let session = guard.as_mut().ok_or(CoordinatorError::StaleRequest)?;
+        match session.phase {
+            Phase::TranslationPending | Phase::TranslationFailed => {}
+            _ => return Err(CoordinatorError::InvalidTransition),
+        }
+        session.candidate = Some(candidate);
+        session.translation = translation;
+        session.phase = if session.translation.is_some() {
+            Phase::ReadyToSave
+        } else {
+            Phase::TranslationFailed
+        };
+        Ok(())
+    }
+
     pub fn save_with<T, E: Display>(
         &self,
         request_id: Uuid,
@@ -221,6 +252,25 @@ impl CaptureCoordinator {
                 session.phase = previous_phase;
                 Err(CoordinatorError::Persistence(error.to_string()))
             }
+        }
+    }
+
+    pub fn undo_with<T, E: Display>(
+        &self,
+        request_id: Uuid,
+        undo: impl FnOnce() -> Result<T, E>,
+    ) -> Result<T, CoordinatorError> {
+        let mut guard = self.current(request_id)?;
+        let session = guard.as_mut().ok_or(CoordinatorError::StaleRequest)?;
+        if session.phase != Phase::Saved {
+            return Err(CoordinatorError::InvalidTransition);
+        }
+        match undo() {
+            Ok(value) => {
+                session.phase = Phase::Undone;
+                Ok(value)
+            }
+            Err(error) => Err(CoordinatorError::Persistence(error.to_string())),
         }
     }
 

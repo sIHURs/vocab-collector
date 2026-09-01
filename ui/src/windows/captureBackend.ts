@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import type { CaptureCandidate } from "../lib/types";
+import type { CaptureCandidate, CaptureCard } from "../lib/types";
 
 export type CaptureReady = { requestId: string; candidate: CaptureCandidate };
 
@@ -9,6 +9,8 @@ export interface WindowsCaptureBackend {
   focus(): Promise<void>;
   releaseFocus(): Promise<void>;
   hide(requestId: string): Promise<void>;
+  save(requestId: string, correction: { selectedText: string; sentence: string; translation?: string }, withoutTranslation: boolean): Promise<CaptureCard>;
+  undo(requestId: string, encounterId: string): Promise<void>;
 }
 
 export const tauriWindowsCaptureBackend: WindowsCaptureBackend = {
@@ -16,4 +18,9 @@ export const tauriWindowsCaptureBackend: WindowsCaptureBackend = {
   focus: () => invoke("focus_capture_window"),
   releaseFocus: () => invoke("release_capture_window_focus"),
   hide: (requestId) => invoke("hide_capture_window", { requestId }),
+  save: async (requestId, correction, withoutTranslation) => {
+    await invoke("correct_native_capture", { requestId, selectedText: correction.selectedText, sentence: correction.sentence, manualTranslation: correction.translation });
+    return invoke<CaptureCard>("save_native_capture", { requestId, withoutTranslation });
+  },
+  undo: (requestId, encounterId) => invoke("undo_native_capture", { requestId, encounterId }),
 };

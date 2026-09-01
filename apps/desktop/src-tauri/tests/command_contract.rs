@@ -14,10 +14,11 @@ use vocab_capture::CoordinatorError;
 use vocab_desktop_lib::{
     bootstrap::build_app_state,
     commands::capture::{
-        capture_selected_text, capture_with_ocr, confirm_ocr, get_permission_status,
-        get_platform_capabilities, hide_capture_window, hide_capture_window_for,
-        request_accessibility_permission, request_screen_recording_permission, save_native_capture,
-        translate_text,
+        capture_selected_text, capture_with_ocr, confirm_ocr, correct_native_capture,
+        get_permission_status, get_platform_capabilities, hide_capture_window,
+        hide_capture_window_for, request_accessibility_permission,
+        request_screen_recording_permission, save_native_capture, translate_text,
+        undo_native_capture,
     },
     commands::presentation::get_presentation_family,
     events::{CaptureFailure, CaptureFailureCode, NativeCaptureError, NativeCaptureErrorEvent},
@@ -45,6 +46,8 @@ fn capture_command_names_are_available_on_the_platform_neutral_surface() {
     let _ = translate_text;
     let _ = confirm_ocr;
     let _ = save_native_capture;
+    let _ = correct_native_capture;
+    let _ = undo_native_capture;
     let _ = hide_capture_window;
     let _ = get_platform_capabilities;
 }

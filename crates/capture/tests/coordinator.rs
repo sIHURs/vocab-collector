@@ -258,3 +258,76 @@ fn persistence_failure_rolls_back_so_the_user_can_retry() {
         .save_with(request, false, |_| Ok::<_, &str>(()))
         .unwrap();
 }
+
+#[test]
+fn correction_and_manual_translation_stay_on_the_current_request() {
+    let coordinator = CaptureCoordinator::default();
+    let request = coordinator.start();
+    coordinator
+        .set_candidate(request, candidate(CaptureOrigin::Accessibility))
+        .unwrap();
+    let mut corrected = candidate(CaptureOrigin::Accessibility);
+    corrected.selected_text = "corrected".into();
+    corrected.sentence = "The corrected context.".into();
+
+    coordinator
+        .correct(request, corrected, Some(translation()))
+        .unwrap();
+    let snapshot = coordinator
+        .save_with(request, false, |snapshot| Ok::<_, &str>(snapshot.clone()))
+        .unwrap();
+
+    assert_eq!(snapshot.request_id, request);
+    assert_eq!(snapshot.candidate.selected_text, "corrected");
+    assert_eq!(snapshot.candidate.sentence, "The corrected context.");
+    assert_eq!(snapshot.translation, Some(translation()));
+}
+
+#[test]
+fn untranslated_correction_requires_the_explicit_save_without_translation_path() {
+    let coordinator = CaptureCoordinator::default();
+    let request = coordinator.start();
+    coordinator
+        .set_candidate(request, candidate(CaptureOrigin::Accessibility))
+        .unwrap();
+    coordinator
+        .correct(request, candidate(CaptureOrigin::Accessibility), None)
+        .unwrap();
+
+    assert_eq!(
+        coordinator.save_with(request, false, |_| Ok::<_, &str>(())),
+        Err(CoordinatorError::TranslationRequired)
+    );
+    coordinator
+        .save_with(request, true, |_| Ok::<_, &str>(()))
+        .unwrap();
+}
+
+#[test]
+fn undo_runs_once_and_rejects_stale_requests() {
+    let coordinator = CaptureCoordinator::default();
+    let request = coordinator.start();
+    coordinator
+        .set_candidate(request, candidate(CaptureOrigin::Accessibility))
+        .unwrap();
+    coordinator
+        .correct(request, candidate(CaptureOrigin::Accessibility), None)
+        .unwrap();
+    coordinator
+        .save_with(request, true, |_| Ok::<_, &str>(()))
+        .unwrap();
+
+    coordinator
+        .undo_with(request, || Ok::<_, &str>(()))
+        .unwrap();
+    assert_eq!(
+        coordinator.undo_with(request, || Ok::<_, &str>(())),
+        Err(CoordinatorError::InvalidTransition)
+    );
+    let current = coordinator.start();
+    assert_eq!(
+        coordinator.undo_with(request, || Ok::<_, &str>(())),
+        Err(CoordinatorError::StaleRequest)
+    );
+    assert!(coordinator.is_current(current));
+}

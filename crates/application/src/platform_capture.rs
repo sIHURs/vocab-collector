@@ -87,6 +87,27 @@ impl PlatformCaptureWorkflow {
         Ok(())
     }
 
+    pub fn correct(
+        &self,
+        request_id: Uuid,
+        selected_text: String,
+        sentence: String,
+        manual_translation: Option<String>,
+    ) -> Result<(), PlatformCaptureError> {
+        let settings = self.application.get_settings()?;
+        let mut candidate = self.coordinator.candidate(request_id)?;
+        candidate.selected_text = selected_text;
+        candidate.sentence = sentence;
+        let translation = manual_translation.map(|translated_text| TranslationResult {
+            translated_text,
+            source_language: settings.source_language,
+            target_language: settings.target_language,
+        });
+        self.coordinator
+            .correct(request_id, candidate, translation)?;
+        Ok(())
+    }
+
     pub async fn translate(
         &self,
         request_id: Uuid,
@@ -167,5 +188,11 @@ impl PlatformCaptureWorkflow {
                     captured_at,
                 })
             })?)
+    }
+
+    pub fn undo(&self, request_id: Uuid, encounter_id: Uuid) -> Result<(), PlatformCaptureError> {
+        Ok(self
+            .coordinator
+            .undo_with(request_id, || self.application.undo_capture(encounter_id))?)
     }
 }
