@@ -72,9 +72,11 @@ screenshots.
 
 ## Capabilities and platform status
 
-The UI branches on `PlatformCapabilities`, never on an OS name. Window setup is
-invoked only when `nonActivatingWindow` is reported; unavailable providers
-return explicit typed errors.
+The UI branches on `PlatformCapabilities`, never on an OS name. A target may
+install inert native styles on its hidden capture window so physical validation
+can occur before the capability is advertised. Product presentation that relies
+on those styles is enabled only when `nonActivatingWindow` is reported;
+unavailable providers return explicit typed errors.
 
 The macOS adapter and Swift package are the Plan A runtime implementation.
 Linux and Windows crates are contract-compatible skeletons only. Their source

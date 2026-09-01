@@ -12,6 +12,7 @@ use vocab_platform_api::{
 };
 
 mod selection;
+pub mod window;
 
 /// Builds the Windows provider bundle. Native providers are intentionally deferred to Plan B.
 #[derive(Clone, Copy, Debug, Default)]

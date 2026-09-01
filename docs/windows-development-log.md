@@ -503,3 +503,68 @@ TDD seams:
 ### Next ticket starting point
 
 W-08 remains open at its physical evidence gate. Run the required application matrix for UIA text, bounds, context, and source metadata, recording the device/build and results without enabling capability flags unless the required evidence passes. After that gate, W-09 starts from portable selection bounds and should implement only non-activating capture-window presentation plus mixed-DPI/negative-origin placement.
+
+## 2026-09-01 - W-09 Non-activating mixed-DPI capture window
+
+### Implementation
+
+- Added a Windows-only capture-window adapter that applies `WS_EX_NOACTIVATE` and `WS_EX_TOOLWINDOW`, removes `WS_EX_APPWINDOW`, keeps the window topmost without activation, and presents it with `SW_SHOWNOACTIVATE`.
+- Captured the source foreground-window handle immediately before passive presentation. Explicit editing may activate the capture window; Done, Cancel, and the existing request-safe hide path attempt to restore the recorded source focus.
+- Kept the desktop sequencing explicit: position in portable logical coordinates, show without activation, then emit `capture-ready`.
+- Expanded portable placement fixtures across negative-origin work areas at 100%, 125%, 150%, and 200% scale, asserting that the complete 380×280 card remains inside the chosen work area.
+- Replaced the Windows floating-window placeholder with a minimal capture result presentation. It does not add W-10 correction, manual translation, or save workflow behavior.
+
+### Key decisions
+
+- Win32 HWNDs, extended styles, foreground-window tracking, and focus APIs remain in `platform/windows`; shared application, domain, storage, and capture types remain Windows-independent.
+- The desktop composition layer passes only the target-gated native handle and owns Tauri positioning/event publication. Shared `crates/capture` continues to own placement policy in logical top-left virtual-desktop coordinates.
+- Window styles are installed at Windows desktop startup so the dormant implementation can be exercised by the required physical checks. `non_activating_window` remains `false`: automated style and sequencing tests plus process startup are not physical focus/taskbar evidence.
+- Editing activation is an explicit user action. W-09 introduces only the focus transition; editable text, save correction, manual translation, and request-safe persistence remain W-10.
+- Native failures return content-free `PlatformError::Operation` messages. No captured text, source metadata, or window content is logged.
+
+### Main files changed
+
+- `crates/capture/tests/placement.rs`
+- `platform/windows/src/window.rs`
+- `platform/windows/src/lib.rs`
+- `platform/windows/tests/capabilities.rs`
+- `apps/desktop/src-tauri/src/commands/capture.rs`
+- `apps/desktop/src-tauri/src/lib.rs`
+- `apps/desktop/src-tauri/tests/command_contract.rs`
+- `ui/src/windows/WindowsFloatingCapture.svelte`
+- `ui/src/windows/WindowsFloatingCapture.test.ts`
+- `ui/src/windows/captureBackend.ts`
+- `docs/architecture.md`
+- `docs/windows-development.md`
+- `docs/windows-development-log.md`
+
+### Tests and results
+
+TDD seams agreed before implementation:
+
+- `crates/capture::place_floating_window`: red/green fixture for complete-card containment across negative origins and 100/125/150/200% scale factors.
+- Desktop capture presentation boundary: red/green contract for position → show-without-activation → event ordering.
+- `WindowsFloatingCapture`: red/green user-interaction tests proving passive receipt does not request focus, explicit Edit does, and Done/Cancel use focus-restoring commands.
+
+| Command | Result | Evidence |
+|---|---|---|
+| `cargo test -p vocab-capture --test placement` | PASS | **Verified automated:** 5 tests passed |
+| `cargo test -p vocab-platform-windows` | PASS | **Verified automated:** 12 tests passed and 1 physical-only Notepad test remained ignored |
+| `cargo test -p vocab-desktop --test command_contract` | PASS | **Verified automated:** 26 tests passed |
+| `pnpm test` | PASS | **Verified automated:** 44 tests passed across 7 files |
+| `cargo clippy --workspace --all-targets --exclude vocab-platform-macos --exclude vocab-platform-linux -- -D warnings` | PASS | **Verified automated:** no warnings |
+| `cargo fmt --all --check` | PASS | **Verified automated:** passed |
+| `pnpm check` | PASS | **Verified automated:** 0 errors and 0 warnings |
+| `pnpm tauri dev` | PASS for startup only | **Verified automated:** process compiled and launched, then was intentionally stopped with Ctrl+C; this is not physical focus or DPI evidence |
+
+### Not yet verified
+
+- **Not run:** passive presentation preserving foreground focus in Notepad, browsers, editors, Terminal, Office, and PDF readers. The current execution context was not independently established as an eligible Windows 11 x64 physical test setup; owner: W-09 physical gate.
+- **Not run:** taskbar and Alt+Tab absence, Win+D, lock/unlock, source-window closure, and focus restoration after explicit Done/Cancel; owner: W-09 physical gate.
+- **Not run:** placement on real negative-origin displays at 100%, 125%, 150%, and 200%, including mixed scales and taskbars on different edges; owner: W-09 physical gate.
+- **Not run:** display disconnect/reconnect while the capture window is visible; owner: W-09 physical gate.
+- `non_activating_window`, `selection_capture`, and `selection_bounds` remain false pending their required physical evidence.
+
+### Next ticket starting point
+
+W-09 remains open at its physical evidence gate. First run the focus/taskbar and mixed-monitor matrix and enable `non_activating_window` only if it passes. W-10 then starts from the explicit Edit/focus seam and the existing shared request coordinator; it should add correction, optional manual translation, save-without-translation, save-once, Undo, and dismissal without moving those rules into the Windows adapter.

@@ -189,6 +189,14 @@ pub fn run() {
             {
                 use tauri_plugin_autostart::ManagerExt;
 
+                if let Some(window) = app.get_webview_window("capture") {
+                    vocab_platform_windows::window::configure_capture_window(
+                        vocab_platform_windows::window::NativeWindowHandle::new(
+                            window.hwnd()?.0 as isize,
+                        ),
+                    )?;
+                }
+
                 let runtime = system_settings::SystemSettingsRuntime::default();
                 let shortcut_error = system_settings::restore_startup_shortcut(
                     &mut settings,
@@ -294,6 +302,8 @@ pub fn run() {
             capture::confirm_ocr,
             capture::save_native_capture,
             capture::hide_capture_window,
+            capture::focus_capture_window,
+            capture::release_capture_window_focus,
             capture::get_platform_capabilities,
             presentation::get_presentation_family,
         ])

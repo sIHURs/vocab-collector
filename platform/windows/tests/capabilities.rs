@@ -9,6 +9,7 @@ use vocab_platform_api::{
     Capability, PermissionKind, PlatformCapabilities, PlatformError, ScreenPoint,
 };
 use vocab_platform_windows::WindowsPlatform;
+use vocab_platform_windows::window::capture_window_extended_style;
 
 fn block_on<F: Future>(future: F) -> F::Output {
     struct ThreadWake(thread::Thread);
@@ -73,6 +74,19 @@ fn deferred_providers_return_capability_specific_unsupported_errors() {
         services.window.configure_capture_window(),
         Err(PlatformError::Unsupported(Capability::NonActivatingWindow))
     );
+}
+
+#[test]
+fn capture_window_style_is_tool_window_without_app_window_activation() {
+    const WS_EX_APPWINDOW: u32 = 0x0004_0000;
+    const WS_EX_TOOLWINDOW: u32 = 0x0000_0080;
+    const WS_EX_NOACTIVATE: u32 = 0x0800_0000;
+
+    let style = capture_window_extended_style(WS_EX_APPWINDOW);
+
+    assert_eq!(style & WS_EX_APPWINDOW, 0);
+    assert_ne!(style & WS_EX_TOOLWINDOW, 0);
+    assert_ne!(style & WS_EX_NOACTIVATE, 0);
 }
 
 #[test]

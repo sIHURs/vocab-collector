@@ -1005,6 +1005,33 @@ Not run: live TextPattern2/TextPattern behavior and UIA text/bounds/context/sour
 
 Next milestone: first complete the W-08 physical UIA compatibility matrix. Only after that evidence gate should W-09 consume the existing portable bounds for non-activating mixed-DPI placement.
 
+## 2026-09-01 W-09 automated handoff
+
+Commit: W-09 focused commit (final hash recorded in Git history; this entry is part of that commit).
+
+Environment: managed Windows workspace; Windows edition/build query was denied by the execution environment, so physical-machine eligibility is unconfirmed. Tools: Rust/Cargo 1.98.0, Node.js 24.19.0, pnpm 11.19.0.
+
+Implemented Windows-only non-activating/tool-window styles, passive topmost presentation, explicit editing activation, source-focus restoration after Done/Cancel/successful save, and per-monitor logical-to-physical placement. Shared placement remains in `crates/capture`; HWND and Win32 behavior remain in `platform/windows`.
+
+**Verified automated:**
+
+- `cargo test -p vocab-capture --test placement`: 5 tests passed.
+- `cargo test -p vocab-platform-windows`: 12 tests passed; 1 physical Notepad test ignored.
+- `cargo test -p vocab-desktop --test command_contract`: 26 tests passed.
+- `pnpm test`: 44 tests passed across 7 files.
+- `cargo clippy --workspace --all-targets --exclude vocab-platform-macos --exclude vocab-platform-linux -- -D warnings`: passed.
+- `cargo fmt --all --check`: passed.
+- `pnpm check`: 0 errors and 0 warnings.
+- `pnpm tauri dev`: compiled and launched; stopped intentionally with Ctrl+C. This proves startup only.
+
+Capability changes: none. `non_activating_window`, `selection_capture`, and `selection_bounds` remain false pending physical evidence.
+
+**Not run:** focus preservation/restoration, taskbar and Alt+Tab behavior, and real negative-origin 100/125/150/200% mixed-DPI placement; reason: eligible physical-machine/display topology was not established; owner: W-09 physical gate.
+
+Known failure: querying Windows edition/build through CIM returned Access denied. No runtime capability claim depends on that query.
+
+Next milestone: complete the W-09 physical focus/taskbar/mixed-monitor matrix and enable `non_activating_window` only after it passes. W-10 then adds correction and manual-save behavior through the shared application workflow.
+
 
 Windows capture 可以概括成一个 多级 fallback pipeline：
 

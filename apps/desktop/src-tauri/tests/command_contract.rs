@@ -373,6 +373,56 @@ fn desktop_lifecycle_opens_then_focuses_and_cleans_before_exit() {
 }
 
 #[test]
+fn passive_capture_presentation_positions_then_shows_without_activation_before_emitting() {
+    use vocab_desktop_lib::commands::capture::present_capture_window;
+
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    let position_calls = Arc::clone(&calls);
+    let show_calls = Arc::clone(&calls);
+    let emit_calls = Arc::clone(&calls);
+
+    present_capture_window(
+        || {
+            position_calls.lock().unwrap().push("position");
+            Ok(())
+        },
+        || {
+            show_calls.lock().unwrap().push("show-no-activate");
+            Ok(())
+        },
+        || {
+            emit_calls.lock().unwrap().push("emit");
+            Ok(())
+        },
+    )
+    .unwrap();
+
+    assert_eq!(
+        *calls.lock().unwrap(),
+        ["position", "show-no-activate", "emit"]
+    );
+}
+
+#[test]
+fn successful_capture_action_restores_focus_but_failed_action_does_not() {
+    use vocab_desktop_lib::commands::capture::complete_capture_action;
+
+    let restored = AtomicBool::new(false);
+    let success: Result<&str, &str> =
+        complete_capture_action(|| Ok("saved"), || restored.store(true, Ordering::SeqCst));
+    assert_eq!(success, Ok("saved"));
+    assert!(restored.load(Ordering::SeqCst));
+
+    restored.store(false, Ordering::SeqCst);
+    let failure: Result<&str, &str> = complete_capture_action(
+        || Err("not saved"),
+        || restored.store(true, Ordering::SeqCst),
+    );
+    assert_eq!(failure, Err("not saved"));
+    assert!(!restored.load(Ordering::SeqCst));
+}
+
+#[test]
 fn desktop_exit_still_terminates_when_explicit_cleanup_reports_an_error() {
     let exited = Arc::new(AtomicBool::new(false));
     let exit_observer = Arc::clone(&exited);
