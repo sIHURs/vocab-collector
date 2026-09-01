@@ -1007,7 +1007,7 @@ Next milestone: first complete the W-08 physical UIA compatibility matrix. Only 
 
 ## 2026-09-01 W-09 automated handoff
 
-Commit: W-09 focused commit (final hash recorded in Git history; this entry is part of that commit).
+Implementation commit: `668c62e`. This handoff hash was added in the following documentation-only commit.
 
 Environment: managed Windows workspace; Windows edition/build query was denied by the execution environment, so physical-machine eligibility is unconfirmed. Tools: Rust/Cargo 1.98.0, Node.js 24.19.0, pnpm 11.19.0.
 
