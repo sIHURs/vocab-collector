@@ -57,6 +57,19 @@ describe("Windows floating capture presentation", () => {
     expect(mocks.save).toHaveBeenCalledWith("request-plain", { selectedText: "nuance", sentence: "A useful nuance." }, true);
   });
 
+  it("allows a corrected selection to save when native context is unavailable", async () => {
+    render(WindowsFloatingCapture, { captureBackend });
+    await waitFor(() => expect(mocks.ready).toBeTypeOf("function"));
+    mocks.ready?.({ requestId: "no-context", candidate: { selectedText: "nuanc", sentence: "", origin: "accessibility" } });
+    await fireEvent.click(await screen.findByRole("button", { name: "Edit capture" }));
+    await fireEvent.input(screen.getByLabelText("Selected text"), { target: { value: "nuance" } });
+
+    await fireEvent.click(screen.getByRole("button", { name: "Save capture" }));
+
+    expect(mocks.save).toHaveBeenCalledWith("no-context", { selectedText: "nuance", sentence: "" }, true);
+    expect(await screen.findByText("First Encounter saved")).toBeInTheDocument();
+  });
+
   it("ignores a save completion after a newer request arrives", async () => {
     let finishSave: ((card: Awaited<ReturnType<WindowsCaptureBackend["save"]>>) => void) | undefined;
     mocks.save.mockImplementationOnce(() => new Promise((resolve) => { finishSave = resolve; }));

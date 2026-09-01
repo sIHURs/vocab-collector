@@ -124,6 +124,7 @@
       <small>Saved</small>
       <h1>{saved.displayForm}</h1>
       <p>{saved.translation ?? "Saved without translation"}</p>
+      <p>{saved.isExistingWord ? `Seen ${saved.encounterCount} times · New Encounter saved` : "First Encounter saved"}</p>
       <button class="primary" disabled={busy} onclick={undo}>Undo</button>
     {:else if candidate}
       <small>{editing ? "Editing" : "Captured"}</small>
@@ -132,7 +133,7 @@
         <label>Selected text<input aria-label="Selected text" bind:value={selectedText} /></label>
         <label>Context<textarea aria-label="Context" bind:value={sentence}></textarea></label>
         <label>Translation <small>Optional</small><input aria-label="Translation (optional)" bind:value={translation} /></label>
-        <button class="primary" disabled={busy || !selectedText.trim() || !sentence.trim()} onclick={() => save(!translation.trim())}>Save capture</button>
+        <button class="primary" disabled={busy || !selectedText.trim()} onclick={() => save(!translation.trim())}>Save capture</button>
       {:else}
         <h1>{selectedText}</h1>
         <p>“{sentence}”</p>
