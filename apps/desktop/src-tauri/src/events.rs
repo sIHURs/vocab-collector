@@ -4,6 +4,8 @@ use vocab_application::PlatformCaptureError;
 use vocab_capture::CoordinatorError;
 use vocab_platform_api::{Capability, CaptureCandidate, OcrCandidate, PlatformError};
 
+pub const LIBRARY_CHANGED_EVENT: &str = "library-changed";
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CaptureFailureCode {

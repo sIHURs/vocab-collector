@@ -13,7 +13,10 @@ use vocab_platform_api::{
 
 use crate::{
     bootstrap::AppState,
-    events::{CaptureFailure, NativeCaptureError, NativeCaptureEvent, OcrCandidatesEvent},
+    events::{
+        CaptureFailure, LIBRARY_CHANGED_EVENT, NativeCaptureError, NativeCaptureEvent,
+        OcrCandidatesEvent,
+    },
 };
 
 pub fn present_capture_window(
@@ -194,13 +197,16 @@ pub fn confirm_ocr(
 
 #[tauri::command]
 pub fn save_native_capture(
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
     request_id: Uuid,
     without_translation: bool,
 ) -> Result<CaptureCard, CaptureFailure> {
-    state
+    let saved = state
         .save_capture(request_id, without_translation)
-        .map_err(CaptureFailure::from)
+        .map_err(CaptureFailure::from)?;
+    let _ = app.emit_to("main", LIBRARY_CHANGED_EVENT, ());
+    Ok(saved)
 }
 
 #[tauri::command]
@@ -218,13 +224,16 @@ pub fn correct_native_capture(
 
 #[tauri::command]
 pub fn undo_native_capture(
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
     request_id: Uuid,
     encounter_id: Uuid,
 ) -> Result<(), CaptureFailure> {
     state
         .undo_native_capture(request_id, encounter_id)
-        .map_err(CaptureFailure::from)
+        .map_err(CaptureFailure::from)?;
+    let _ = app.emit_to("main", LIBRARY_CHANGED_EVENT, ());
+    Ok(())
 }
 
 pub fn hide_capture_window_for(

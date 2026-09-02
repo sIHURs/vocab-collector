@@ -231,7 +231,21 @@
   }
 
   const encounterLabel = (count: number) => `${count} encounter${count === 1 ? "" : "s"}`;
-  onMount(refresh);
+  onMount(() => {
+    let mounted = true;
+    let unlisten: (() => void) | undefined;
+    void refresh();
+    if (api.listenLibraryChanged) {
+      void api.listenLibraryChanged(() => { void refresh(); }).then((nextUnlisten) => {
+        if (mounted) unlisten = nextUnlisten;
+        else nextUnlisten();
+      });
+    }
+    return () => {
+      mounted = false;
+      unlisten?.();
+    };
+  });
 </script>
 
 <svelte:window onkeydown={handleWindowKeydown} />

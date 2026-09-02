@@ -70,6 +70,15 @@ class PartiallyFailingSystemSettingsBackend extends TrackingSettingsBackend {
   }
 }
 
+class ExternalCaptureBackend extends DemoBackend {
+  libraryChanged: (() => void) | undefined;
+
+  async listenLibraryChanged(handler: () => void) {
+    this.libraryChanged = handler;
+    return () => { this.libraryChanged = undefined; };
+  }
+}
+
 async function saveManualCapture(word: string, sentence: string) {
   await fireEvent.click(screen.getAllByRole("button", { name: "Manual capture" })[0]);
   await fireEvent.input(screen.getByLabelText("Word or phrase"), { target: { value: word } });
@@ -145,6 +154,19 @@ describe("Windows main presentation", () => {
     await fireEvent.click(within(saved).getByRole("button", { name: "Undo" }));
     expect(await within(detail).findByText(/1 encounter/)).toBeVisible();
     expect(screen.queryByText("Her second example was lucid too.")).toBeNull();
+  });
+
+  it("refreshes Today and Vocabulary after a capture is saved in another window", async () => {
+    const api = new ExternalCaptureBackend(false);
+    render(WindowsApp, { api });
+    await screen.findByText("No captures yet");
+
+    await api.capture({ selectedText: "ambient", sentence: "The change was immediately ambient." });
+    api.libraryChanged?.();
+
+    expect(await screen.findByRole("button", { name: /ambient/i })).toBeVisible();
+    await fireEvent.click(screen.getByRole("button", { name: "Vocabulary" }));
+    expect(screen.getByRole("button", { name: /ambient/i })).toBeVisible();
   });
 
   it("shows a recoverable load failure", async () => {

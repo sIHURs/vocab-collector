@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import type {
   CaptureCard, CaptureInput, Encounter, PlatformCapabilities, ReviewRating, Settings,
   SettingsApplyResult, SystemSettingsStatus, TodayView,
@@ -17,6 +18,7 @@ export interface Backend {
   replaceShortcut(candidate: string): Promise<Settings>;
   applyWindowsSettings?(settings: Settings): Promise<SettingsApplyResult>;
   getWindowsSettingsStatus?(): Promise<SystemSettingsStatus>;
+  listenLibraryChanged?(handler: () => void): Promise<() => void>;
   getPlatformCapabilities(): Promise<PlatformCapabilities>;
 }
 
@@ -163,6 +165,9 @@ class TauriBackend implements Backend {
     return invoke<SettingsApplyResult>("apply_windows_settings", { settings });
   }
   getWindowsSettingsStatus() { return invoke<SystemSettingsStatus>("get_windows_settings_status"); }
+  listenLibraryChanged(handler: () => void) {
+    return listen("library-changed", handler);
+  }
   getPlatformCapabilities() { return invoke<PlatformCapabilities>("get_platform_capabilities"); }
 }
 
