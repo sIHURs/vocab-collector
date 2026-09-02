@@ -2,7 +2,7 @@
 
 ## Current status
 
-Plan A defines the Windows crate, desktop target selection, unsupported provider contracts, and the Windows CI lane. The Windows adapter is a static skeleton: every native capability reports `false`, and every provider returns a typed `PlatformError::Unsupported` result. It contains no COM, UI Automation, Windows Graphics Capture, OCR, translation, permission, DPI, or Win32 window implementation.
+Plan B implementation is in progress. The Windows adapter now contains COM/UI Automation selection, explicit Windows Graphics Capture plus `Windows.Media.Ocr`, DPI/coordinate handling, and narrowly scoped Win32 window behavior. Translation, permission guidance, and the remaining deferred providers still return typed `PlatformError::Unsupported` results. Native capability flags remain `false` until the corresponding physical-machine evidence is recorded; in particular, the implemented OCR provider is not yet advertised through `screenshot_ocr`.
 
 No Windows code or target was compiled, tested, or run during Plan A on macOS. Hosted CI is intended to establish only build and automated contract status on its Windows runner. All native runtime, permission, application-compatibility, and packaging results below remain unverified until Plan B runs on a Windows 11 x64 physical machine.
 
@@ -44,7 +44,7 @@ pnpm build
 pnpm tauri dev
 ```
 
-Passing the automated commands will confirm the skeleton and shared application compile on that Windows environment; it will not prove native capture support. `pnpm tauri dev` is the first Plan B startup check and is currently unverified.
+Passing the automated commands confirms the adapter and shared application compile on that Windows environment; it does not prove native capture support. `pnpm tauri dev` and the physical native-capture checks remain unverified in the current handoff evidence.
 
 ## Deferred physical-machine verification
 

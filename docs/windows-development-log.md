@@ -6,7 +6,7 @@ This log records implementation evidence for `docs/windows-platform-tickets.md`.
 
 ### Implementation
 
-- Added a Windows `OcrProvider` that captures the foreground window with Windows Graphics Capture, immediately crops a pointer-centered region capped at 640 by 360 logical units, converts that region to an in-memory `SoftwareBitmap`, and recognizes it with `Windows.Media.Ocr`.
+- Added a Windows `OcrProvider` that obtains one foreground-window frame with Windows Graphics Capture, immediately copies a pointer-centered crop capped at 640 by 360 logical units, converts only that crop to an in-memory `SoftwareBitmap`, and recognizes it with `Windows.Media.Ocr`.
 - Normalized Windows OCR word rectangles into portable `OcrCandidate` values. Only text, portable bounds, and candidate count cross the adapter boundary; no native graphics or WinRT type enters the shared application layer.
 - Added deterministic geometry and normalization tests, including negative desktop origins and Unicode OCR output. Diagnostics contain only region dimensions and candidate counts, never recognized content.
 - Replaced the Windows OCR stub while deliberately leaving the advertised `screenshot_ocr` capability false pending physical validation.
@@ -15,7 +15,7 @@ This log records implementation evidence for `docs/windows-platform-tickets.md`.
 ### Key decisions
 
 - WGC, D3D11, WinRT surface conversion, and `Windows.Media.Ocr` are private to `platform/windows`; the public seam remains the portable `OcrProvider` contract.
-- Capture is explicitly bounded for recognition and persistence: the WGC frame exists only in native memory long enough to copy the bounded texture region, and neither the frame nor cropped bitmap is written to disk or logged.
+- Windows Graphics Capture exposes a window item rather than a crop item, so one transient native frame covers the source window. The adapter immediately copies the smallest practical bounded texture region for bitmap conversion and recognition; neither the frame nor crop is written to disk or logged. Physical privacy/resource evidence is still required before this native claim is complete.
 - Frame-pool subscriptions and all closeable capture/OCR resources use scoped guards so success, timeout, and error paths unsubscribe or close deterministically. COM interfaces and D3D textures then release through their normal ownership drops.
 - The capture waits at most three seconds for one frame. Timeout and native failures return content-free platform errors rather than retaining or exposing an image.
 - `Windows.Media.Ocr` does not supply a word confidence through the API used here, so adapter candidates receive neutral confidence `1.0`; later ranking remains a portable concern.
@@ -50,6 +50,7 @@ This log records implementation evidence for `docs/windows-platform-tickets.md`.
 - **Not run:** `pnpm tauri dev` physical consent, denial, cancellation, and OCR checks. This Windows session has not been established as a Windows 11 x64 physical-machine environment, so no Windows runtime behavior is marked **Verified Windows physical**.
 - **Not run:** live WGC foreground-window selection, mixed-DPI and multi-monitor cropping, OCR accuracy, three-second timeout behavior, and source-focus restoration across the compatibility matrix.
 - **Not run:** native resource monitoring and on-device confirmation that no screenshot artifact is created during success, cancellation, timeout, or error paths.
+- **Not run:** confirmation that the portable desktop point and native frame crop remain aligned on negative-origin mixed-DPI layouts. Automated geometry covers negative origins and scale normalization in isolation, but the end-to-end native transform is not claimed without the physical display matrix.
 - **Not run:** a live WebView2-to-SQLite OCR-origin save and cancel audit. Automated shared-workflow tests are the current evidence that confirmation saves once and cancellation saves nothing.
 - The `screenshot_ocr` capability remains false until the physical evidence above is recorded.
 

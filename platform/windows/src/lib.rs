@@ -1,6 +1,6 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 
-//! Static Windows adapter boundary prepared for Plan B implementation on Windows 11.
+//! Windows adapter boundary for native providers implemented during Plan B.
 
 use std::sync::Arc;
 
@@ -14,7 +14,7 @@ mod ocr;
 mod selection;
 pub mod window;
 
-/// Builds the Windows provider bundle. Native providers are intentionally deferred to Plan B.
+/// Builds the Windows provider bundle. Capabilities stay disabled until physical evidence exists.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct WindowsPlatform;
 
