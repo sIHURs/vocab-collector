@@ -75,8 +75,8 @@ Do not mark a Windows capability `true` until its provider and matching Windows 
 
 Environment: Windows 10 Pro 24H2 x64 physical machine, reported kernel build
 10.0.26100.7171. Application versions: Notepad 10.0.26100.8875, Chrome
-152.0.7977.75, and Word 16.0.20326.20112. The immutable tested commit is recorded
-after the implementation commit and physical rerun.
+152.0.7977.75, and Word 16.0.20326.20112. Immutable implementation commit:
+`ebaec48`.
 
 Verified Windows physical: Notepad exact Unicode selection passed through
 TextPattern2 with context, source metadata, and bounds. Chrome static reading text
@@ -100,6 +100,13 @@ own physical gate. The application does not read or mutate clipboard contents.
 
 Capability changes: `selection_capture=true` and `selection_bounds=true`.
 `screenshot_ocr`, `translation`, and `non_activating_window` remain false.
+
+Final physical rerun on `ebaec48`: the generic ignored provider contract passed
+once for Notepad, once for the Chrome static fixture, and once for the Chrome
+textarea fixture. Diagnostics recorded TextPattern2/one rectangle for Notepad,
+TextPattern/one rectangle for Chrome static content, and TextPattern/three
+rectangles for the textarea. Every run reported source application and title
+metadata without captured content in diagnostics.
 
 ---
 

@@ -956,3 +956,24 @@ Run the W-08 UIA matrix on the target Windows 10 Pro x64 physical machine and re
 ### Next ticket starting point
 
 W-15 starts from a Windows 10 Pro x64 release target with UIA selection and bounds advertised, clipboard fallback unsupported, Manual Capture available, and OCR deferred behind its capability gate. Do not add clipboard behavior without new physical evidence and a new product decision.
+
+### Immutable physical evidence
+
+Implementation commit `ebaec48` was tested on the recorded Windows 10 Pro x64
+physical machine after commit creation:
+
+- Notepad 10.0.26100.8875: generic ignored UIA provider contract passed using
+  TextPattern2, exact Unicode, context, source metadata, and one bounds rectangle.
+- Chrome 152.0.7977.75 static fixture: the same contract passed using TextPattern,
+  exact text, context, source metadata, and one bounds rectangle.
+- Chrome 152.0.7977.75 textarea fixture: the same contract passed using
+  TextPattern, exact text, context, source metadata, and three bounds rectangles.
+
+All three commands used:
+
+```powershell
+cargo test -p vocab-platform-windows physical_uia_selection_matches_the_portable_contract -- --ignored --nocapture
+```
+
+with the documented fixture-specific `VOCAB_UIA_EXPECTED` and
+`VOCAB_UIA_EXPECTED_APP` values. Result for each invocation: 1 passed, 0 failed.
