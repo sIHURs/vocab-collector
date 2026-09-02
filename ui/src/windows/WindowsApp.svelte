@@ -17,6 +17,9 @@
   let saving = false;
   let error = "";
   let search = "";
+  let vocabularyPage = 1;
+  let vocabularyPageInput = "1";
+  const vocabularyPageSize = 10;
   let captureError = "";
   let captureInput = { selectedText: "", translation: "", sentence: "" };
   let reviewIndex = 0;
@@ -41,6 +44,10 @@
   let detailCloseButton: HTMLButtonElement;
 
   $: filteredWords = words.filter((word) => `${word.displayForm} ${word.translation ?? ""}`.toLowerCase().includes(search.trim().toLowerCase()));
+  $: vocabularyPageCount = Math.max(1, Math.ceil(filteredWords.length / vocabularyPageSize));
+  $: if (vocabularyPage > vocabularyPageCount) vocabularyPage = vocabularyPageCount;
+  $: vocabularyPageInput = String(vocabularyPage);
+  $: pagedWords = filteredWords.slice((vocabularyPage - 1) * vocabularyPageSize, vocabularyPage * vocabularyPageSize);
   $: activeReview = today?.reviewQueue[reviewIndex] as ReviewCard | undefined;
 
   async function refresh() {
@@ -196,7 +203,11 @@
     settingsError = "";
     settingsSaved = false;
     error = "";
-    const candidate = { ...settingsDraft, dailyLimit: Number(settingsDraft.dailyLimit) };
+    const candidate = {
+      ...settingsDraft,
+      dailyLimit: Number(settingsDraft.dailyLimit),
+      recentCapturesLimit: Number(settingsDraft.recentCapturesLimit),
+    };
     try {
       let persisted: Settings;
       if (api.applyWindowsSettings) {
@@ -228,6 +239,20 @@
       try { systemStatus = await api.getWindowsSettingsStatus(); }
       catch (cause) { settingsError = cause instanceof Error ? cause.message : String(cause); }
     }
+  }
+
+
+  function updateSearch(value: string) {
+    search = value;
+    vocabularyPage = 1;
+  }
+
+  function goToVocabularyPage(value: number | string) {
+    const requestedPage = Number(value);
+    vocabularyPage = Number.isFinite(requestedPage)
+      ? Math.min(vocabularyPageCount, Math.max(1, Math.floor(requestedPage)))
+      : vocabularyPage;
+    vocabularyPageInput = String(vocabularyPage);
   }
 
   const encounterLabel = (count: number) => `${count} encounter${count === 1 ? "" : "s"}`;
@@ -266,10 +291,11 @@
       {:else if route === "Today"}
         <div class="summary"><div><span>Due today</span><strong>{today?.dueCount ?? 0}</strong><small>{today?.dueCount ? `About ${today?.estimatedMinutes ?? 0} minute${today?.estimatedMinutes === 1 ? "" : "s"}` : "Review queue is clear"}</small>{#if today?.dueCount}<button class="primary" onclick={startReview}>Start review ({today.dueCount})</button>{/if}</div><div><span>Recent captures</span><strong>{today?.recentCaptures.length ?? 0}</strong><small>Stored locally</small></div></div>
         <div class="section-heading"><h2>Recent captures</h2><p>New contexts appear here immediately after saving.</p></div>
-        <div class="list">{#each today?.recentCaptures ?? [] as word}<WindowsWordRow {word} onSelect={showDetail} />{:else}<div class="state"><strong>No captures yet</strong><span>Use Manual capture to save your first reading context.</span><button class="primary" onclick={openCapture}>Manual capture</button></div>{/each}</div>
+        <div class="list recent-captures-list">{#each today?.recentCaptures ?? [] as word}<WindowsWordRow {word} onSelect={showDetail} />{:else}<div class="state"><strong>No captures yet</strong><span>Use Manual capture to save your first reading context.</span><button class="primary" onclick={openCapture}>Manual capture</button></div>{/each}</div>
       {:else if route === "Vocabulary"}
-        <div class="tools"><label><span>Search</span><input aria-label="Search vocabulary" bind:value={search} placeholder="Word or translation" /></label><span>{filteredWords.length} items</span></div>
-        <div class="list">{#each filteredWords as word}<WindowsWordRow {word} onSelect={showDetail} />{:else}{#if words.length}<div class="state"><strong>No matching vocabulary</strong><span>Try a different word or translation.</span></div>{:else}<div class="state"><strong>Your vocabulary is empty</strong><span>Saved words will appear here.</span></div>{/if}{/each}</div>
+        <div class="tools"><label><span>Search</span><input aria-label="Search vocabulary" value={search} oninput={(event) => updateSearch(event.currentTarget.value)} placeholder="Word or translation" /></label><span>{filteredWords.length} items</span></div>
+        <div class="list vocabulary-list">{#each pagedWords as word}<WindowsWordRow {word} onSelect={showDetail} />{:else}{#if words.length}<div class="state"><strong>No matching vocabulary</strong><span>Try a different word or translation.</span></div>{:else}<div class="state"><strong>Your vocabulary is empty</strong><span>Saved words will appear here.</span></div>{/if}{/each}</div>
+        {#if filteredWords.length}<nav class="pagination" aria-label="Vocabulary pages"><button class="secondary" disabled={vocabularyPage === 1} onclick={() => goToVocabularyPage(1)}>First</button><button class="secondary" disabled={vocabularyPage === 1} onclick={() => goToVocabularyPage(vocabularyPage - 1)}>Previous</button><form aria-label="Go to vocabulary page" onsubmit={(event) => { event.preventDefault(); goToVocabularyPage(vocabularyPageInput); }}><label><span>Page</span><input aria-label="Page number" type="number" min="1" max={vocabularyPageCount} bind:value={vocabularyPageInput} onblur={() => goToVocabularyPage(vocabularyPageInput)} /><span>of {vocabularyPageCount}</span></label></form><button class="secondary" disabled={vocabularyPage === vocabularyPageCount} onclick={() => goToVocabularyPage(vocabularyPage + 1)}>Next</button><button class="secondary" disabled={vocabularyPage === vocabularyPageCount} onclick={() => goToVocabularyPage(vocabularyPageCount)}>Last</button></nav>{/if}
       {:else if route === "Review"}
         {#if reviewOpen && activeReview}
           <div class="review-card" aria-live="polite"><div class="review-progress"><span>{reviewIndex + 1} of {today?.reviewQueue.length}</span><button class="icon" aria-label="Close review" disabled={reviewSubmitting} onclick={closeReview}>×</button></div><span class="eyebrow">Do you remember this word?</span><h2>{activeReview.displayForm}</h2><p>{activeReview.context ?? "No saved context"}</p><div class="review-translation"><small>Translation</small><strong>{activeReview.translation ?? "Unavailable"}</strong></div>{#if reviewError}<div class="dialog-error" role="alert">{reviewError}</div>{/if}<div class="review-actions"><button class="secondary" disabled={reviewSubmitting} onclick={() => rateReview("forgot")}>Forgot</button><button class="primary" disabled={reviewSubmitting} onclick={() => rateReview("remembered")}>Remembered</button></div></div>
@@ -295,6 +321,7 @@
               <label>Review time<input type="time" bind:value={settingsDraft.reviewTime} /></label>
               {#if systemStatus.notificationError}<small class="field-error" role="alert">{systemStatus.notificationError}</small>{/if}
               <label>Daily limit<input type="number" min="1" max="50" bind:value={settingsDraft.dailyLimit} /></label>
+              <label>Recent captures<input type="number" min="1" max="100" bind:value={settingsDraft.recentCapturesLimit} /></label>
             </fieldset>
             <fieldset><legend>Capture</legend><p>Choose your preferred capture shortcut.</p>
               <label>Capture shortcut<input bind:value={settingsDraft.captureShortcut} /></label>
@@ -338,6 +365,10 @@
   .summary { display: grid; grid-template-columns: repeat(2, minmax(0, 190px)); gap: 12px; }.summary div { display: grid; gap: 8px; padding: 18px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); }.summary span, .summary small { color: var(--muted); font-size: 12px; }.summary strong { font-size: 26px; }
   .section-heading { margin: 24px 0 10px; }.section-heading h2 { font-size: 15px; }.section-heading p { margin-top: 4px; color: var(--muted); font-size: 11px; }
   .list { overflow: hidden; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); }
+  .recent-captures-list { max-height: min(55vh, 540px); overflow-y: auto; scrollbar-gutter: stable; }
+  .vocabulary-list { max-height: calc(100vh - 244px); overflow-y: auto; scrollbar-gutter: stable; }
+  .pagination { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 12px; color: var(--muted); font-size: 12px; }
+  .pagination form, .pagination label { display: flex; align-items: center; gap: 6px; }.pagination input { width: 54px; height: 32px; padding: 0 6px; border: 1px solid var(--line); border-radius: 5px; color: var(--text); background: var(--field); text-align: center; }
   .state { min-height: 220px; display: grid; place-content: center; justify-items: center; gap: 8px; color: var(--muted); text-align: center; }.state strong { color: var(--text); font-size: 16px; }.state .primary { margin-top: 8px; }
   .tools { display: flex; align-items: end; justify-content: space-between; margin-bottom: 12px; color: var(--muted); font-size: 11px; }.tools label { display: grid; gap: 6px; }.tools input { width: 310px; height: 34px; padding: 0 10px; border: 1px solid var(--line); border-radius: 6px; color: var(--text); background: var(--surface); }
   .error { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 14px; padding: 11px 13px; border: 1px solid #724747; border-radius: 6px; color: #f0b4b4; background: #321f24; }.error button { border: 0; color: #cad0ff; background: transparent; cursor: pointer; }
@@ -353,5 +384,5 @@
   @media (prefers-reduced-motion: reduce) { .windows-presentation, .windows-presentation * { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
   @media (forced-colors: active) { .windows-presentation { --page: Canvas; --sidebar: Canvas; --surface: Canvas; --surface-raised: Canvas; --field: Field; --text: CanvasText; --muted: CanvasText; --line: CanvasText; } .primary, .secondary, :global(.word-row), .dialog, .drawer, .toast { border: 1px solid ButtonText; } }
   @media (max-width: 760px), (min-resolution: 1.5dppx) and (max-width: 1100px) { .windows-shell { grid-template-columns: 10rem minmax(0,1fr); } header, section { height: auto; min-height: 5.4rem; padding-left: 1.125rem; padding-right: 1.125rem; }.summary, .settings-grid { grid-template-columns: 1fr; } }
-  @media (max-width: 560px) { .windows-shell { display: block; } aside { position: static; } nav { grid-template-columns: repeat(2, minmax(0, 1fr)); } .local-status { margin-top: 0; } header { align-items: flex-start; gap: 1rem; padding-top: 1rem; padding-bottom: 1rem; } section { min-height: auto; } .tools { align-items: stretch; flex-direction: column; gap: .75rem; } .tools input { width: 100%; } .toast { right: 1rem; bottom: 1rem; left: 1rem; min-width: 0; } }
+  @media (max-width: 560px) { .windows-shell { display: block; } aside { position: static; } nav { grid-template-columns: repeat(2, minmax(0, 1fr)); } .local-status { margin-top: 0; } header { align-items: flex-start; gap: 1rem; padding-top: 1rem; padding-bottom: 1rem; } section { min-height: auto; } .tools { align-items: stretch; flex-direction: column; gap: .75rem; } .tools input { width: 100%; } .pagination { flex-wrap: wrap; justify-content: center; }.pagination form { order: -1; width: 100%; justify-content: center; }.toast { right: 1rem; bottom: 1rem; left: 1rem; min-width: 0; } }
 </style>

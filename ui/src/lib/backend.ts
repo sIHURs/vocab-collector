@@ -27,7 +27,7 @@ type DemoWord = WordDetail & { due: boolean };
 const defaultSettings: Settings = {
   sourceLanguage: "en", targetLanguage: "de", captureShortcut: "Alt+Shift+V",
   reviewTime: "18:00", dailyLimit: 5, launchAtLogin: false, appearance: "system",
-  reducedMotion: false,
+  reducedMotion: false, recentCapturesLimit: 20,
 };
 
 const unavailablePlatformCapabilities: PlatformCapabilities = {
@@ -117,7 +117,7 @@ export class DemoBackend implements Backend {
       reviewQueue: due.map((word) => ({ wordId: word.item.id,
         displayForm: word.item.displayForm, translation: word.item.translation,
         context: word.encounters[0]?.sentence })),
-      recentCaptures: this.words.map((word) => ({ ...word.item })).slice(0, 8),
+      recentCaptures: this.words.map((word) => ({ ...word.item })).slice(0, this.settings.recentCapturesLimit),
       settings: { ...this.settings },
     };
   }

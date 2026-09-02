@@ -75,6 +75,25 @@ fn settings_update_is_visible_to_today_view() {
 }
 
 #[test]
+fn recent_captures_use_the_configured_limit() {
+    let store = Arc::new(SqliteStore::open_in_memory().unwrap());
+    let service = AppService::new(store.clone(), Uuid::now_v7());
+    for index in 0..25 {
+        service
+            .capture(request(&format!("word-{index}"), "translation"))
+            .unwrap();
+    }
+
+    let now = Utc.with_ymd_and_hms(2026, 8, 25, 12, 5, 0).unwrap();
+    assert_eq!(service.get_today(now).unwrap().recent_captures.len(), 20);
+
+    let mut settings = SettingsRepository::get(store.as_ref()).unwrap();
+    settings.recent_captures_limit = 7;
+    service.update_settings(settings).unwrap();
+    assert_eq!(service.get_today(now).unwrap().recent_captures.len(), 7);
+}
+
+#[test]
 fn word_detail_contains_the_original_context_timeline() {
     let store = Arc::new(SqliteStore::open_in_memory().unwrap());
     let service = AppService::new(store, Uuid::now_v7());

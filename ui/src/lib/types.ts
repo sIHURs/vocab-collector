@@ -30,6 +30,7 @@ export interface Settings {
   captureShortcut: string;
   reviewTime: string;
   dailyLimit: number;
+  recentCapturesLimit: number;
   launchAtLogin: boolean;
   appearance: "system" | "light" | "dark";
   reducedMotion: boolean;

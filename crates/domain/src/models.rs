@@ -142,6 +142,8 @@ pub struct UserSettings {
     pub capture_shortcut: String,
     pub review_time: String,
     pub daily_limit: usize,
+    #[serde(default = "default_recent_captures_limit")]
+    pub recent_captures_limit: usize,
     pub launch_at_login: bool,
     pub appearance: Appearance,
     pub reduced_motion: bool,
@@ -155,9 +157,14 @@ impl Default for UserSettings {
             capture_shortcut: "Alt+Shift+V".into(),
             review_time: "18:00".into(),
             daily_limit: 5,
+            recent_captures_limit: default_recent_captures_limit(),
             launch_at_login: false,
             appearance: Appearance::System,
             reduced_motion: false,
         }
     }
+}
+
+fn default_recent_captures_limit() -> usize {
+    20
 }

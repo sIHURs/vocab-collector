@@ -96,6 +96,7 @@ fn settings_defaults_match_the_five_word_product_promise() {
 
     assert_eq!(settings.source_language, "en");
     assert_eq!(settings.daily_limit, 5);
+    assert_eq!(settings.recent_captures_limit, 20);
     assert_eq!(settings.review_time, "18:00");
     assert_eq!(settings.appearance, Appearance::System);
     assert!(!settings.reduced_motion);

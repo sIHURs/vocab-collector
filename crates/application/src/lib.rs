@@ -108,7 +108,11 @@ impl AppService {
                 })
             })
             .collect::<Result<Vec<_>, RepositoryError>>()?;
-        let recent_captures = self.list_words()?.into_iter().take(8).collect();
+        let recent_captures = self
+            .list_words()?
+            .into_iter()
+            .take(settings.recent_captures_limit)
+            .collect();
         let due_count = review_queue.len();
         Ok(TodayView {
             due_count,

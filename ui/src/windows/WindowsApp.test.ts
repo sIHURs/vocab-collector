@@ -245,6 +245,35 @@ describe("Windows main presentation", () => {
     expect(screen.getByText("Nothing due")).toBeVisible();
   });
 
+  it("scrolls configured recent captures and paginates the full vocabulary", async () => {
+    const api = new DemoBackend(false);
+    for (let index = 1; index <= 21; index += 1) {
+      await api.capture({ selectedText: `word-${index}`, sentence: `Context ${index}` });
+    }
+    const { container } = render(WindowsApp, { api });
+
+    expect(await screen.findByRole("button", { name: /word-21/i })).toBeVisible();
+    expect(container.querySelector(".recent-captures-list")).toHaveClass("recent-captures-list");
+
+    await fireEvent.click(screen.getByRole("button", { name: "Vocabulary" }));
+    expect(screen.getByRole("navigation", { name: "Vocabulary pages" })).toBeVisible();
+    expect(screen.getByLabelText("Page number")).toHaveValue(1);
+    expect(screen.getByText("of 3")).toBeVisible();
+    expect(screen.queryByRole("button", { name: /^word-1,/i })).toBeNull();
+
+    await fireEvent.click(screen.getByRole("button", { name: "Last" }));
+    expect(screen.getByLabelText("Page number")).toHaveValue(3);
+    expect(screen.getByRole("button", { name: /^word-1,/i })).toBeVisible();
+
+    await fireEvent.input(screen.getByLabelText("Page number"), { target: { value: "2" } });
+    await fireEvent.submit(screen.getByRole("form", { name: "Go to vocabulary page" }));
+    expect(screen.getByLabelText("Page number")).toHaveValue(2);
+    expect(screen.getByRole("button", { name: "First" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Previous" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Next" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Last" })).toBeEnabled();
+  });
+
   it("keeps the current review card available when rating fails", async () => {
     const api = new TrackingReviewBackend(true);
     const submit = api.submitReview.bind(api);
@@ -303,6 +332,7 @@ describe("Windows main presentation", () => {
     await fireEvent.change(screen.getByLabelText("Source language"), { target: { value: "fr" } });
     await fireEvent.change(screen.getByLabelText("Translate into"), { target: { value: "es" } });
     await fireEvent.input(screen.getByLabelText("Daily limit"), { target: { value: "4" } });
+    await fireEvent.input(screen.getByLabelText("Recent captures"), { target: { value: "12" } });
     await fireEvent.input(screen.getByLabelText("Capture shortcut"), { target: { value: "Control+Shift+W" } });
     await fireEvent.change(screen.getByLabelText("Theme"), { target: { value: "light" } });
     await fireEvent.click(screen.getByLabelText("Reduce motion"));
@@ -311,6 +341,7 @@ describe("Windows main presentation", () => {
     expect(await screen.findByRole("status")).toHaveTextContent("Settings saved");
     expect(api.updates).toEqual([{
       sourceLanguage: "fr", targetLanguage: "es", reviewTime: "18:00", dailyLimit: 4,
+      recentCapturesLimit: 12,
       captureShortcut: "Control+Shift+W", launchAtLogin: false, appearance: "light",
       reducedMotion: true,
     }]);
