@@ -4,10 +4,10 @@ use vocab_platform_api::PlatformError;
 use windows::Win32::{
     Foundation::HWND,
     UI::WindowsAndMessaging::{
-        GWL_EXSTYLE, GetForegroundWindow, GetWindowLongPtrW, HWND_TOPMOST, SW_SHOWNOACTIVATE,
-        SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SetForegroundWindow,
-        SetWindowLongPtrW, SetWindowPos, ShowWindow, WS_EX_APPWINDOW, WS_EX_NOACTIVATE,
-        WS_EX_TOOLWINDOW,
+        GWL_EXSTYLE, GetForegroundWindow, GetWindowLongPtrW, HWND_TOPMOST, IsWindowVisible,
+        SW_HIDE, SW_SHOWNOACTIVATE, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
+        SetForegroundWindow, SetWindowLongPtrW, SetWindowPos, ShowWindow, WS_EX_APPWINDOW,
+        WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
     },
 };
 
@@ -23,7 +23,11 @@ impl NativeWindowHandle {
 }
 
 pub const fn capture_window_extended_style(current: u32) -> u32 {
-    (current | WS_EX_TOOLWINDOW.0 | WS_EX_NOACTIVATE.0) & !WS_EX_APPWINDOW.0
+    // SW_SHOWNOACTIVATE keeps the source application focused when the capture
+    // window first appears. The persistent WS_EX_NOACTIVATE style must be
+    // cleared so an explicit user click can activate WebView2 and interact
+    // with its controls and scrollable content.
+    (current | WS_EX_TOOLWINDOW.0) & !WS_EX_APPWINDOW.0 & !WS_EX_NOACTIVATE.0
 }
 
 pub fn configure_capture_window(hwnd: NativeWindowHandle) -> Result<(), PlatformError> {
@@ -74,6 +78,20 @@ pub fn show_without_activation(hwnd: NativeWindowHandle) -> Result<(), PlatformE
         .map_err(|_| operation("Windows could not present the capture window"))?;
     }
     Ok(())
+}
+
+pub fn hide_capture_window(hwnd: NativeWindowHandle) -> Result<(), PlatformError> {
+    let hwnd = native_handle(hwnd);
+    // SAFETY: Tauri supplies the live capture-window HWND. ShowWindow executes
+    // synchronously, unlike the runtime proxy used by WebviewWindow::hide.
+    unsafe {
+        let _ = ShowWindow(hwnd, SW_HIDE);
+        if IsWindowVisible(hwnd).as_bool() {
+            Err(operation("Windows did not hide the capture window"))
+        } else {
+            Ok(())
+        }
+    }
 }
 
 pub fn activate_for_editing(hwnd: NativeWindowHandle) -> Result<(), PlatformError> {

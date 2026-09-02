@@ -303,6 +303,7 @@ pub fn run() {
             capture::save_native_capture,
             capture::correct_native_capture,
             capture::undo_native_capture,
+            capture::close_capture_window,
             capture::hide_capture_window,
             capture::focus_capture_window,
             capture::release_capture_window_focus,

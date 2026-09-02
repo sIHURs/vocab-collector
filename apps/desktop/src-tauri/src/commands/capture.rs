@@ -26,17 +26,6 @@ pub fn present_capture_window(
     emit()
 }
 
-pub fn complete_capture_action<T, E>(
-    action: impl FnOnce() -> Result<T, E>,
-    restore_focus: impl FnOnce(),
-) -> Result<T, E> {
-    let result = action();
-    if result.is_ok() {
-        restore_focus();
-    }
-    result
-}
-
 #[tauri::command]
 pub fn replace_shortcut(
     app: tauri::AppHandle,
@@ -209,17 +198,9 @@ pub fn save_native_capture(
     request_id: Uuid,
     without_translation: bool,
 ) -> Result<CaptureCard, CaptureFailure> {
-    complete_capture_action(
-        || {
-            state
-                .save_capture(request_id, without_translation)
-                .map_err(CaptureFailure::from)
-        },
-        || {
-            #[cfg(target_os = "windows")]
-            let _ = vocab_platform_windows::window::restore_source_focus();
-        },
-    )
+    state
+        .save_capture(request_id, without_translation)
+        .map_err(CaptureFailure::from)
 }
 
 #[tauri::command]
@@ -257,6 +238,57 @@ pub fn hide_capture_window_for(
         .map_err(CaptureFailure::operation)
 }
 
+pub fn close_capture_window_for(
+    state: &AppState,
+    request_id: Uuid,
+    hide: impl FnOnce() -> Result<(), String>,
+) -> Result<(), CaptureFailure> {
+    hide().map_err(CaptureFailure::operation)?;
+    // Explicit close is an escape hatch: stale session bookkeeping must never
+    // prevent the native window from being hidden.
+    let _ = state.dismiss_and_publish(request_id, || ());
+    Ok(())
+}
+
+pub fn hide_then_restore_focus(
+    hide: impl FnOnce() -> Result<(), String>,
+    restore_focus: impl FnOnce(),
+) -> Result<(), String> {
+    hide()?;
+    restore_focus();
+    Ok(())
+}
+
+#[tauri::command]
+pub fn close_capture_window(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    request_id: Uuid,
+) -> Result<(), CaptureFailure> {
+    let window = app
+        .get_webview_window("capture")
+        .ok_or_else(|| CaptureFailure::operation("capture window is unavailable"))?;
+    close_capture_window_for(&state, request_id, || {
+        hide_then_restore_focus(
+            || {
+                #[cfg(target_os = "windows")]
+                return vocab_platform_windows::window::hide_capture_window(
+                    vocab_platform_windows::window::NativeWindowHandle::new(
+                        window.hwnd().map_err(|error| error.to_string())?.0 as isize,
+                    ),
+                )
+                .map_err(|error| error.to_string());
+                #[cfg(not(target_os = "windows"))]
+                window.hide().map_err(|error| error.to_string())
+            },
+            || {
+                #[cfg(target_os = "windows")]
+                let _ = vocab_platform_windows::window::restore_source_focus();
+            },
+        )
+    })
+}
+
 #[tauri::command]
 pub fn hide_capture_window(
     app: tauri::AppHandle,
@@ -267,9 +299,23 @@ pub fn hide_capture_window(
         .get_webview_window("capture")
         .ok_or_else(|| CaptureFailure::operation("capture window is unavailable"))?;
     hide_capture_window_for(&state, request_id, || {
-        #[cfg(target_os = "windows")]
-        let _ = vocab_platform_windows::window::restore_source_focus();
-        window.hide().map_err(|error| error.to_string())
+        hide_then_restore_focus(
+            || {
+                #[cfg(target_os = "windows")]
+                return vocab_platform_windows::window::hide_capture_window(
+                    vocab_platform_windows::window::NativeWindowHandle::new(
+                        window.hwnd().map_err(|error| error.to_string())?.0 as isize,
+                    ),
+                )
+                .map_err(|error| error.to_string());
+                #[cfg(not(target_os = "windows"))]
+                window.hide().map_err(|error| error.to_string())
+            },
+            || {
+                #[cfg(target_os = "windows")]
+                let _ = vocab_platform_windows::window::restore_source_focus();
+            },
+        )
     })
 }
 

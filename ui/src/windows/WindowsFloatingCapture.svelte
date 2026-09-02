@@ -71,8 +71,6 @@
       if (!mounted || requestId !== activeRequest) return;
       saved = result;
       editing = false;
-      await captureBackend.releaseFocus();
-      if (!mounted || requestId !== activeRequest) return;
       scheduleDismiss(requestId);
     } catch (cause) {
       if (!mounted || requestId !== activeRequest) return;
@@ -93,7 +91,7 @@
       if (!mounted || requestId !== activeRequest) return;
       saved = null;
       clearDismissTimer();
-      await captureBackend.hide(requestId);
+      await captureBackend.close(requestId);
     } catch (cause) {
       if (!mounted || requestId !== activeRequest) return;
       error = cause instanceof Error ? cause.message : String(cause);
@@ -154,7 +152,12 @@
   }
 
   async function cancel() {
-    if (activeRequest) await captureBackend.hide(activeRequest);
+    if (!activeRequest) return;
+    try {
+      await captureBackend.close(activeRequest);
+    } catch (cause) {
+      error = cause instanceof Error ? cause.message : String(cause);
+    }
   }
 
   function handleKeydown(event: KeyboardEvent) {
@@ -218,9 +221,10 @@
 
 <main class="windows-capture" data-presentation="windows-capture" aria-label="Capture" onmouseenter={clearDismissTimer} onmouseleave={() => scheduleDismiss()} onfocusin={clearDismissTimer} onfocusout={() => scheduleDismiss()}>
   <header><span><i aria-hidden="true"></i>Vocab Collector</span><button aria-label="Cancel capture" onclick={cancel}>×</button></header>
-  <section aria-live="polite" aria-busy={busy || ocrBusy}>
+  <section class="scrollable-content" aria-live="polite" aria-busy={busy || ocrBusy}>
     {#if saved}
       <small>Saved</small>
+      {#if error}<p role="alert">{error}</p>{/if}
       <h1>{saved.displayForm}</h1>
       <p>{saved.translation ?? "Saved without translation"}</p>
       <p>{saved.isExistingWord ? `Seen ${saved.encounterCount} times · New Encounter saved` : "First Encounter saved"}</p>
@@ -267,13 +271,13 @@
 <style>
   :global(html), :global(body.windows-capture-document), :global(#app) { width: 100%; height: 100%; margin: 0; background: transparent; overflow: hidden; }
   :global(body.windows-capture-document) { min-width: 0; min-height: 0; }
-  .windows-capture { box-sizing: border-box; width: 100%; height: 100%; padding: 14px 16px; border: 1px solid #4b4f60; border-radius: 8px; color: #eeeef3; background: rgba(30, 31, 40, .98); box-shadow: 0 18px 48px rgba(0, 0, 0, .42); font: 14px "Segoe UI Variable", "Segoe UI", sans-serif; }
+  .windows-capture { box-sizing: border-box; display: flex; flex-direction: column; width: 100%; height: 100%; padding: 14px 16px; overflow: hidden; border: 1px solid #4b4f60; border-radius: 8px; color: #eeeef3; background: rgba(30, 31, 40, .98); box-shadow: 0 18px 48px rgba(0, 0, 0, .42); font: 14px "Segoe UI Variable", "Segoe UI", sans-serif; }
   header { display: flex; align-items: center; justify-content: space-between; color: #aaadba; font-size: 12px; }
   header span { display: flex; align-items: center; gap: 7px; }
   button { border: 0; color: inherit; background: transparent; cursor: pointer; }
   header button { font-size: 20px; }
   header i { width: 7px; height: 7px; border-radius: 50%; background: #7584ef; }
-  section { min-height: 190px; padding: 18px 4px 6px; }
+  .scrollable-content { min-height: 0; padding: 18px 4px 6px; overflow-x: hidden; overflow-y: auto; }
   h1 { margin: 3px 0 4px; font-size: 25px; }
   p { color: #b9bbc6; line-height: 1.45; }
   small { color: #858998; }
@@ -289,5 +293,5 @@
   button:focus-visible, input:focus-visible, textarea:focus-visible, .candidate-list:focus-visible { outline: 2px solid #aab3ff; outline-offset: 2px; }
   @media (forced-colors: active) { .windows-capture { border-color: CanvasText; color: CanvasText; background: Canvas; box-shadow: none; } p, small, label, header { color: CanvasText; } .primary, .secondary, input, textarea, .candidate-list button { border: 1px solid ButtonText; color: ButtonText; background: ButtonFace; } .candidate-list button[aria-selected="true"] { color: HighlightText; background: Highlight; } }
   @media (prefers-reduced-motion: reduce) { .windows-capture, .windows-capture * { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
-  @media (max-width: 320px), (min-resolution: 1.5dppx) and (max-width: 520px) { .windows-capture { overflow: auto; font-size: 1rem; } section { min-height: 0; padding-top: .75rem; } h1 { overflow-wrap: anywhere; font-size: 1.5rem; } .primary, .secondary { min-height: 2.5rem; } }
+  @media (max-width: 320px), (min-resolution: 1.5dppx) and (max-width: 520px) { .windows-capture { font-size: 1rem; } .scrollable-content { padding-top: .75rem; } h1 { overflow-wrap: anywhere; font-size: 1.5rem; } .primary, .secondary { min-height: 2.5rem; } }
 </style>

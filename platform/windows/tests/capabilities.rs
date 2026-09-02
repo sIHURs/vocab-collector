@@ -78,7 +78,7 @@ fn deferred_providers_return_capability_specific_unsupported_errors() {
 }
 
 #[test]
-fn capture_window_style_is_tool_window_without_app_window_activation() {
+fn capture_window_style_is_tool_window_that_can_activate_after_passive_show() {
     const WS_EX_APPWINDOW: u32 = 0x0004_0000;
     const WS_EX_TOOLWINDOW: u32 = 0x0000_0080;
     const WS_EX_NOACTIVATE: u32 = 0x0800_0000;
@@ -87,7 +87,7 @@ fn capture_window_style_is_tool_window_without_app_window_activation() {
 
     assert_eq!(style & WS_EX_APPWINDOW, 0);
     assert_ne!(style & WS_EX_TOOLWINDOW, 0);
-    assert_ne!(style & WS_EX_NOACTIVATE, 0);
+    assert_eq!(style & WS_EX_NOACTIVATE, 0);
 }
 
 #[test]

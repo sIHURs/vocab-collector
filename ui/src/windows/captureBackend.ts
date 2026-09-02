@@ -13,6 +13,7 @@ export interface WindowsCaptureBackend {
   listenOcrCandidate(handler: (event: OcrCandidatesReady) => void): Promise<() => void>;
   focus(): Promise<void>;
   releaseFocus(): Promise<void>;
+  close(requestId: string): Promise<void>;
   hide(requestId: string): Promise<void>;
   save(requestId: string, correction: { selectedText: string; sentence: string; translation?: string }, withoutTranslation: boolean): Promise<CaptureCard>;
   undo(requestId: string, encounterId: string): Promise<void>;
@@ -27,6 +28,7 @@ export const tauriWindowsCaptureBackend: WindowsCaptureBackend = {
   listenOcrCandidate: (handler) => listen<OcrCandidatesReady>("ocr-candidate", ({ payload }) => handler(payload)),
   focus: () => invoke("focus_capture_window"),
   releaseFocus: () => invoke("release_capture_window_focus"),
+  close: (requestId) => invoke("close_capture_window", { requestId }),
   hide: (requestId) => invoke("hide_capture_window", { requestId }),
   save: async (requestId, correction, withoutTranslation) => {
     await invoke("correct_native_capture", { requestId, selectedText: correction.selectedText, sentence: correction.sentence, manualTranslation: correction.translation });

@@ -6,6 +6,7 @@ import type { CaptureReady, OcrCandidatesReady, WindowsCaptureBackend } from "./
 const mocks = {
   focus: vi.fn(async () => {}),
   releaseFocus: vi.fn(async () => {}),
+  close: vi.fn(async (_requestId: string) => {}),
   hide: vi.fn(async (_requestId: string) => {}),
   save: vi.fn(async () => ({ wordId: "word-1", encounterId: "encounter-1", displayForm: "nuance", context: "A useful nuance.", encounterCount: 1, isExistingWord: false })),
   undo: vi.fn(async (_requestId: string, _encounterId: string) => {}),
@@ -21,6 +22,7 @@ const captureBackend: WindowsCaptureBackend = {
   listenReady: async (handler) => { mocks.ready = handler; return () => { mocks.ready = undefined; }; },
   focus: mocks.focus,
   releaseFocus: mocks.releaseFocus,
+  close: mocks.close,
   hide: mocks.hide,
   save: mocks.save,
   undo: mocks.undo,
@@ -35,6 +37,7 @@ describe("Windows floating capture presentation", () => {
   beforeEach(() => {
     mocks.focus.mockClear();
     mocks.releaseFocus.mockClear();
+    mocks.close.mockClear();
     mocks.hide.mockClear();
     mocks.save.mockClear();
     mocks.undo.mockClear();
@@ -71,7 +74,7 @@ describe("Windows floating capture presentation", () => {
 
     await fireEvent.click(await screen.findByRole("button", { name: "Cancel OCR" }));
 
-    expect(mocks.hide).toHaveBeenCalledWith("ocr-cancel");
+    expect(mocks.close).toHaveBeenCalledWith("ocr-cancel");
     expect(mocks.save).not.toHaveBeenCalled();
   });
 
@@ -207,7 +210,7 @@ describe("Windows floating capture presentation", () => {
     expect(document.body.classList.contains("windows-capture-document")).toBe(false);
   });
 
-  it("focuses only after explicit editing and restores source focus after save", async () => {
+  it("keeps the saved result interactive after editing until the window is dismissed", async () => {
     render(WindowsFloatingCapture, { captureBackend });
     await waitFor(() => expect(mocks.ready).toBeTypeOf("function"));
     mocks.ready?.({
@@ -220,10 +223,13 @@ describe("Windows floating capture presentation", () => {
     expect(mocks.focus).toHaveBeenCalled();
 
     await fireEvent.click(screen.getByRole("button", { name: "Save capture" }));
-    expect(mocks.releaseFocus).toHaveBeenCalled();
+    expect(mocks.releaseFocus).not.toHaveBeenCalled();
+
+    await fireEvent.click(await screen.findByRole("button", { name: "Cancel capture" }));
+    expect(mocks.close).toHaveBeenCalledWith("request-9");
   });
 
-  it("cancels the active request through the focus-restoring hide command", async () => {
+  it("cancels the active request through the unconditional close command", async () => {
     render(WindowsFloatingCapture, { captureBackend });
     await waitFor(() => expect(mocks.ready).toBeTypeOf("function"));
     mocks.ready?.({
@@ -232,7 +238,18 @@ describe("Windows floating capture presentation", () => {
     });
 
     await fireEvent.click(await screen.findByRole("button", { name: "Cancel capture" }));
-    expect(mocks.hide).toHaveBeenCalledWith("request-9");
+    expect(mocks.close).toHaveBeenCalledWith("request-9");
+  });
+
+  it("keeps overflowing capture content vertically scrollable at the normal window width", async () => {
+    const view = render(WindowsFloatingCapture, { captureBackend });
+    await waitFor(() => expect(mocks.ready).toBeTypeOf("function"));
+    mocks.ready?.({
+      requestId: "long-content",
+      candidate: { selectedText: "lengthy", sentence: "A ".repeat(500), origin: "accessibility" },
+    });
+
+    expect(view.container.querySelector("section")).toHaveClass("scrollable-content");
   });
 
   it("cancels the active request with Escape", async () => {
@@ -244,6 +261,6 @@ describe("Windows floating capture presentation", () => {
     });
 
     await fireEvent.keyDown(window, { key: "Escape" });
-    expect(mocks.hide).toHaveBeenCalledWith("request-escape");
+    expect(mocks.close).toHaveBeenCalledWith("request-escape");
   });
 });

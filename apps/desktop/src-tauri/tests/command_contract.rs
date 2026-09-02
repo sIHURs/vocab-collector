@@ -14,8 +14,10 @@ use vocab_capture::CoordinatorError;
 use vocab_desktop_lib::{
     bootstrap::build_app_state,
     commands::capture::{
-        capture_selected_text, capture_with_ocr, confirm_ocr, correct_native_capture,
+        capture_selected_text, capture_with_ocr, close_capture_window, close_capture_window_for,
+        confirm_ocr, correct_native_capture,
         get_permission_status, get_platform_capabilities, hide_capture_window,
+        hide_then_restore_focus,
         hide_capture_window_for, request_accessibility_permission,
         request_screen_recording_permission, save_native_capture, translate_text,
         undo_native_capture,
@@ -51,6 +53,7 @@ fn capture_command_names_are_available_on_the_platform_neutral_surface() {
     let _ = save_native_capture;
     let _ = correct_native_capture;
     let _ = undo_native_capture;
+    let _ = close_capture_window;
     let _ = hide_capture_window;
     let _ = get_platform_capabilities;
 }
@@ -410,25 +413,6 @@ fn passive_capture_presentation_positions_then_shows_without_activation_before_e
 }
 
 #[test]
-fn successful_capture_action_restores_focus_but_failed_action_does_not() {
-    use vocab_desktop_lib::commands::capture::complete_capture_action;
-
-    let restored = AtomicBool::new(false);
-    let success: Result<&str, &str> =
-        complete_capture_action(|| Ok("saved"), || restored.store(true, Ordering::SeqCst));
-    assert_eq!(success, Ok("saved"));
-    assert!(restored.load(Ordering::SeqCst));
-
-    restored.store(false, Ordering::SeqCst);
-    let failure: Result<&str, &str> = complete_capture_action(
-        || Err("not saved"),
-        || restored.store(true, Ordering::SeqCst),
-    );
-    assert_eq!(failure, Err("not saved"));
-    assert!(!restored.load(Ordering::SeqCst));
-}
-
-#[test]
 fn desktop_exit_still_terminates_when_explicit_cleanup_reports_an_error() {
     let exited = Arc::new(AtomicBool::new(false));
     let exit_observer = Arc::clone(&exited);
@@ -676,6 +660,47 @@ fn stale_hide_does_not_run_the_window_side_effect() {
     assert!(result.is_err());
     assert!(!hidden.load(Ordering::SeqCst));
     assert!(state.is_current_capture_request(current));
+}
+
+#[test]
+fn explicit_close_hides_even_when_the_capture_request_is_stale() {
+    let state = build_app_state(
+        Arc::new(SqliteStore::open_in_memory().unwrap()),
+        platform_services(
+            PlatformCapabilities::default(),
+            Arc::new(Mutex::new(Vec::new())),
+        ),
+    );
+    let stale = state.start_capture_request();
+    let current = state.start_capture_request();
+    let hidden = AtomicBool::new(false);
+
+    close_capture_window_for(&state, stale, || {
+        hidden.store(true, Ordering::SeqCst);
+        Ok(())
+    })
+    .unwrap();
+
+    assert!(hidden.load(Ordering::SeqCst));
+    assert!(state.is_current_capture_request(current));
+}
+
+#[test]
+fn capture_window_is_hidden_before_source_focus_is_restored() {
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    let hide_calls = Arc::clone(&calls);
+    let restore_calls = Arc::clone(&calls);
+
+    hide_then_restore_focus(
+        || {
+            hide_calls.lock().unwrap().push("hide");
+            Ok(())
+        },
+        || restore_calls.lock().unwrap().push("restore-focus"),
+    )
+    .unwrap();
+
+    assert_eq!(*calls.lock().unwrap(), ["hide", "restore-focus"]);
 }
 
 #[test]
