@@ -256,9 +256,9 @@ Physical-only follow-up: `pnpm tauri dev` plus Manual Capture, SQLite restart pe
 
 **Acceptance criteria:**
 
-- [ ] Every page has loading, empty, success, and recoverable error states.
-- [ ] Keyboard focus and semantic names are complete.
-- [ ] UI matches existing colors/component style where Windows behavior permits.
+- [x] Every page has loading, empty, success, and recoverable error states.
+- [x] Keyboard focus and semantic names are complete.
+- [x] UI matches existing colors/component style where Windows behavior permits.
 - [ ] Narrator, high contrast, minimum size, and text scaling have physical evidence.
 
 **Verification:** `pnpm check`, `pnpm test`, `pnpm build`, desktop contract tests, `pnpm tauri dev`, and the physical accessibility matrix.

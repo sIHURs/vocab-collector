@@ -13,6 +13,15 @@ class TrackingReviewBackend extends DemoBackend {
   }
 }
 
+class PendingLoadBackend extends DemoBackend {
+  release: (() => void) | undefined;
+
+  override async getToday() {
+    await new Promise<void>((resolve) => { this.release = resolve; });
+    return super.getToday();
+  }
+}
+
 class FlakyReviewRefreshBackend extends TrackingReviewBackend {
   reads = 0;
 
@@ -80,6 +89,40 @@ describe("Windows main presentation", () => {
     expect(screen.queryByText("Progress")).toBeNull();
   });
 
+  it("moves focus into the Manual Capture dialog and returns it when dismissed", async () => {
+    render(WindowsApp, { api: new DemoBackend(false) });
+    const trigger = (await screen.findAllByRole("button", { name: "Manual capture" }))[0];
+
+    await fireEvent.click(trigger);
+    expect(screen.getByLabelText("Word or phrase")).toHaveFocus();
+
+    await fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByRole("dialog", { name: "Manual capture" })).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
+
+  it("keeps keyboard focus inside Manual Capture", async () => {
+    render(WindowsApp, { api: new DemoBackend(false) });
+    await fireEvent.click((await screen.findAllByRole("button", { name: "Manual capture" }))[0]);
+    const close = screen.getByRole("button", { name: "Close manual capture" });
+    close.focus();
+
+    await fireEvent.keyDown(close, { key: "Tab", shiftKey: true });
+
+    expect(screen.getByRole("button", { name: "Cancel" })).toHaveFocus();
+  });
+
+  it("labels changing page content and loading state for assistive technology", async () => {
+    const api = new PendingLoadBackend(false);
+    render(WindowsApp, { api });
+
+    expect(await screen.findByRole("status")).toHaveTextContent("Loading your vocabulary");
+    api.release?.();
+    await screen.findByText("No captures yet");
+    const region = screen.getByRole("region", { name: "Today" });
+    expect(region).toHaveAttribute("aria-labelledby", "windows-page-title");
+  });
+
   it("saves repeat encounters, shows detail, and refreshes after Undo", async () => {
     render(WindowsApp, { api: new DemoBackend(false) });
     expect(await screen.findByText("No captures yet")).toBeVisible();
@@ -95,7 +138,7 @@ describe("Windows main presentation", () => {
     expect(screen.getAllByRole("button", { name: /lucid/i })).toHaveLength(1);
 
     await fireEvent.click(screen.getByRole("button", { name: /lucid/i }));
-    const detail = await screen.findByRole("dialog", { name: "Vocabulary detail" });
+    const detail = await screen.findByRole("dialog", { name: "Lucid" });
     expect(within(detail).getByText("The explanation was lucid.")).toBeVisible();
     expect(within(detail).getByText("Her second example was lucid too.")).toBeVisible();
 
@@ -138,7 +181,7 @@ describe("Windows main presentation", () => {
     await screen.findByText("No captures yet");
 
     await saveManualCapture("durable", "The local record should be durable.");
-    const dialog = screen.getByRole("dialog", { name: "Manual capture" });
+    const dialog = screen.getByRole("dialog", { name: "Save a reading context" });
     expect(within(dialog).getByRole("alert")).toHaveTextContent("Could not save locally");
     expect(within(dialog).getByLabelText("Word or phrase")).toHaveValue("durable");
 

@@ -1,12 +1,12 @@
 <script lang="ts">
   import type { WordListItem } from "../lib/types";
   export let word: WordListItem;
-  export let onSelect: (wordId: string) => void;
+  export let onSelect: (wordId: string, trigger: HTMLButtonElement) => void;
   const encounters = (count: number) => `${count} encounter${count === 1 ? "" : "s"}`;
   const lastSeen = (value: string) => new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(value));
 </script>
 
-<button class="word-row" aria-label={`${word.displayForm}, ${encounters(word.encounterCount)}`} onclick={() => onSelect(word.id)}>
+<button class="word-row" aria-label={`${word.displayForm}, ${encounters(word.encounterCount)}`} onclick={(event) => onSelect(word.id, event.currentTarget)}>
   <span class="glyph">{word.displayForm.slice(0, 1).toUpperCase()}</span>
   <span class="word"><strong>{word.displayForm}</strong><small>{word.translation ?? "No translation"}</small></span>
   <span class="status">{word.status}</span>

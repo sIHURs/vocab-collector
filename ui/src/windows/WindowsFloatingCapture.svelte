@@ -25,6 +25,17 @@
   let ocrEligibleFailure = false;
   let ocrCandidates: OcrCandidate[] = [];
   let selectedOcrIndex = 0;
+  let ocrBusy = false;
+  let ocrAttempted = false;
+
+  function resetOcrState() {
+    ocrOffer = false;
+    ocrEligibleFailure = false;
+    ocrNeedsConfirmation = false;
+    ocrCandidates = [];
+    ocrBusy = false;
+    ocrAttempted = false;
+  }
 
   function clearDismissTimer() {
     if (dismissTimer) clearTimeout(dismissTimer);
@@ -100,6 +111,23 @@
     ocrNeedsConfirmation = false;
   }
 
+  async function startOcr() {
+    if (!activeRequest || ocrBusy) return;
+    const requestId = activeRequest;
+    ocrBusy = true;
+    ocrAttempted = true;
+    error = "";
+    try {
+      await captureBackend.startOcr(requestId);
+    } catch (cause) {
+      if (!mounted || requestId !== activeRequest) return;
+      error = cause instanceof Error ? cause.message : String(cause);
+      ocrOffer = true;
+    } finally {
+      if (mounted && requestId === activeRequest) ocrBusy = false;
+    }
+  }
+
   function chooseOcrCandidate(index: number) {
     selectedOcrIndex = index;
     const selected = ocrCandidates[index];
@@ -146,10 +174,7 @@
       saved = null;
       error = "";
       editing = false;
-      ocrOffer = false;
-      ocrEligibleFailure = false;
-      ocrNeedsConfirmation = false;
-      ocrCandidates = [];
+      resetOcrState();
     });
     void captureBackend.getCapabilities().then((capabilities) => {
       if (mounted) {
@@ -166,6 +191,8 @@
       ocrOffer = ocrAvailable && ocrEligibleFailure;
       ocrNeedsConfirmation = false;
       ocrCandidates = [];
+      ocrBusy = false;
+      ocrAttempted = false;
     });
     const ocr = captureBackend.listenOcrCandidate((event) => {
       if (event.requestId !== activeRequest) return;
@@ -191,7 +218,7 @@
 
 <main class="windows-capture" data-presentation="windows-capture" aria-label="Capture" onmouseenter={clearDismissTimer} onmouseleave={() => scheduleDismiss()} onfocusin={clearDismissTimer} onfocusout={() => scheduleDismiss()}>
   <header><span><i aria-hidden="true"></i>Vocab Collector</span><button aria-label="Cancel capture" onclick={cancel}>×</button></header>
-  <section aria-live="polite">
+  <section aria-live="polite" aria-busy={busy || ocrBusy}>
     {#if saved}
       <small>Saved</small>
       <h1>{saved.displayForm}</h1>
@@ -229,7 +256,7 @@
       {/if}
     {:else if ocrOffer}
       <p role="alert">{error}</p>
-      <button class="primary" onclick={() => captureBackend.startOcr(activeRequest)}>Use OCR near pointer</button>
+      <button class="primary" disabled={ocrBusy} onclick={startOcr}>{ocrBusy ? "Starting OCR..." : ocrAttempted ? "Retry OCR near pointer" : "Use OCR near pointer"}</button>
       <button class="secondary" onclick={cancel}>Cancel</button>
     {:else}
       <p>{error || "Ready to capture selected text."}</p>
@@ -259,4 +286,8 @@
   .candidate-list { display: grid; gap: 4px; max-height: 100px; margin: 6px 0 10px; overflow: auto; outline: none; }
   .candidate-list button { padding: 6px 8px; border-radius: 5px; text-align: left; }
   .candidate-list button[aria-selected="true"] { background: #6676e8; color: white; }
+  button:focus-visible, input:focus-visible, textarea:focus-visible, .candidate-list:focus-visible { outline: 2px solid #aab3ff; outline-offset: 2px; }
+  @media (forced-colors: active) { .windows-capture { border-color: CanvasText; color: CanvasText; background: Canvas; box-shadow: none; } p, small, label, header { color: CanvasText; } .primary, .secondary, input, textarea, .candidate-list button { border: 1px solid ButtonText; color: ButtonText; background: ButtonFace; } .candidate-list button[aria-selected="true"] { color: HighlightText; background: Highlight; } }
+  @media (prefers-reduced-motion: reduce) { .windows-capture, .windows-capture * { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
+  @media (max-width: 320px), (min-resolution: 1.5dppx) and (max-width: 520px) { .windows-capture { overflow: auto; font-size: 1rem; } section { min-height: 0; padding-top: .75rem; } h1 { overflow-wrap: anywhere; font-size: 1.5rem; } .primary, .secondary { min-height: 2.5rem; } }
 </style>

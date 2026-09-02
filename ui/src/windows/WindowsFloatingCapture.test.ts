@@ -112,6 +112,18 @@ describe("Windows floating capture presentation", () => {
     expect(await screen.findByRole("button", { name: "Use OCR near pointer" })).toBeVisible();
   });
 
+  it("announces OCR progress and keeps the fallback recoverable when OCR fails", async () => {
+    mocks.startOcr.mockRejectedValueOnce(new Error("OCR could not start"));
+    render(WindowsFloatingCapture, { captureBackend });
+    await waitFor(() => expect(mocks.error).toBeTypeOf("function"));
+    mocks.error?.({ requestId: "ocr-retry", failure: { code: "empty_selection", message: "No selection" } });
+
+    await fireEvent.click(await screen.findByRole("button", { name: "Use OCR near pointer" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("OCR could not start");
+    expect(screen.getByRole("button", { name: "Retry OCR near pointer" })).toBeEnabled();
+  });
+
   it("corrects text and context, adds an optional translation, saves once, and undoes by request", async () => {
     render(WindowsFloatingCapture, { captureBackend });
     await waitFor(() => expect(mocks.ready).toBeTypeOf("function"));

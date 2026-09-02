@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import { createBackend, type Backend } from "../lib/backend";
   import type { CaptureCard, ReviewCard, ReviewRating, Settings, SystemSettingsStatus, TodayView, WordDetail, WordListItem } from "../lib/types";
   import WindowsWordRow from "./WindowsWordRow.svelte";
@@ -34,6 +34,11 @@
   let settingsSaved = false;
   let initialLoadComplete = false;
   let systemStatus: SystemSettingsStatus = {};
+  let captureTrigger: HTMLElement | null = null;
+  let captureFirstField: HTMLInputElement;
+  let captureDialog: HTMLElement;
+  let detailTrigger: HTMLElement | null = null;
+  let detailCloseButton: HTMLButtonElement;
 
   $: filteredWords = words.filter((word) => `${word.displayForm} ${word.translation ?? ""}`.toLowerCase().includes(search.trim().toLowerCase()));
   $: activeReview = today?.reviewQueue[reviewIndex] as ReviewCard | undefined;
@@ -55,11 +60,45 @@
     return false;
   }
 
-  function openCapture() {
+  async function openCapture(event?: MouseEvent) {
+    captureTrigger = event?.currentTarget instanceof HTMLElement ? event.currentTarget : document.activeElement instanceof HTMLElement ? document.activeElement : null;
     captureInput = { selectedText: "", translation: "", sentence: "" };
     captureError = "";
     savedCard = null;
     captureOpen = true;
+    await tick();
+    captureFirstField?.focus();
+  }
+
+  function closeCapture() {
+    captureOpen = false;
+    void tick().then(() => captureTrigger?.focus());
+  }
+
+  function trapDialogFocus(event: KeyboardEvent) {
+    if (event.key !== "Tab") return;
+    const focusable = [...captureDialog.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), [tabindex]:not([tabindex="-1"])')];
+    const first = focusable[0];
+    const last = focusable.at(-1);
+    if (!first || !last) return;
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
+  function handleWindowKeydown(event: KeyboardEvent) {
+    if (event.key !== "Escape") return;
+    if (captureOpen) {
+      event.preventDefault();
+      void closeCapture();
+    } else if (selectedDetail) {
+      event.preventDefault();
+      void closeDetail();
+    }
   }
 
   async function saveCapture() {
@@ -68,17 +107,28 @@
     captureError = "";
     try {
       savedCard = await api.capture({ ...captureInput, translation: captureInput.translation.trim() || undefined, captureOrigin: "manual" });
-      captureOpen = false;
+      closeCapture();
       await refresh();
       reviewComplete = false;
     } catch (cause) { captureError = cause instanceof Error ? cause.message : String(cause); }
     finally { saving = false; }
   }
 
-  async function showDetail(wordId: string) {
+  async function showDetail(wordId: string, trigger: HTMLButtonElement) {
     error = "";
-    try { selectedDetail = await api.getWord(wordId); }
+    detailTrigger = trigger;
+    try {
+      selectedDetail = await api.getWord(wordId);
+      await tick();
+      detailCloseButton?.focus();
+    }
     catch (cause) { error = cause instanceof Error ? cause.message : String(cause); }
+  }
+
+  async function closeDetail() {
+    selectedDetail = null;
+    await tick();
+    detailTrigger?.focus();
   }
 
   async function undoSaved() {
@@ -184,6 +234,8 @@
   onMount(refresh);
 </script>
 
+<svelte:window onkeydown={handleWindowKeydown} />
+
 <div class="windows-presentation" data-settings-ready={initialLoadComplete} data-appearance={appliedSettings?.appearance ?? "system"} data-reduced-motion={appliedSettings?.reducedMotion ?? false}>
 <div class="windows-shell" data-presentation="windows-main" data-appearance={appliedSettings?.appearance ?? "system"} data-reduced-motion={appliedSettings?.reducedMotion ?? false}>
   <aside>
@@ -192,11 +244,11 @@
     <div class="local-status"><i aria-hidden="true"></i><span>Local mode</span></div>
   </aside>
   <main>
-    <header><div><h1>{route}</h1><p>{route === "Today" ? "Your words, ready when you are" : "Vocab Collector for Windows"}</p></div><button class="primary" onclick={openCapture}>Manual capture</button></header>
-    <section aria-label={`${route} content`}>
+    <header><div><h1 id="windows-page-title">{route}</h1><p>{route === "Today" ? "Your words, ready when you are" : "Vocab Collector for Windows"}</p></div><button class="primary" onclick={openCapture}>Manual capture</button></header>
+    <section aria-labelledby="windows-page-title" aria-busy={loading}>
       {#if error}<div class="error" role="alert"><span>{error}</span><button onclick={retryError}>Try again</button></div>{/if}
       {#if loading}
-        <div class="state" aria-live="polite">Loading your vocabulary...</div>
+        <div class="state" role="status">Loading your vocabulary...</div>
       {:else if route === "Today"}
         <div class="summary"><div><span>Due today</span><strong>{today?.dueCount ?? 0}</strong><small>{today?.dueCount ? `About ${today?.estimatedMinutes ?? 0} minute${today?.estimatedMinutes === 1 ? "" : "s"}` : "Review queue is clear"}</small>{#if today?.dueCount}<button class="primary" onclick={startReview}>Start review ({today.dueCount})</button>{/if}</div><div><span>Recent captures</span><strong>{today?.recentCaptures.length ?? 0}</strong><small>Stored locally</small></div></div>
         <div class="section-heading"><h2>Recent captures</h2><p>New contexts appear here immediately after saving.</p></div>
@@ -248,11 +300,11 @@
   </main>
 </div>
 
-{#if captureOpen}<div class="backdrop"><div class="dialog" role="dialog" aria-modal="true" aria-label="Manual capture"><form onsubmit={(event) => { event.preventDefault(); saveCapture(); }}><div class="dialog-heading"><div><span class="eyebrow">Manual Capture</span><h2>Save a reading context</h2></div><button type="button" class="icon" aria-label="Close manual capture" onclick={() => (captureOpen = false)}>×</button></div>{#if captureError}<div class="dialog-error" role="alert">{captureError}</div>{/if}<label>Word or phrase<input bind:value={captureInput.selectedText} /></label><label>Translation <small>Optional</small><input bind:value={captureInput.translation} /></label><label>Context<textarea bind:value={captureInput.sentence}></textarea></label><div class="actions"><button type="button" class="secondary" onclick={() => (captureOpen = false)}>Cancel</button><button class="primary" disabled={saving || !captureInput.selectedText.trim() || !captureInput.sentence.trim()}>{saving ? "Saving..." : "Save capture"}</button></div></form></div></div>{/if}
+{#if captureOpen}<div class="backdrop"><div bind:this={captureDialog} class="dialog" role="dialog" tabindex="-1" aria-modal="true" aria-labelledby="manual-capture-title" onkeydown={trapDialogFocus}><form onsubmit={(event) => { event.preventDefault(); saveCapture(); }}><div class="dialog-heading"><div><span class="eyebrow">Manual Capture</span><h2 id="manual-capture-title">Save a reading context</h2></div><button type="button" class="icon" aria-label="Close manual capture" onclick={closeCapture}>×</button></div>{#if captureError}<div class="dialog-error" role="alert">{captureError}</div>{/if}<label>Word or phrase<input bind:this={captureFirstField} bind:value={captureInput.selectedText} /></label><label>Translation <small>Optional</small><input bind:value={captureInput.translation} /></label><label>Context<textarea bind:value={captureInput.sentence}></textarea></label><div class="actions"><button type="button" class="secondary" onclick={closeCapture}>Cancel</button><button class="primary" disabled={saving || !captureInput.selectedText.trim() || !captureInput.sentence.trim()}>{saving ? "Saving..." : "Save capture"}</button></div></form></div></div>{/if}
 
 {#if savedCard}<div class="toast" role="dialog" aria-label="Capture saved"><span class="saved-mark" aria-hidden="true">✓</span><div><strong>{savedCard.displayForm}</strong><span>{encounterLabel(savedCard.encounterCount)}</span></div><button onclick={undoSaved}>Undo</button><button class="icon" aria-label="Dismiss saved capture" onclick={() => (savedCard = null)}>×</button></div>{/if}
 
-{#if selectedDetail}<div class="drawer" role="dialog" aria-label="Vocabulary detail"><button class="icon close" aria-label="Close vocabulary detail" onclick={() => (selectedDetail = null)}>×</button><span class="eyebrow">Vocabulary detail</span><h2>{selectedDetail.item.displayForm}</h2><strong class="translation">{selectedDetail.item.translation ?? "No translation"}</strong><span class="count">{selectedDetail.item.status} · {encounterLabel(selectedDetail.item.encounterCount)}</span><div class="timeline"><h3>Contexts</h3>{#each selectedDetail.encounters as encounter}<article><p>{encounter.sentence}</p><small>{[encounter.sourceApp, encounter.sourceTitle, encounter.sourceUrl].filter(Boolean).join(" · ") || "Manual entry"}</small></article>{/each}</div></div>{/if}
+{#if selectedDetail}<div class="drawer" role="dialog" aria-modal="true" aria-labelledby="vocabulary-detail-title"><button bind:this={detailCloseButton} class="icon close" aria-label="Close vocabulary detail" onclick={closeDetail}>×</button><span class="eyebrow">Vocabulary detail</span><h2 id="vocabulary-detail-title">{selectedDetail.item.displayForm}</h2><strong class="translation">{selectedDetail.item.translation ?? "No translation"}</strong><span class="count">{selectedDetail.item.status} · {encounterLabel(selectedDetail.item.encounterCount)}</span><div class="timeline"><h3>Contexts</h3>{#each selectedDetail.encounters as encounter}<article><p>{encounter.sentence}</p><small>{[encounter.sourceApp, encounter.sourceTitle, encounter.sourceUrl].filter(Boolean).join(" · ") || "Manual entry"}</small></article>{/each}</div></div>{/if}
 </div>
 
 <style>
@@ -285,5 +337,7 @@
   .drawer { position: fixed; z-index: 25; top: 0; right: 0; width: min(400px, 100vw); height: 100vh; overflow: auto; padding: 62px 24px 24px; border-left: 1px solid var(--line); color: var(--text); background: var(--surface); box-shadow: -20px 0 60px rgba(0,0,0,.38); }.close { position: absolute; top: 18px; right: 18px; }.drawer h2 { margin: 7px 0 5px; font-size: 27px; }.translation { display: block; color: #7a86e8; }.count { display: block; margin-top: 10px; color: var(--muted); font-size: 11px; }.timeline { margin-top: 28px; }.timeline h3 { color: var(--muted); font-size: 11px; text-transform: uppercase; }.timeline article { margin-top: 12px; padding: 12px; border-left: 2px solid #7584ef; background: var(--surface-raised); }.timeline article p { line-height: 1.5; }.timeline article small { display: block; margin-top: 7px; color: var(--muted); }
   @media (prefers-color-scheme: light) { .windows-presentation[data-appearance="system"] { --page: #f5f6fa; --sidebar: #eceef4; --surface: #fff; --surface-raised: #f1f2f7; --field: #fff; --text: #20212a; --muted: #606474; --line: #d6d9e2; } }
   @media (prefers-reduced-motion: reduce) { .windows-presentation, .windows-presentation * { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
-  @media (max-width: 760px) { .windows-shell { grid-template-columns: 170px minmax(0,1fr); } header, section { padding-left: 18px; padding-right: 18px; }.summary, .settings-grid { grid-template-columns: 1fr; } }
+  @media (forced-colors: active) { .windows-presentation { --page: Canvas; --sidebar: Canvas; --surface: Canvas; --surface-raised: Canvas; --field: Field; --text: CanvasText; --muted: CanvasText; --line: CanvasText; } .primary, .secondary, :global(.word-row), .dialog, .drawer, .toast { border: 1px solid ButtonText; } }
+  @media (max-width: 760px), (min-resolution: 1.5dppx) and (max-width: 1100px) { .windows-shell { grid-template-columns: 10rem minmax(0,1fr); } header, section { height: auto; min-height: 5.4rem; padding-left: 1.125rem; padding-right: 1.125rem; }.summary, .settings-grid { grid-template-columns: 1fr; } }
+  @media (max-width: 560px) { .windows-shell { display: block; } aside { position: static; } nav { grid-template-columns: repeat(2, minmax(0, 1fr)); } .local-status { margin-top: 0; } header { align-items: flex-start; gap: 1rem; padding-top: 1rem; padding-bottom: 1rem; } section { min-height: auto; } .tools { align-items: stretch; flex-direction: column; gap: .75rem; } .tools input { width: 100%; } .toast { right: 1rem; bottom: 1rem; left: 1rem; min-width: 0; } }
 </style>

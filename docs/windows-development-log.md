@@ -793,3 +793,57 @@ TDD seams agreed before implementation:
 ### Next ticket starting point
 
 W-09 remains open at its physical evidence gate. First run the focus/taskbar and mixed-monitor matrix and enable `non_activating_window` only if it passes. W-10 then starts from the explicit Edit/focus seam and the existing shared request coordinator; it should add correction, optional manual translation, save-without-translation, save-once, Undo, and dismissal without moving those rules into the Windows adapter.
+
+## 2026-09-02 - W-13 Windows UI states and accessibility
+
+### Implementation
+
+- Completed the Windows main and floating-capture accessibility presentation with named page regions, announced busy/loading states, explicit OCR progress, and a recoverable OCR-start failure with Retry.
+- Added keyboard focus entry, containment, Escape dismissal, and trigger-focus restoration for Manual Capture. Successful saves use the same focus-restoring close path.
+- Made Vocabulary detail a labelled modal surface that receives focus and returns it to the invoking word row when closed.
+- Added Windows forced-colors styling, system reduced-motion handling for the floating capture, and responsive reflow/overflow rules for narrow windows and enlarged text.
+- Preserved the existing Today, Vocabulary, Review, Settings, Manual Capture, Native Capture, and OCR Confirmation loading, empty, success, and recoverable-error flows.
+
+### Key decisions
+
+- All changes remain in the Windows Svelte presentation and its tests. No Windows API, OS conditional, accessibility policy, or presentation type was added to the shared application, domain, storage, capture, or platform contracts.
+- Dialogs use visible headings as accessible names. Focus moves only after an explicit user action, consistent with the existing non-activating native-capture boundary.
+- Forced-colors mode yields authored foreground/background colors to Windows system color keywords; it does not disable system color adjustment.
+- Text scaling is handled by rem-based responsive layout, wrapping, reflow, and scroll containment. Automated checks prove markup and build behavior only; they do not replace physical Windows accessibility evidence.
+- TDD was limited to the existing public DOM/interaction seam for focus behavior, announced loading state, and recoverable OCR startup.
+
+### Main files changed
+
+- `ui/src/windows/WindowsApp.svelte`
+- `ui/src/windows/WindowsApp.test.ts`
+- `ui/src/windows/WindowsFloatingCapture.svelte`
+- `ui/src/windows/WindowsFloatingCapture.test.ts`
+- `ui/src/windows/WindowsWordRow.svelte`
+- `docs/windows-platform-tickets.md`
+- `docs/windows-development-log.md`
+
+No shared application or Windows-native adapter file changed.
+
+### Tests and results
+
+| Command | Result | Evidence |
+|---|---|---|
+| `pnpm --dir ui exec vitest run src/windows/WindowsApp.test.ts src/windows/WindowsFloatingCapture.test.ts` | PASS | **Verified automated:** 30 focused Windows presentation tests passed after the review fixes |
+| `pnpm check` | PASS | **Verified automated:** 0 errors and 0 warnings; the initial restricted-sandbox attempt was blocked by `spawn EPERM`, then the command passed with normal process execution |
+| `pnpm test` | PASS | **Verified automated:** 57 tests passed across 7 files on the final W-13 diff |
+| `pnpm build` | PASS | **Verified automated:** Vite production build completed with 127 modules transformed |
+| `cargo test -p vocab-desktop --test command_contract` | PASS | **Verified automated:** 27 tests passed |
+| `pnpm tauri dev` | Not run | Physical interactive runtime check; the current execution context was not independently established as a Windows 11 x64 physical test setup |
+| Narrator, high contrast, minimum-size, and text-scaling matrix | Not run | Requires interactive Windows 11 x64 physical-device observation |
+
+### Not yet verified
+
+- **Not run:** Narrator reading order, dialog announcements, live-region output, OCR listbox interaction, and accessible names across Today, Vocabulary, Review, Settings, Manual Capture, Native Capture, and OCR Confirmation on a Windows 11 x64 physical machine.
+- **Not run:** Windows High Contrast themes with all interactive states, including focus, disabled, selected, error, success, and forced-color boundaries.
+- **Not run:** minimum supported main/capture window sizes and Windows text scaling at 100%, 125%, 150%, 175%, and 200%, including keyboard-only scrolling and no clipped actions.
+- **Not run:** `pnpm tauri dev` keyboard and visual smoke check. No Windows runtime behavior is marked verified by this ticket.
+- Existing W-06 through W-12 physical gates remain unchanged; this ticket does not enable any native capability flag.
+
+### Next ticket starting point
+
+W-13 remains open at its physical accessibility gate. Run `pnpm tauri dev` on a confirmed Windows 11 x64 physical machine and complete the Narrator, High Contrast, minimum-size, and text-scaling matrix before treating W-13 as physically complete. W-14 then starts from the existing UIA/OCR compatibility evidence and must decide clipboard fallback from physical application-matrix results; it must not infer that decision from these presentation changes.
