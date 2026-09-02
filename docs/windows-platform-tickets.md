@@ -238,9 +238,9 @@ Physical-only follow-up: `pnpm tauri dev` plus Manual Capture, SQLite restart pe
 
 **Acceptance criteria:**
 
-- [ ] Dominant candidates use single confirmation; close candidates use an accessible list.
-- [ ] Candidate correction and cancellation preserve request safety.
-- [ ] Ranking uses portable geometry fixtures independent from OCR implementation.
+- [x] Dominant candidates use single confirmation; close candidates use an accessible list.
+- [x] Candidate correction and cancellation preserve request safety.
+- [x] Ranking uses portable geometry fixtures independent from OCR implementation.
 
 **Verification:** capture ranking tests, application/desktop contract tests, frontend keyboard tests, and physical ambiguous OCR cases.
 

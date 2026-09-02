@@ -77,6 +77,17 @@ impl CaptureCoordinator {
         Ok(result)
     }
 
+    pub fn dismiss_and_publish<T>(
+        &self,
+        request_id: Uuid,
+        publish: impl FnOnce() -> T,
+    ) -> Result<T, CoordinatorError> {
+        let mut guard = self.current(request_id)?;
+        let result = publish();
+        *guard = None;
+        Ok(result)
+    }
+
     pub fn translation(
         &self,
         request_id: Uuid,

@@ -21,7 +21,10 @@ use vocab_desktop_lib::{
         undo_native_capture,
     },
     commands::presentation::get_presentation_family,
-    events::{CaptureFailure, CaptureFailureCode, NativeCaptureError, NativeCaptureErrorEvent},
+    events::{
+        CaptureFailure, CaptureFailureCode, NativeCaptureError, NativeCaptureErrorEvent,
+        OcrCandidatesEvent,
+    },
     lifecycle::{open_main_window, terminate_session},
     system_settings::{
         ReviewSchedule, SettingsEffects, SystemSettingsStatus, apply_settings_transaction,
@@ -505,6 +508,32 @@ fn native_capture_error_serializes_the_exact_frontend_event_contract() {
             "requestId": "018f5d2e-6f53-7cc4-a6da-bf11a2f9c221",
             "code": "empty_selection",
             "message": "selection is empty",
+        })
+    );
+}
+
+#[test]
+fn ambiguous_ocr_event_exposes_only_portable_ranked_candidates() {
+    let event = OcrCandidatesEvent {
+        request_id: uuid::Uuid::parse_str("018f5d2e-6f53-7cc4-a6da-bf11a2f9c221").unwrap(),
+        candidates: vec![OcrCandidate {
+            text: "heterogeneous".into(),
+            bounds: ScreenRect::new(-20.0, 40.0, 96.0, 18.0),
+            confidence: 0.91,
+        }],
+        ambiguous: true,
+    };
+
+    assert_eq!(
+        serde_json::to_value(event).unwrap(),
+        serde_json::json!({
+            "requestId": "018f5d2e-6f53-7cc4-a6da-bf11a2f9c221",
+            "candidates": [{
+                "text": "heterogeneous",
+                "bounds": { "x": -20.0, "y": 40.0, "width": 96.0, "height": 18.0 },
+                "confidence": 0.91_f32,
+            }],
+            "ambiguous": true,
         })
     );
 }

@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/svelte";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import WindowsFloatingCapture from "./WindowsFloatingCapture.svelte";
-import type { CaptureReady, WindowsCaptureBackend } from "./captureBackend";
+import type { CaptureReady, OcrCandidatesReady, WindowsCaptureBackend } from "./captureBackend";
 
 const mocks = {
   focus: vi.fn(async () => {}),
@@ -9,7 +9,12 @@ const mocks = {
   hide: vi.fn(async (_requestId: string) => {}),
   save: vi.fn(async () => ({ wordId: "word-1", encounterId: "encounter-1", displayForm: "nuance", context: "A useful nuance.", encounterCount: 1, isExistingWord: false })),
   undo: vi.fn(async (_requestId: string, _encounterId: string) => {}),
+  startOcr: vi.fn(async (_requestId: string) => {}),
+  confirmOcr: vi.fn(async (_requestId: string, _candidateIndex: number) => {}),
+  getCapabilities: vi.fn(async () => ({ selectionCapture: false, selectionBounds: false, screenshotOcr: true, translation: false, nonActivatingWindow: false })),
   ready: undefined as ((event: CaptureReady) => void) | undefined,
+  error: undefined as ((event: { requestId: string; failure: { code: "empty_selection" | "unsupported_element" | "operation"; message: string } }) => void) | undefined,
+  ocr: undefined as ((event: OcrCandidatesReady) => void) | undefined,
 };
 
 const captureBackend: WindowsCaptureBackend = {
@@ -19,6 +24,11 @@ const captureBackend: WindowsCaptureBackend = {
   hide: mocks.hide,
   save: mocks.save,
   undo: mocks.undo,
+  startOcr: mocks.startOcr,
+  confirmOcr: mocks.confirmOcr,
+  getCapabilities: mocks.getCapabilities,
+  listenError: async (handler) => { mocks.error = handler; return () => { mocks.error = undefined; }; },
+  listenOcrCandidate: async (handler) => { mocks.ocr = handler; return () => { mocks.ocr = undefined; }; },
 };
 
 describe("Windows floating capture presentation", () => {
@@ -28,7 +38,78 @@ describe("Windows floating capture presentation", () => {
     mocks.hide.mockClear();
     mocks.save.mockClear();
     mocks.undo.mockClear();
+    mocks.startOcr.mockClear();
+    mocks.confirmOcr.mockClear();
+    mocks.getCapabilities.mockClear();
     mocks.ready = undefined;
+    mocks.error = undefined;
+    mocks.ocr = undefined;
+  });
+
+  it("requires explicit confirmation before an OCR candidate can enter the save flow", async () => {
+    render(WindowsFloatingCapture, { captureBackend });
+    await waitFor(() => expect(mocks.error).toBeTypeOf("function"));
+    await waitFor(() => expect(mocks.getCapabilities).toHaveBeenCalled());
+    mocks.error?.({ requestId: "ocr-request", failure: { code: "empty_selection", message: "No selection" } });
+
+    await fireEvent.click(await screen.findByRole("button", { name: "Use OCR near pointer" }));
+    expect(mocks.startOcr).toHaveBeenCalledWith("ocr-request");
+    const suggestion = { text: "serendipity", bounds: { x: 1, y: 2, width: 30, height: 12 }, confidence: 0.91 };
+    mocks.ocr?.({ requestId: "ocr-request", candidates: [suggestion], ambiguous: false });
+    expect(screen.queryByRole("button", { name: "Save without translation" })).not.toBeInTheDocument();
+
+    await fireEvent.click(await screen.findByRole("button", { name: "Confirm OCR candidate" }));
+    expect(mocks.confirmOcr).toHaveBeenCalledWith("ocr-request", 0);
+    expect(await screen.findByRole("button", { name: "Save without translation" })).toBeVisible();
+  });
+
+  it("cancels OCR confirmation without saving", async () => {
+    render(WindowsFloatingCapture, { captureBackend });
+    await waitFor(() => expect(mocks.ocr).toBeTypeOf("function"));
+    mocks.error?.({ requestId: "ocr-cancel", failure: { code: "empty_selection", message: "No selection" } });
+    mocks.ocr?.({ requestId: "ocr-cancel", candidates: [{ text: "candidate", bounds: { x: 1, y: 2, width: 30, height: 12 }, confidence: 0.8 }], ambiguous: false });
+
+    await fireEvent.click(await screen.findByRole("button", { name: "Cancel OCR" }));
+
+    expect(mocks.hide).toHaveBeenCalledWith("ocr-cancel");
+    expect(mocks.save).not.toHaveBeenCalled();
+  });
+
+  it("offers close OCR candidates as a keyboard-selectable accessible list", async () => {
+    render(WindowsFloatingCapture, { captureBackend });
+    await waitFor(() => expect(mocks.ocr).toBeTypeOf("function"));
+    const candidates = [
+      { text: "architecture", bounds: { x: 10, y: 10, width: 80, height: 16 }, confidence: 0.89 },
+      { text: "heterogeneous", bounds: { x: 12, y: 30, width: 95, height: 16 }, confidence: 0.87 },
+    ];
+
+    mocks.error?.({ requestId: "ocr-ambiguous", failure: { code: "unsupported_element", message: "Unsupported" } });
+    mocks.ocr?.({ requestId: "ocr-ambiguous", candidates, ambiguous: true });
+
+    const list = await screen.findByRole("listbox", { name: "OCR candidates" });
+    expect(list).toBeVisible();
+    expect(list).toHaveAttribute("aria-activedescendant", "ocr-candidate-0");
+    expect(screen.getByRole("option", { name: "architecture" })).toHaveAttribute("aria-selected", "true");
+    await fireEvent.keyDown(list, { key: "ArrowDown" });
+    expect(screen.getByRole("option", { name: "heterogeneous" })).toHaveAttribute("aria-selected", "true");
+    expect(list).toHaveAttribute("aria-activedescendant", "ocr-candidate-1");
+    await fireEvent.keyDown(list, { key: "Enter" });
+
+    expect(mocks.confirmOcr).toHaveBeenCalledWith("ocr-ambiguous", 1);
+    expect(await screen.findByRole("button", { name: "Save without translation" })).toBeVisible();
+  });
+
+  it("offers OCR after capabilities resolve when the eligible failure arrived first", async () => {
+    let resolveCapabilities: ((value: Awaited<ReturnType<WindowsCaptureBackend["getCapabilities"]>>) => void) | undefined;
+    mocks.getCapabilities.mockImplementationOnce(() => new Promise((resolve) => { resolveCapabilities = resolve; }));
+    render(WindowsFloatingCapture, { captureBackend });
+    await waitFor(() => expect(mocks.error).toBeTypeOf("function"));
+
+    mocks.error?.({ requestId: "capability-race", failure: { code: "empty_selection", message: "No selection" } });
+    expect(screen.queryByRole("button", { name: "Use OCR near pointer" })).not.toBeInTheDocument();
+    resolveCapabilities?.({ selectionCapture: false, selectionBounds: false, screenshotOcr: true, translation: false, nonActivatingWindow: false });
+
+    expect(await screen.findByRole("button", { name: "Use OCR near pointer" })).toBeVisible();
   });
 
   it("corrects text and context, adds an optional translation, saves once, and undoes by request", async () => {

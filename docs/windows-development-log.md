@@ -2,6 +2,66 @@
 
 This log records implementation evidence for `docs/windows-platform-tickets.md`. Evidence uses the status vocabulary defined in `docs/windows-platform-plan-v2.md`: **Verified automated**, **Verified Windows physical**, **Not run**, **Blocked**, and **Unsupported**.
 
+## 2026-09-02 - W-12 resolve ambiguous OCR candidates
+
+### Implementation
+
+- Added portable OCR candidate ranking in `vocab-capture`: pointer containment wins first, distance to the candidate rectangle second, and OCR confidence breaks equal-geometry ties.
+- Reduced each OCR result to either one dominant candidate or a ranked set of spatially close candidates before the desktop emits an OCR confirmation event.
+- Changed the desktop OCR flow so no candidate enters the shared application workflow until the user confirms the selected portable candidate under the current request ID.
+- Added a Windows OCR confirmation list with listbox/option semantics, Arrow Up/Arrow Down wraparound selection, Enter/Space confirmation, pointer selection, and the existing Escape/cancel path.
+- Retained the W-10 correction/manual-translation/save-once workflow after confirmation. No Windows-native type entered `crates/capture`, `crates/application`, or the frontend contract.
+
+### Key decisions
+
+- Ranking consumes only `OcrCandidate`, `ScreenPoint`, and `ScreenRect` from `platform-api`; Windows Graphics Capture and OCR remain provider details below this seam.
+- Ambiguity is a presentation decision over the ranked portable candidates. Candidates with the same containment class and rectangle distance within 12 logical units of the best candidate are offered together unless the best candidate leads the runner-up by at least 0.20 confidence; both thresholds are deliberately provisional pending physical OCR evidence.
+- Confidence never compensates for losing pointer containment or rectangle distance. It orders equal-geometry candidates and can establish dominance only inside the spatially close group.
+- The desktop emits only text, normalized bounds, confidence, ambiguity, and request ID. It does not emit or retain screenshot data in the UI.
+- The desktop retains the ranked portable candidate set under its request ID and the UI returns only a candidate index. Confirmation rejects stale requests and indices that were not in that emitted set before using the existing coordinator confirmation transition; correction, save, cancellation, and stale-result handling continue to use the same request ID.
+- TDD was limited to the portable ranking seam and Windows keyboard-confirmation seam because these contain W-12's core behavior and regression risk.
+- W-12 started from pre-existing uncommitted W-11 implementation changes in the working tree. Those prerequisite changes were preserved; W-12 did not broaden the native OCR implementation or enable an unverified capability.
+
+### Main files changed
+
+- `crates/capture/src/ocr_ranking.rs`, `crates/capture/src/lib.rs`, and `crates/capture/tests/ocr_ranking.rs`
+- `apps/desktop/src-tauri/src/bootstrap.rs`
+- `apps/desktop/src-tauri/src/commands/capture.rs`
+- `apps/desktop/src-tauri/src/events.rs`
+- `apps/desktop/src-tauri/tests/command_contract.rs`
+- `ui/src/windows/captureBackend.ts`
+- `ui/src/windows/WindowsFloatingCapture.svelte`
+- `ui/src/windows/WindowsFloatingCapture.test.ts`
+- `docs/windows-platform-tickets.md`
+- `docs/windows-development-log.md`
+
+### Tests and results
+
+| Command | Result | Evidence |
+|---|---|---|
+| `cargo fmt --all --check` | PASS | Verified automated; exit code 0 |
+| `cargo clippy --workspace --all-targets --exclude vocab-platform-macos --exclude vocab-platform-linux -- -D warnings` | PASS | Verified automated; no warnings |
+| `cargo test -p vocab-capture` | PASS | Verified automated; coordinator, six OCR ranking, placement, and shortcut fixtures passed |
+| `cargo test -p vocab-application --test platform_fakes` | PASS | Verified automated; 13 shared workflow tests passed, including explicit OCR confirmation and request safety |
+| `cargo test -p vocab-desktop --test command_contract` | PASS | Verified automated; 27 tests passed, including the portable ambiguous-candidate event contract |
+| `cargo test -p vocab-platform-windows` | PASS | Verified automated; 14 tests passed and one physical Notepad test remained ignored |
+| `cargo test --workspace --exclude vocab-platform-macos --exclude vocab-platform-linux` | PASS | Verified automated; full applicable Rust workspace passed |
+| `pnpm check` | PASS after sandbox-external rerun | Verified automated; 0 errors and 0 warnings. The managed-sandbox frontend runner is blocked by the known `esbuild spawn EPERM` restriction |
+| `pnpm test` | PASS after sandbox-external rerun | Verified automated; 7 files and 53 tests passed, including dominant confirmation, listbox semantics, Arrow-key selection, Enter confirmation, cancellation, capability/error ordering, and stale completion |
+| `pnpm build` | PASS after sandbox-external rerun | Verified automated; 127 modules transformed and the production bundle completed |
+
+### Not yet verified
+
+- **Not run:** physical ambiguous OCR cases, including whether the 12-logical-unit dominance threshold matches real Windows OCR geometry. This session is on Windows, but it has not been established as a Windows 11 x64 physical-machine test environment.
+- **Not run:** keyboard selection and focus restoration in a live WebView2 capture window over Notepad, browsers, Office, Terminal, and PDF readers.
+- **Not run:** Narrator announcement of the candidate list, high contrast, text scaling, and visual fit; comprehensive accessibility evidence remains owned by W-13.
+- **Not run:** real Windows Graphics Capture consent/cancellation, OCR accuracy, resource release, and persistence behavior from a live capture. These W-11 physical checks remain prerequisites for enabling `screenshot_ocr`.
+- The `screenshot_ocr` capability remains false because automated behavior alone is not physical evidence.
+
+### Next ticket starting point
+
+W-13 starts with a Windows-owned capture presentation that exposes dominant OCR confirmation and an accessible keyboard-selectable ambiguous-candidate list through portable contracts. It should complete page/capture loading, empty, success, and recoverable error states; keyboard focus; semantic names; Narrator; high contrast; theme; reduced motion; text scaling; and minimum-size behavior. It must not implement the W-14 clipboard decision or W-15 installer work early.
+
 ## 2026-09-01 - W-10 correct and save a Native Capture manually
 
 ### Implementation

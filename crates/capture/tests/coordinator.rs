@@ -241,6 +241,24 @@ fn candidate_transition_and_publication_use_the_same_current_request_guard() {
 }
 
 #[test]
+fn dismissal_invalidates_the_request_after_its_visible_side_effect() {
+    let coordinator = CaptureCoordinator::default();
+    let request = coordinator.start();
+    let hidden = AtomicBool::new(false);
+
+    coordinator
+        .dismiss_and_publish(request, || hidden.store(true, Ordering::SeqCst))
+        .unwrap();
+
+    assert!(hidden.load(Ordering::SeqCst));
+    assert!(!coordinator.is_current(request));
+    assert_eq!(
+        coordinator.set_candidate(request, candidate(CaptureOrigin::Ocr)),
+        Err(CoordinatorError::StaleRequest)
+    );
+}
+
+#[test]
 fn persistence_failure_rolls_back_so_the_user_can_retry() {
     let coordinator = CaptureCoordinator::default();
     let request = coordinator.start();

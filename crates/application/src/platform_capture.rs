@@ -62,6 +62,14 @@ impl PlatformCaptureWorkflow {
         Ok(self.coordinator.publish_if_current(request_id, publish)?)
     }
 
+    pub fn dismiss_and_publish<T>(
+        &self,
+        request_id: Uuid,
+        publish: impl FnOnce() -> T,
+    ) -> Result<T, PlatformCaptureError> {
+        Ok(self.coordinator.dismiss_and_publish(request_id, publish)?)
+    }
+
     pub fn set_candidate(
         &self,
         request_id: Uuid,

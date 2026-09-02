@@ -5,7 +5,7 @@ use tauri::PhysicalPosition;
 use tauri::{Emitter, Manager, State};
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
 use uuid::Uuid;
-use vocab_domain::{CaptureCard, CaptureOrigin, UserSettings};
+use vocab_domain::{CaptureCard, UserSettings};
 use vocab_platform_api::{
     CaptureCandidate, MonitorWorkArea, PermissionKind, PermissionStatus, PlatformCapabilities,
     ScreenPoint, ScreenSize, TranslationResult,
@@ -13,7 +13,7 @@ use vocab_platform_api::{
 
 use crate::{
     bootstrap::AppState,
-    events::{CaptureFailure, NativeCaptureError, NativeCaptureEvent},
+    events::{CaptureFailure, NativeCaptureError, NativeCaptureEvent, OcrCandidatesEvent},
 };
 
 pub fn present_capture_window(
@@ -126,14 +126,14 @@ pub async fn capture_with_ocr(
         pointer_and_primary_bounds(&app).map_err(CaptureFailure::operation)?;
     // Tauri reports a logical top-left desktop point. AppKit's OCR entry point consumes
     // Cocoa global coordinates, whose Y axis starts at the primary display's bottom edge.
-    let cocoa_pointer = portable_top_left_to_cocoa(portable_pointer, primary_bounds);
+    let ocr_pointer = ocr_pointer_for_target(portable_pointer, primary_bounds);
     state
         .publish_if_current(request_id, || {
             window.hide().map_err(|error| error.to_string())
         })
         .map_err(CaptureFailure::from)?
         .map_err(CaptureFailure::operation)?;
-    let candidates = state.recognize_near(cocoa_pointer).await;
+    let candidates = state.recognize_near(ocr_pointer).await;
     let candidates = match candidates {
         Ok(candidates) => candidates,
         Err(error) => {
@@ -146,10 +146,7 @@ pub async fn capture_with_ocr(
             return Err(error.into());
         }
     };
-    let Some(best) = candidates
-        .into_iter()
-        .max_by(|left, right| left.confidence.total_cmp(&right.confidence))
-    else {
+    let Some(resolution) = vocab_capture::rank_ocr_candidates(&candidates, portable_pointer) else {
         state
             .publish_if_current(request_id, || {
                 window.show().map_err(|error| error.to_string())
@@ -158,24 +155,21 @@ pub async fn capture_with_ocr(
             .map_err(CaptureFailure::operation)?;
         return Err(CaptureFailure::operation("OCR did not find readable text"));
     };
-    let candidate = CaptureCandidate {
-        selected_text: best.text.clone(),
-        sentence: best.text,
-        source_app: None,
-        source_title: None,
-        source_url: None,
-        selection_bounds: Some(best.bounds),
-        origin: CaptureOrigin::Ocr,
-    };
+    let ambiguous = matches!(
+        resolution,
+        vocab_capture::OcrCandidateResolution::Ambiguous(_)
+    );
+    let candidates = resolution.candidates().to_vec();
     state
-        .set_capture_candidate_and_publish(request_id, candidate.clone(), || {
+        .publish_ocr_candidates(request_id, candidates.clone(), || {
             window.show().map_err(|error| error.to_string())?;
             window
                 .emit(
                     "ocr-candidate",
-                    NativeCaptureEvent {
+                    OcrCandidatesEvent {
                         request_id,
-                        candidate,
+                        candidates,
+                        ambiguous,
                     },
                 )
                 .map_err(|error| error.to_string())
@@ -199,8 +193,14 @@ pub async fn translate_text(
 }
 
 #[tauri::command]
-pub fn confirm_ocr(state: State<'_, AppState>, request_id: Uuid) -> Result<(), CaptureFailure> {
-    state.confirm_ocr(request_id).map_err(CaptureFailure::from)
+pub fn confirm_ocr(
+    state: State<'_, AppState>,
+    request_id: Uuid,
+    candidate_index: usize,
+) -> Result<(), CaptureFailure> {
+    state
+        .confirm_ocr_candidate(request_id, candidate_index)
+        .map_err(CaptureFailure::from)
 }
 
 #[tauri::command]
@@ -252,7 +252,7 @@ pub fn hide_capture_window_for(
     hide: impl FnOnce() -> Result<(), String>,
 ) -> Result<(), CaptureFailure> {
     state
-        .publish_if_current(request_id, hide)
+        .dismiss_and_publish(request_id, hide)
         .map_err(CaptureFailure::from)?
         .map_err(CaptureFailure::operation)
 }
@@ -589,11 +589,22 @@ fn pointer_and_primary_bounds(
 }
 
 /// Converts the portable logical top-left convention into AppKit's Cocoa global convention.
+#[cfg_attr(target_os = "windows", allow(dead_code))]
 pub(crate) fn portable_top_left_to_cocoa(
     point: ScreenPoint,
     primary: MonitorWorkArea,
 ) -> ScreenPoint {
     ScreenPoint::new(point.x, primary.y + primary.height - point.y)
+}
+
+#[cfg(target_os = "windows")]
+fn ocr_pointer_for_target(pointer: ScreenPoint, _primary: MonitorWorkArea) -> ScreenPoint {
+    pointer
+}
+
+#[cfg(not(target_os = "windows"))]
+fn ocr_pointer_for_target(pointer: ScreenPoint, primary: MonitorWorkArea) -> ScreenPoint {
+    portable_top_left_to_cocoa(pointer, primary)
 }
 
 #[cfg(test)]
@@ -677,5 +688,14 @@ mod tests {
             portable_top_left_to_cocoa(ScreenPoint::new(500.0, 1100.0), primary),
             ScreenPoint::new(500.0, -200.0)
         );
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn windows_ocr_keeps_the_portable_top_left_pointer() {
+        let pointer = ScreenPoint::new(-400.0, 75.0);
+        let primary = MonitorWorkArea::new(0.0, 0.0, 1440.0, 900.0, 2.0);
+
+        assert_eq!(super::ocr_pointer_for_target(pointer, primary), pointer);
     }
 }

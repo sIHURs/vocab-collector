@@ -3,6 +3,7 @@
   import type { CaptureCandidate, CaptureCard } from "../lib/types";
   import {
     tauriWindowsCaptureBackend,
+    type OcrCandidate,
     type WindowsCaptureBackend,
   } from "./captureBackend";
 
@@ -18,6 +19,12 @@
   let error = "";
   let mounted = false;
   let dismissTimer: ReturnType<typeof setTimeout> | undefined;
+  let ocrOffer = false;
+  let ocrNeedsConfirmation = false;
+  let ocrAvailable = false;
+  let ocrEligibleFailure = false;
+  let ocrCandidates: OcrCandidate[] = [];
+  let selectedOcrIndex = 0;
 
   function clearDismissTimer() {
     if (dismissTimer) clearTimeout(dismissTimer);
@@ -84,6 +91,40 @@
     }
   }
 
+  async function confirmOcrCandidate() {
+    const requestId = activeRequest;
+    const selected = ocrCandidates[selectedOcrIndex];
+    if (!selected) return;
+    await captureBackend.confirmOcr(requestId, selectedOcrIndex);
+    if (!mounted || requestId !== activeRequest) return;
+    ocrNeedsConfirmation = false;
+  }
+
+  function chooseOcrCandidate(index: number) {
+    selectedOcrIndex = index;
+    const selected = ocrCandidates[index];
+    if (!selected) return;
+    candidate = {
+      selectedText: selected.text,
+      sentence: selected.text,
+      selectionBounds: selected.bounds,
+      origin: "ocr",
+    };
+    selectedText = selected.text;
+    sentence = selected.text;
+  }
+
+  function handleCandidateKeydown(event: KeyboardEvent) {
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      const delta = event.key === "ArrowDown" ? 1 : -1;
+      chooseOcrCandidate((selectedOcrIndex + delta + ocrCandidates.length) % ocrCandidates.length);
+    } else if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      void confirmOcrCandidate();
+    }
+  }
+
   async function cancel() {
     if (activeRequest) await captureBackend.hide(activeRequest);
   }
@@ -105,12 +146,43 @@
       saved = null;
       error = "";
       editing = false;
+      ocrOffer = false;
+      ocrEligibleFailure = false;
+      ocrNeedsConfirmation = false;
+      ocrCandidates = [];
+    });
+    void captureBackend.getCapabilities().then((capabilities) => {
+      if (mounted) {
+        ocrAvailable = capabilities.screenshotOcr;
+        ocrOffer = ocrEligibleFailure && ocrAvailable;
+      }
+    });
+    const failed = captureBackend.listenError((event) => {
+      activeRequest = event.requestId;
+      candidate = null;
+      saved = null;
+      error = event.failure.message;
+      ocrEligibleFailure = event.failure.code === "empty_selection" || event.failure.code === "unsupported_element";
+      ocrOffer = ocrAvailable && ocrEligibleFailure;
+      ocrNeedsConfirmation = false;
+      ocrCandidates = [];
+    });
+    const ocr = captureBackend.listenOcrCandidate((event) => {
+      if (event.requestId !== activeRequest) return;
+      ocrCandidates = event.candidates;
+      chooseOcrCandidate(0);
+      error = "";
+      ocrOffer = false;
+      ocrNeedsConfirmation = true;
+      if (event.ambiguous) void captureBackend.focus();
     });
     return () => {
       mounted = false;
       clearDismissTimer();
       document.body.classList.remove("windows-capture-document");
       ready.then((unlisten) => unlisten());
+      failed.then((unlisten) => unlisten());
+      ocr.then((unlisten) => unlisten());
     };
   });
 </script>
@@ -129,7 +201,21 @@
     {:else if candidate}
       <small>{editing ? "Editing" : "Captured"}</small>
       {#if error}<p role="alert">{error}</p>{/if}
-      {#if editing}
+      {#if ocrNeedsConfirmation}
+        {#if ocrCandidates.length > 1}
+          <p id="ocr-choice-help">Choose the text nearest the pointer.</p>
+          <div class="candidate-list" role="listbox" aria-label="OCR candidates" aria-describedby="ocr-choice-help" aria-activedescendant={`ocr-candidate-${selectedOcrIndex}`} tabindex="0" onkeydown={handleCandidateKeydown}>
+            {#each ocrCandidates as item, index}
+              <button id={`ocr-candidate-${index}`} role="option" aria-selected={index === selectedOcrIndex} tabindex="-1" onclick={() => chooseOcrCandidate(index)}>{item.text}</button>
+            {/each}
+          </div>
+        {:else}
+          <h1>{selectedText}</h1>
+          <p>“{sentence}”</p>
+        {/if}
+        <button class="primary" onclick={confirmOcrCandidate}>Confirm OCR candidate</button>
+        <button class="secondary" onclick={cancel}>Cancel OCR</button>
+      {:else if editing}
         <label>Selected text<input aria-label="Selected text" bind:value={selectedText} /></label>
         <label>Context<textarea aria-label="Context" bind:value={sentence}></textarea></label>
         <label>Translation <small>Optional</small><input aria-label="Translation (optional)" bind:value={translation} /></label>
@@ -141,8 +227,12 @@
         <button class="primary" onclick={beginEditing}>Edit capture</button>
         <button class="secondary" disabled={busy} onclick={() => save(true)}>Save without translation</button>
       {/if}
+    {:else if ocrOffer}
+      <p role="alert">{error}</p>
+      <button class="primary" onclick={() => captureBackend.startOcr(activeRequest)}>Use OCR near pointer</button>
+      <button class="secondary" onclick={cancel}>Cancel</button>
     {:else}
-      <p>Ready to capture selected text.</p>
+      <p>{error || "Ready to capture selected text."}</p>
     {/if}
   </section>
 </main>
@@ -166,4 +256,7 @@
   input, textarea { box-sizing: border-box; display: block; width: 100%; margin-top: 2px; padding: 5px 7px; border: 1px solid #55596a; border-radius: 5px; color: #eeeef3; background: #252732; font: inherit; }
   textarea { min-height: 42px; resize: vertical; }
   .notice { margin: 8px 0; font-size: 12px; }
+  .candidate-list { display: grid; gap: 4px; max-height: 100px; margin: 6px 0 10px; overflow: auto; outline: none; }
+  .candidate-list button { padding: 6px 8px; border-radius: 5px; text-align: left; }
+  .candidate-list button[aria-selected="true"] { background: #6676e8; color: white; }
 </style>

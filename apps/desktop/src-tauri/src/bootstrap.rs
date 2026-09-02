@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use uuid::Uuid;
 use vocab_application::{AppService, PlatformCaptureWorkflow, PreparedCapture};
@@ -19,6 +19,7 @@ pub struct AppState {
     translation: Arc<dyn TranslationProvider>,
     permissions: Arc<dyn PermissionProvider>,
     window: Arc<dyn WindowProvider>,
+    pending_ocr: Mutex<Option<(Uuid, Vec<OcrCandidate>)>>,
 }
 
 /// Composes storage, shared application behavior, and the selected platform adapter.
@@ -41,6 +42,7 @@ pub fn build_app_state(repository: Arc<SqliteStore>, platform: PlatformServices)
         translation,
         permissions,
         window,
+        pending_ocr: Mutex::new(None),
     }
 }
 
@@ -109,7 +111,9 @@ impl AppState {
     }
 
     pub fn start_capture_request(&self) -> Uuid {
-        self.workflow.start_request()
+        let request_id = self.workflow.start_request();
+        *self.pending_ocr.lock().unwrap() = None;
+        request_id
     }
 
     pub fn is_current_capture_request(&self, request_id: Uuid) -> bool {
@@ -122,6 +126,16 @@ impl AppState {
         publish: impl FnOnce() -> T,
     ) -> Result<T, vocab_application::PlatformCaptureError> {
         self.workflow.publish_if_current(request_id, publish)
+    }
+
+    pub fn dismiss_and_publish<T>(
+        &self,
+        request_id: Uuid,
+        publish: impl FnOnce() -> T,
+    ) -> Result<T, vocab_application::PlatformCaptureError> {
+        let result = self.workflow.dismiss_and_publish(request_id, publish)?;
+        *self.pending_ocr.lock().unwrap() = None;
+        Ok(result)
     }
 
     pub async fn prepare_selection_for(
@@ -138,20 +152,42 @@ impl AppState {
         self.window.configure_capture_window()
     }
 
-    pub(crate) fn set_capture_candidate_and_publish<T>(
+    pub(crate) fn publish_ocr_candidates<T>(
         &self,
         request_id: Uuid,
-        candidate: CaptureCandidate,
+        candidates: Vec<OcrCandidate>,
         publish: impl FnOnce() -> T,
     ) -> Result<T, vocab_application::PlatformCaptureError> {
-        self.workflow
-            .set_candidate_and_publish(request_id, candidate, publish)
+        self.workflow.publish_if_current(request_id, || {
+            *self.pending_ocr.lock().unwrap() = Some((request_id, candidates));
+            publish()
+        })
     }
 
-    pub(crate) fn confirm_ocr(
+    pub(crate) fn confirm_ocr_candidate(
         &self,
         request_id: Uuid,
+        candidate_index: usize,
     ) -> Result<(), vocab_application::PlatformCaptureError> {
+        let candidate = self
+            .pending_ocr
+            .lock()
+            .unwrap()
+            .as_ref()
+            .filter(|(pending_request, _)| *pending_request == request_id)
+            .and_then(|(_, candidates)| candidates.get(candidate_index))
+            .cloned()
+            .ok_or(vocab_capture::CoordinatorError::StaleRequest)?;
+        let candidate = CaptureCandidate {
+            selected_text: candidate.text.clone(),
+            sentence: candidate.text,
+            source_app: None,
+            source_title: None,
+            source_url: None,
+            selection_bounds: Some(candidate.bounds),
+            origin: vocab_domain::CaptureOrigin::Ocr,
+        };
+        self.workflow.set_candidate(request_id, candidate)?;
         self.workflow.confirm_ocr(request_id)
     }
 

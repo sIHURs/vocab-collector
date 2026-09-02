@@ -2,7 +2,7 @@ use serde::Serialize;
 use uuid::Uuid;
 use vocab_application::PlatformCaptureError;
 use vocab_capture::CoordinatorError;
-use vocab_platform_api::{Capability, CaptureCandidate, PlatformError};
+use vocab_platform_api::{Capability, CaptureCandidate, OcrCandidate, PlatformError};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -86,6 +86,14 @@ impl From<PlatformCaptureError> for CaptureFailure {
 pub struct NativeCaptureEvent {
     pub request_id: Uuid,
     pub candidate: CaptureCandidate,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OcrCandidatesEvent {
+    pub request_id: Uuid,
+    pub candidates: Vec<OcrCandidate>,
+    pub ambiguous: bool,
 }
 
 #[derive(Debug)]
