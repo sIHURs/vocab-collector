@@ -2,6 +2,58 @@
 
 This log records implementation evidence for `docs/windows-platform-tickets.md`. Evidence uses the status vocabulary defined in `docs/windows-platform-plan-v2.md`: **Verified automated**, **Verified Windows physical**, **Not run**, **Blocked**, and **Unsupported**.
 
+## 2026-09-02 - W-11/W-12 compatibility risk repair
+
+### Implementation
+
+- Fixed a source-window race by recording the foreground window before the passive capture surface can change focus and passing that portable handle into the blocking WGC/OCR task.
+- Reconciled OCR rectangles with the visible desktop window by using DWM extended frame bounds for the logical origin and the actual WGC frame `ContentSize` for independent horizontal and vertical scaling.
+- Changed Windows OCR candidates from fabricated maximum confidence to neutral confidence because the `Windows.Media.Ocr` word API used by the adapter does not expose confidence.
+- Added regression coverage for foreground-window changes, non-zero invisible-frame insets and scaled WGC frames, and W-12 geometry ranking when every candidate has neutral confidence.
+
+### Key decisions
+
+- Source-window ownership and DWM/WGC coordinate reconciliation remain inside `platform/windows`; shared ranking continues to consume only portable handles, points, rectangles, and candidates.
+- The source handle is captured synchronously before `spawn_blocking`. Native `HWND` reconstruction happens inside the worker so no thread-affinity-bearing Windows wrapper crosses the task boundary.
+- DWM visible bounds supply the desktop-space origin while WGC `ContentSize` supplies the captured pixel extent. Per-axis scale factors avoid assuming that `GetWindowRect`, DPI virtualization, invisible resize borders, and the returned texture always agree.
+- Missing OCR confidence is represented as `0.0`. W-12 still ranks by pointer containment and rectangle distance, while confidence remains available only when a provider has real evidence.
+- `screenshot_ocr` remains false. Automated geometry tests do not establish live alignment across the physical mixed-DPI matrix.
+
+### Main files changed
+
+- `platform/windows/Cargo.toml`
+- `platform/windows/src/window.rs`
+- `platform/windows/src/ocr.rs`
+- `crates/capture/tests/ocr_ranking.rs`
+- `docs/windows-development-log.md`
+
+### Tests and results
+
+| Command | Result | Evidence |
+|---|---|---|
+| `cargo fmt --all --check` | PASS | Verified automated; exit code 0 |
+| `cargo clippy --workspace --all-targets --exclude vocab-platform-macos --exclude vocab-platform-linux -- -D warnings` | PASS | Verified automated; no warnings |
+| `cargo test -p vocab-platform-windows` | PASS | Verified automated; 13 unit tests and 3 capability tests passed; one physical Notepad test remained ignored |
+| `cargo test -p vocab-capture` | PASS | Verified automated; 31 tests passed, including 7 OCR ranking fixtures |
+| `cargo test -p vocab-application --test platform_fakes` | PASS | Verified automated; 13 tests passed |
+| `cargo test -p vocab-desktop --test command_contract` | PASS | Verified automated; 27 tests passed |
+| `cargo test --workspace --exclude vocab-platform-macos --exclude vocab-platform-linux` | PASS | Verified automated; full applicable Rust workspace passed |
+| `pnpm check` | PASS | Verified automated; 0 errors and 0 warnings |
+| `pnpm test` | PASS | Verified automated; 7 files and 53 tests passed |
+| `pnpm build` | PASS | Verified automated; 127 modules transformed and the production bundle completed |
+
+### Not yet verified
+
+- **Not run:** live confirmation that DWM extended frame bounds and WGC frame pixels remain aligned on Windows 11 across mixed DPI, negative-origin monitors, maximized windows, and windows with custom non-client frames.
+- **Not run:** live confirmation that the synchronously recorded source window is the WGC target after the passive WebView is presented.
+- **Not run:** real OCR accuracy, consent/cancellation, timeout, resource release, privacy artifact audit, and end-to-end persistence. No Windows runtime behavior is marked **Verified Windows physical**.
+- The WGC API still yields a transient full-window frame before the adapter copies the bounded OCR crop; this limitation is unchanged and must remain part of physical privacy review.
+- The `screenshot_ocr` capability remains false.
+
+### Next ticket starting point
+
+W-13 starts from the repaired W-11 provider and existing W-12 portable ranking/confirmation path. Before enabling screenshot OCR, the Windows physical matrix must validate source-window identity and DWM-to-WGC coordinate alignment; W-13 itself should remain scoped to UI states and accessibility.
+
 ## 2026-09-02 - W-11 save one explicitly confirmed OCR candidate
 
 ### Implementation
@@ -18,7 +70,7 @@ This log records implementation evidence for `docs/windows-platform-tickets.md`.
 - Windows Graphics Capture exposes a window item rather than a crop item, so one transient native frame covers the source window. The adapter immediately copies the smallest practical bounded texture region for bitmap conversion and recognition; neither the frame nor crop is written to disk or logged. Physical privacy/resource evidence is still required before this native claim is complete.
 - Frame-pool subscriptions and all closeable capture/OCR resources use scoped guards so success, timeout, and error paths unsubscribe or close deterministically. COM interfaces and D3D textures then release through their normal ownership drops.
 - The capture waits at most three seconds for one frame. Timeout and native failures return content-free platform errors rather than retaining or exposing an image.
-- `Windows.Media.Ocr` does not supply a word confidence through the API used here, so adapter candidates receive neutral confidence `1.0`; later ranking remains a portable concern.
+- `Windows.Media.Ocr` does not supply a word confidence through the API used here. The follow-up W-11/W-12 compatibility repair changed adapter candidates from the original fabricated `1.0` to neutral `0.0`; later ranking remains a portable concern.
 - TDD was limited to bounded-region geometry, OCR-result normalization/content-safe diagnostics, the target-specific coordinate branch, and confirmation/cancellation state behavior. Native WGC lifetime correctness is expressed through ownership guards rather than brittle API mocks.
 - A concurrent W-12 commit (`3f85f23`) landed while W-11 was in progress and contains the desktop/UI confirmation and coordinate work that W-11 depends on. This completion preserves that commit and limits its own product changes to the unfinished Windows-native adapter.
 

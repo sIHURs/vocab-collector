@@ -100,10 +100,49 @@ pub fn restore_source_focus() -> Result<(), PlatformError> {
     }
 }
 
-const fn native_handle(value: NativeWindowHandle) -> HWND {
+pub(crate) fn ocr_source_window() -> Result<NativeWindowHandle, PlatformError> {
+    let recorded = *SOURCE_WINDOW
+        .lock()
+        .map_err(|_| operation("Capture focus state is unavailable"))?;
+    let foreground = NativeWindowHandle::new(unsafe { GetForegroundWindow() }.0 as isize);
+    let source = preferred_ocr_source(recorded, foreground);
+    if source.0 == 0 {
+        Err(operation("OCR source window is unavailable"))
+    } else {
+        Ok(source)
+    }
+}
+
+const fn preferred_ocr_source(
+    recorded: Option<NativeWindowHandle>,
+    foreground: NativeWindowHandle,
+) -> NativeWindowHandle {
+    match recorded {
+        Some(source) => source,
+        None => foreground,
+    }
+}
+
+pub(crate) const fn native_handle(value: NativeWindowHandle) -> HWND {
     HWND(value.0 as *mut core::ffi::c_void)
 }
 
 fn operation(message: &str) -> PlatformError {
     PlatformError::Operation(message.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::NativeWindowHandle;
+
+    #[test]
+    fn recorded_source_window_wins_over_a_later_foreground_window() {
+        let recorded = NativeWindowHandle::new(101);
+        let later_foreground = NativeWindowHandle::new(202);
+
+        assert_eq!(
+            super::preferred_ocr_source(Some(recorded), later_foreground),
+            recorded
+        );
+    }
 }

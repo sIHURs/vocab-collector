@@ -19,6 +19,7 @@ use windows::{
                 D3D11_SDK_VERSION, D3D11_TEXTURE2D_DESC, D3D11_USAGE_DEFAULT, D3D11CreateDevice,
                 ID3D11Device, ID3D11DeviceContext, ID3D11Texture2D,
             },
+            Dwm::{DWMWA_EXTENDED_FRAME_BOUNDS, DwmGetWindowAttribute},
             Dxgi::{IDXGIDevice, IDXGISurface},
         },
         System::{
@@ -29,10 +30,7 @@ use windows::{
             },
             WinRT::Graphics::Capture::IGraphicsCaptureItemInterop,
         },
-        UI::{
-            HiDpi::{GetDpiForWindow, PhysicalToLogicalPointForPerMonitorDPI},
-            WindowsAndMessaging::{GetForegroundWindow, GetWindowRect},
-        },
+        UI::HiDpi::PhysicalToLogicalPointForPerMonitorDPI,
     },
     core::{Interface, factory},
 };
@@ -46,6 +44,73 @@ struct RecognizedWord {
     bounds: ScreenRect,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct CaptureGeometry {
+    desktop_bounds: ScreenRect,
+    frame_width: u32,
+    frame_height: u32,
+    pixels_per_logical_x: f64,
+    pixels_per_logical_y: f64,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct CaptureCrop {
+    desktop_bounds: ScreenRect,
+    pixel_x: u32,
+    pixel_y: u32,
+    pixel_width: u32,
+    pixel_height: u32,
+    pixels_per_logical_x: f64,
+    pixels_per_logical_y: f64,
+}
+
+impl CaptureGeometry {
+    fn new(
+        desktop_bounds: ScreenRect,
+        frame_size: windows::Graphics::SizeInt32,
+    ) -> Result<Self, PlatformError> {
+        if !desktop_bounds.is_available() || frame_size.Width <= 0 || frame_size.Height <= 0 {
+            return Err(operation("OCR capture geometry is unavailable"));
+        }
+        Ok(Self {
+            desktop_bounds,
+            frame_width: frame_size.Width as u32,
+            frame_height: frame_size.Height as u32,
+            pixels_per_logical_x: f64::from(frame_size.Width) / desktop_bounds.width,
+            pixels_per_logical_y: f64::from(frame_size.Height) / desktop_bounds.height,
+        })
+    }
+
+    fn crop_near(self, pointer: ScreenPoint) -> CaptureCrop {
+        let desktop_bounds = bounded_capture_region(pointer, self.desktop_bounds);
+        let pixel_x = ((desktop_bounds.x - self.desktop_bounds.x) * self.pixels_per_logical_x)
+            .round()
+            .clamp(0.0, f64::from(self.frame_width - 1)) as u32;
+        let pixel_y = ((desktop_bounds.y - self.desktop_bounds.y) * self.pixels_per_logical_y)
+            .round()
+            .clamp(0.0, f64::from(self.frame_height - 1)) as u32;
+        let pixel_right = ((desktop_bounds.x + desktop_bounds.width - self.desktop_bounds.x)
+            * self.pixels_per_logical_x)
+            .round()
+            .clamp(f64::from(pixel_x + 1), f64::from(self.frame_width))
+            as u32;
+        let pixel_bottom = ((desktop_bounds.y + desktop_bounds.height - self.desktop_bounds.y)
+            * self.pixels_per_logical_y)
+            .round()
+            .clamp(f64::from(pixel_y + 1), f64::from(self.frame_height))
+            as u32;
+        CaptureCrop {
+            pixel_x,
+            pixel_y,
+            pixel_width: pixel_right - pixel_x,
+            pixel_height: pixel_bottom - pixel_y,
+            desktop_bounds,
+            pixels_per_logical_x: self.pixels_per_logical_x,
+            pixels_per_logical_y: self.pixels_per_logical_y,
+        }
+    }
+}
+
 pub(crate) struct WindowsOcrProvider;
 
 #[async_trait]
@@ -54,21 +119,19 @@ impl OcrProvider for WindowsOcrProvider {
         &self,
         pointer: ScreenPoint,
     ) -> Result<Vec<OcrCandidate>, PlatformError> {
-        tokio::task::spawn_blocking(move || capture_and_recognize(pointer))
+        let window = crate::window::ocr_source_window()?;
+        tokio::task::spawn_blocking(move || capture_and_recognize(window, pointer))
             .await
             .map_err(|_| operation("Windows OCR worker failed"))?
     }
 }
 
-fn capture_and_recognize(pointer: ScreenPoint) -> Result<Vec<OcrCandidate>, PlatformError> {
+fn capture_and_recognize(
+    window: crate::window::NativeWindowHandle,
+    pointer: ScreenPoint,
+) -> Result<Vec<OcrCandidate>, PlatformError> {
     let _apartment = ComApartment::enter()?;
-    let window = unsafe { GetForegroundWindow() };
-    if window.0.is_null() {
-        return Err(operation("OCR source window is unavailable"));
-    }
-    let item_bounds = logical_window_bounds(window)?;
-    let region = bounded_capture_region(pointer, item_bounds);
-    let scale = f64::from(unsafe { GetDpiForWindow(window) }) / 96.0;
+    let window = crate::window::native_handle(window);
     let item = capture_item_for_window(window)?;
     let size = item
         .Size()
@@ -110,12 +173,20 @@ fn capture_and_recognize(pointer: ScreenPoint) -> Result<Vec<OcrCandidate>, Plat
         .recv_timeout(Duration::from_secs(3))
         .map_err(|_| operation("OCR capture timed out"))?;
     let frame_guard = CloseFrame(frame.clone());
-
-    let local_x = ((region.x - item_bounds.x) * scale).round().max(0.0) as u32;
-    let local_y = ((region.y - item_bounds.y) * scale).round().max(0.0) as u32;
-    let width = (region.width * scale).round().max(1.0) as u32;
-    let height = (region.height * scale).round().max(1.0) as u32;
-    let surface = cropped_surface(&device, &context, &frame, local_x, local_y, width, height)?;
+    let frame_size = frame
+        .ContentSize()
+        .map_err(|_| operation("OCR frame content size is unavailable"))?;
+    let geometry = CaptureGeometry::new(logical_visible_frame_bounds(window)?, frame_size)?;
+    let crop = geometry.crop_near(pointer);
+    let surface = cropped_surface(
+        &device,
+        &context,
+        &frame,
+        crop.pixel_x,
+        crop.pixel_y,
+        crop.pixel_width,
+        crop.pixel_height,
+    )?;
     let bitmap = SoftwareBitmap::CreateCopyFromSurfaceAsync(&surface)
         .and_then(|operation| operation.get())
         .map_err(|_| operation("OCR bitmap copy failed"))?;
@@ -152,12 +223,12 @@ fn capture_and_recognize(pointer: ScreenPoint) -> Result<Vec<OcrCandidate>, Plat
             });
         }
     }
-    let candidates = normalize_words(&words, ScreenPoint::new(region.x, region.y), scale);
+    let candidates = normalize_words(&words, crop);
     eprintln!(
         "{}",
         OcrDiagnostics {
-            region_width: width,
-            region_height: height,
+            region_width: crop.pixel_width,
+            region_height: crop.pixel_height,
             candidate_count: candidates.len(),
         }
     );
@@ -169,12 +240,19 @@ fn capture_and_recognize(pointer: ScreenPoint) -> Result<Vec<OcrCandidate>, Plat
     Ok(candidates)
 }
 
-fn logical_window_bounds(
+fn logical_visible_frame_bounds(
     window: windows::Win32::Foundation::HWND,
 ) -> Result<ScreenRect, PlatformError> {
     let mut rect = RECT::default();
-    unsafe { GetWindowRect(window, &mut rect) }
-        .map_err(|_| operation("OCR source bounds are unavailable"))?;
+    unsafe {
+        DwmGetWindowAttribute(
+            window,
+            DWMWA_EXTENDED_FRAME_BOUNDS,
+            (&raw mut rect).cast(),
+            std::mem::size_of::<RECT>() as u32,
+        )
+    }
+    .map_err(|_| operation("OCR source bounds are unavailable"))?;
     let mut top_left = POINT {
         x: rect.left,
         y: rect.top,
@@ -386,23 +464,19 @@ fn bounded_capture_region(pointer: ScreenPoint, item: ScreenRect) -> ScreenRect 
     ScreenRect::new(x, y, width, height)
 }
 
-fn normalize_words(
-    words: &[RecognizedWord],
-    region_origin: ScreenPoint,
-    scale_factor: f64,
-) -> Vec<OcrCandidate> {
+fn normalize_words(words: &[RecognizedWord], crop: CaptureCrop) -> Vec<OcrCandidate> {
     words
         .iter()
         .filter(|word| !word.text.trim().is_empty() && word.bounds.is_available())
         .map(|word| OcrCandidate {
             text: word.text.clone(),
             bounds: ScreenRect::new(
-                region_origin.x + word.bounds.x / scale_factor,
-                region_origin.y + word.bounds.y / scale_factor,
-                word.bounds.width / scale_factor,
-                word.bounds.height / scale_factor,
+                crop.desktop_bounds.x + word.bounds.x / crop.pixels_per_logical_x,
+                crop.desktop_bounds.y + word.bounds.y / crop.pixels_per_logical_y,
+                word.bounds.width / crop.pixels_per_logical_x,
+                word.bounds.height / crop.pixels_per_logical_y,
             ),
-            confidence: 1.0,
+            confidence: 0.0,
         })
         .collect()
 }
@@ -410,8 +484,12 @@ fn normalize_words(
 #[cfg(test)]
 mod tests {
     use vocab_platform_api::{ScreenPoint, ScreenRect};
+    use windows::Graphics::SizeInt32;
 
-    use super::{OcrDiagnostics, RecognizedWord, bounded_capture_region, normalize_words};
+    use super::{
+        CaptureCrop, CaptureGeometry, OcrDiagnostics, RecognizedWord, bounded_capture_region,
+        normalize_words,
+    };
 
     #[test]
     fn bounded_region_centers_on_pointer_and_clamps_to_the_capture_item() {
@@ -438,8 +516,15 @@ mod tests {
                 text: "Straße".into(),
                 bounds: ScreenRect::new(12.0, 18.0, 70.0, 24.0),
             }],
-            ScreenPoint::new(-1_220.0, -80.0),
-            1.25,
+            CaptureCrop {
+                desktop_bounds: ScreenRect::new(-1_220.0, -80.0, 640.0, 360.0),
+                pixel_x: 0,
+                pixel_y: 0,
+                pixel_width: 800,
+                pixel_height: 450,
+                pixels_per_logical_x: 1.25,
+                pixels_per_logical_y: 1.25,
+            },
         );
 
         assert_eq!(candidates[0].text, "Straße");
@@ -447,7 +532,7 @@ mod tests {
             candidates[0].bounds,
             ScreenRect::new(-1210.4, -65.6, 56.0, 19.2)
         );
-        assert_eq!(candidates[0].confidence, 1.0);
+        assert_eq!(candidates[0].confidence, 0.0);
         let diagnostics = OcrDiagnostics {
             region_width: 640,
             region_height: 360,
@@ -455,5 +540,32 @@ mod tests {
         }
         .to_string();
         assert!(!diagnostics.contains("Straße"));
+    }
+
+    #[test]
+    fn capture_geometry_reconciles_visible_frame_origin_with_wgc_item_size() {
+        let geometry = CaptureGeometry::new(
+            ScreenRect::new(108.0, 108.0, 980.0, 680.0),
+            SizeInt32 {
+                Width: 1_225,
+                Height: 850,
+            },
+        )
+        .unwrap();
+
+        let crop = geometry.crop_near(ScreenPoint::new(500.0, 400.0));
+
+        assert_eq!(
+            crop.desktop_bounds,
+            ScreenRect::new(180.0, 220.0, 640.0, 360.0)
+        );
+        assert_eq!((crop.pixel_x, crop.pixel_y), (90, 140));
+        assert_eq!((crop.pixel_width, crop.pixel_height), (800, 450));
+        assert_eq!(crop.pixels_per_logical_x, 1.25);
+        assert_eq!(crop.pixels_per_logical_y, 1.25);
+
+        let edge_crop = geometry.crop_near(ScreenPoint::new(1_088.0, 788.0));
+        assert!(edge_crop.pixel_x + edge_crop.pixel_width <= 1_225);
+        assert!(edge_crop.pixel_y + edge_crop.pixel_height <= 850);
     }
 }

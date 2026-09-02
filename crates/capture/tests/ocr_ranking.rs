@@ -93,6 +93,18 @@ fn confidence_gap_makes_equal_geometry_candidate_dominant() {
 }
 
 #[test]
+fn neutral_confidence_candidates_still_rank_by_geometry() {
+    let candidates = vec![
+        candidate("far", ScreenRect::new(160.0, 100.0, 20.0, 20.0), 0.0),
+        candidate("near", ScreenRect::new(110.0, 100.0, 20.0, 20.0), 0.0),
+    ];
+
+    let resolution = rank_ocr_candidates(&candidates, ScreenPoint::new(100.0, 100.0)).unwrap();
+
+    assert_eq!(resolution.candidates()[0].text, "near");
+}
+
+#[test]
 fn empty_candidate_sets_have_no_resolution() {
     assert_eq!(rank_ocr_candidates(&[], ScreenPoint::new(0.0, 0.0)), None);
 }
