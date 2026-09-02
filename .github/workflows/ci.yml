@@ -80,3 +80,24 @@ jobs:
       - run: pnpm check
       - run: pnpm test
       - run: pnpm build
+      - name: Build per-user NSIS preview
+        run: pnpm tauri build --bundles nsis
+      - name: Record installer checksum
+        shell: pwsh
+        run: |
+          $installer = @(Get-ChildItem -Path target/release/bundle/nsis -Filter *.exe -File)
+          if ($installer.Count -ne 1) {
+            throw "Expected exactly one NSIS installer, found $($installer.Count)."
+          }
+          Get-FileHash -Algorithm SHA256 -LiteralPath $installer[0].FullName |
+            ForEach-Object { "$($_.Hash.ToLowerInvariant())  $($installer[0].Name)" } |
+            Set-Content -Encoding ascii -LiteralPath "$($installer[0].FullName).sha256"
+      - name: Upload commit-traceable NSIS preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: vocab-collector-windows-x64-nsis-${{ github.sha }}
+          path: |
+            target/release/bundle/nsis/*.exe
+            target/release/bundle/nsis/*.exe.sha256
+          if-no-files-found: error
+          retention-days: 14

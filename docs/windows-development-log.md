@@ -2,6 +2,73 @@
 
 This log records implementation evidence for `docs/windows-platform-tickets.md`. Evidence uses the status vocabulary defined in `docs/windows-platform-plan-v2.md`: **Verified automated**, **Verified Windows physical**, **Not run**, **Blocked**, and **Unsupported**.
 
+## 2026-09-02 - W-15 NSIS preview packaging
+
+### Implementation
+
+- Configured the Windows Tauri bundle as an x64 per-user NSIS installer and kept the stable `app.vocabcollector.desktop` identifier used by the application data directory and upgrades.
+- Selected Tauri's embedded, silent WebView2 bootstrapper strategy so the small preview installer can provision a missing runtime when network access is available.
+- Added NSIS uninstall hooks that always remove the current-user autostart registry values and ask whether to retain local vocabulary and settings. Retention is the default; choosing No removes `%APPDATA%\app.vocabcollector.desktop`.
+- Extended the existing Windows CI lane to build one NSIS installer, generate its SHA-256 checksum, and upload both for 14 days under an artifact name containing the full Git commit SHA.
+
+### Key decisions
+
+- Packaging remains in `apps/desktop/src-tauri` and `.github/workflows`; no installer or Windows API concern enters the shared application, domain, capture, or storage crates.
+- The installer is explicitly `currentUser`, matching the Windows 10 Pro x64 preview requirement and avoiding an administrator requirement for the application itself.
+- `embedBootstrapper` was chosen over `downloadBootstrapper` so the installer carries the Microsoft bootstrapper while remaining much smaller than an offline WebView2 runtime. A clean-machine run with WebView2 absent is still required to verify network/bootstrapper behavior.
+- Uninstall preserves the SQLite database and Settings by default. Data deletion requires an explicit No response to the retention question and targets only the stable identifier-owned roaming application-data directory.
+- The CI artifact name is `vocab-collector-windows-x64-nsis-${{ github.sha }}`; the uploaded checksum makes the retained installer independently identifiable after download.
+- No new unit test was added: W-15 is declarative packaging behavior, and the public build seam (`pnpm tauri build --bundles nsis`) validates the Tauri schema, hook inclusion, NSIS syntax, architecture, and output. Install/upgrade/uninstall effects belong to the physical installer matrix rather than mocked internals.
+
+### Main files changed
+
+- `.github/workflows/ci.yml`
+- `apps/desktop/src-tauri/tauri.conf.json`
+- `apps/desktop/src-tauri/windows/installer-hooks.nsh`
+- `docs/windows-development.md`
+- `docs/windows-development-log.md`
+
+### Tests and results
+
+| Command | Result | Evidence |
+|---|---|---|
+| `cargo fmt --all --check` | PASS | **Verified automated:** exit code 0 |
+| `cargo clippy --workspace --all-targets --exclude vocab-platform-macos --exclude vocab-platform-linux -- -D warnings` | PASS | **Verified automated:** no warnings |
+| `cargo test --workspace --exclude vocab-platform-macos --exclude vocab-platform-linux` | PASS | **Verified automated:** all applicable workspace unit, integration, and doc tests passed; one explicitly physical UIA test remained ignored |
+| `cargo build --workspace --exclude vocab-platform-macos --exclude vocab-platform-linux` | PASS | **Verified automated:** Windows workspace build completed |
+| `pnpm check` | PASS after sandbox-external rerun | **Verified automated:** 0 errors and 0 warnings; the initial restricted-sandbox run was **Blocked** by the known `esbuild spawn EPERM` restriction |
+| `pnpm test` | PASS after sandbox-external rerun | **Verified automated:** 57 tests passed across 7 files; the initial restricted-sandbox run was **Blocked** by `esbuild spawn EPERM` |
+| `pnpm build` | PASS after sandbox-external rerun | **Verified automated:** 127 modules transformed; the initial restricted-sandbox run was **Blocked** by `esbuild spawn EPERM` |
+| `pnpm tauri build --bundles nsis` | PASS after sandbox-external rerun | **Verified automated:** Tauri validated and compiled the hooks and produced `Vocab Collector_0.1.0_x64-setup.exe`; the initial restricted-sandbox run was **Blocked** by `esbuild spawn EPERM` |
+
+Build environment: the registry product query reported `Windows 10 Pro`, display
+version `24H2`, and x64; `cmd /c ver` independently reported kernel
+`10.0.26100.7171`. Both values are retained because the edition label and kernel
+build are inconsistent and neither is inferred from the other. `Get-CimInstance
+Win32_OperatingSystem` and `systeminfo` were both blocked by access-denied errors,
+so this session's eligibility as the target Windows 10 Pro machine is unconfirmed.
+Tool versions were Rust `1.98.0`, Node.js `24.19.0`, and pnpm `11.19.0`. This
+establishes local build evidence only; no installer was executed.
+
+### Not yet verified
+
+- **Not run:** the updated GitHub Actions Windows lane and its 14-day artifact retention. It requires a pushed commit and completed hosted CI run.
+- **Not run:** authoritative confirmation that this session is the target Windows 10 Pro x64 environment; the available product-name and kernel-build reports conflict, while CIM and `systeminfo` queries were denied.
+- **Not run:** clean per-user installation and launch without Rust, Node.js, pnpm, Visual Studio Build Tools, or other developer tools.
+- **Not run:** WebView2-present and WebView2-absent installation, including bootstrapper network failure and recovery.
+- **Not run:** in-place upgrade from an older preview while the app is stopped and while it is running; SQLite, Settings, Review state, tray behavior, and autostart preservation have not been observed.
+- **Not run:** uninstall integration cleanup, default data retention, explicit data deletion, running-app handling, and reinstall readback. No Windows installer runtime behavior is marked **Verified Windows physical**.
+- The local `0.1.0` installer is an unsigned preview. Signing and release-candidate evidence remain outside W-15.
+
+### Next ticket starting point
+
+W-15 remains open at its hosted-CI and physical installer gates, so W-16 is still
+blocked. Push the W-15 implementation commit, retain the resulting artifact and
+checksum, and run that exact artifact through the Windows 10 Pro x64 clean-install,
+WebView2, upgrade, running-app, retained-data, deleted-data, and reinstall matrix.
+Only after those W-15 results are recorded does W-16 start from the immutable
+artifact and commit to complete the broader release evidence.
+
 ## 2026-09-02 - W-11/W-12 compatibility risk repair
 
 ### Implementation
