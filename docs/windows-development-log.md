@@ -2,6 +2,61 @@
 
 This log records implementation evidence for `docs/windows-platform-tickets.md`. Evidence uses the status vocabulary defined in `docs/windows-platform-plan-v2.md`: **Verified automated**, **Verified Windows physical**, **Not run**, **Blocked**, and **Unsupported**.
 
+## 2026-09-02 - W-11 save one explicitly confirmed OCR candidate
+
+### Implementation
+
+- Added a Windows `OcrProvider` that captures the foreground window with Windows Graphics Capture, immediately crops a pointer-centered region capped at 640 by 360 logical units, converts that region to an in-memory `SoftwareBitmap`, and recognizes it with `Windows.Media.Ocr`.
+- Normalized Windows OCR word rectangles into portable `OcrCandidate` values. Only text, portable bounds, and candidate count cross the adapter boundary; no native graphics or WinRT type enters the shared application layer.
+- Added deterministic geometry and normalization tests, including negative desktop origins and Unicode OCR output. Diagnostics contain only region dimensions and candidate counts, never recognized content.
+- Replaced the Windows OCR stub while deliberately leaving the advertised `screenshot_ocr` capability false pending physical validation.
+- Reused the target-aware desktop coordinate branch and request-bound confirmation/cancellation workflow already present in HEAD: Windows passes Tauri's top-left logical pointer through unchanged, confirmation enters the shared save workflow once, and cancellation never persists.
+
+### Key decisions
+
+- WGC, D3D11, WinRT surface conversion, and `Windows.Media.Ocr` are private to `platform/windows`; the public seam remains the portable `OcrProvider` contract.
+- Capture is explicitly bounded for recognition and persistence: the WGC frame exists only in native memory long enough to copy the bounded texture region, and neither the frame nor cropped bitmap is written to disk or logged.
+- Frame-pool subscriptions and all closeable capture/OCR resources use scoped guards so success, timeout, and error paths unsubscribe or close deterministically. COM interfaces and D3D textures then release through their normal ownership drops.
+- The capture waits at most three seconds for one frame. Timeout and native failures return content-free platform errors rather than retaining or exposing an image.
+- `Windows.Media.Ocr` does not supply a word confidence through the API used here, so adapter candidates receive neutral confidence `1.0`; later ranking remains a portable concern.
+- TDD was limited to bounded-region geometry, OCR-result normalization/content-safe diagnostics, the target-specific coordinate branch, and confirmation/cancellation state behavior. Native WGC lifetime correctness is expressed through ownership guards rather than brittle API mocks.
+- A concurrent W-12 commit (`3f85f23`) landed while W-11 was in progress and contains the desktop/UI confirmation and coordinate work that W-11 depends on. This completion preserves that commit and limits its own product changes to the unfinished Windows-native adapter.
+
+### Main files changed
+
+- `platform/windows/Cargo.toml`
+- `platform/windows/src/lib.rs`
+- `platform/windows/src/ocr.rs`
+- `platform/windows/tests/capabilities.rs`
+- `docs/windows-platform-tickets.md`
+- `docs/windows-development-log.md`
+
+### Tests and results
+
+| Command | Result | Evidence |
+|---|---|---|
+| `cargo fmt --all --check` | PASS | Verified automated; exit code 0 |
+| `cargo clippy --workspace --all-targets --exclude vocab-platform-macos --exclude vocab-platform-linux -- -D warnings` | PASS | Verified automated; no warnings |
+| `cargo test -p vocab-platform-windows` | PASS | Verified automated; 11 unit tests and 3 capability tests passed; one physical Notepad test remained ignored |
+| `cargo test -p vocab-capture` | PASS | Verified automated; coordinator, OCR ranking, placement, and shortcut tests passed |
+| `cargo test -p vocab-application --test platform_fakes` | PASS | Verified automated; 13 tests passed, including explicit confirmation, cancellation, and save-once behavior |
+| `cargo test -p vocab-desktop --test command_contract` | PASS | Verified automated; 27 command-contract tests passed, including target-aware coordinates and OCR confirmation |
+| `cargo test --workspace --exclude vocab-platform-macos --exclude vocab-platform-linux` | PASS | Verified automated; full applicable Rust workspace passed |
+| `pnpm check` | PASS after sandbox-external rerun | Verified automated; 0 errors and 0 warnings |
+| `pnpm test` | PASS after sandbox-external rerun | Verified automated; 7 files and 53 tests passed, including confirmation, cancellation, save-once, and stale-request behavior |
+
+### Not yet verified
+
+- **Not run:** `pnpm tauri dev` physical consent, denial, cancellation, and OCR checks. This Windows session has not been established as a Windows 11 x64 physical-machine environment, so no Windows runtime behavior is marked **Verified Windows physical**.
+- **Not run:** live WGC foreground-window selection, mixed-DPI and multi-monitor cropping, OCR accuracy, three-second timeout behavior, and source-focus restoration across the compatibility matrix.
+- **Not run:** native resource monitoring and on-device confirmation that no screenshot artifact is created during success, cancellation, timeout, or error paths.
+- **Not run:** a live WebView2-to-SQLite OCR-origin save and cancel audit. Automated shared-workflow tests are the current evidence that confirmation saves once and cancellation saves nothing.
+- The `screenshot_ocr` capability remains false until the physical evidence above is recorded.
+
+### Next ticket starting point
+
+W-12's code is already present in HEAD as concurrent commit `3f85f23`, including portable candidate ranking and keyboard selection, but its physical ambiguous-OCR evidence remains **Not run**. The next chronological implementation ticket is W-13; it should start from the existing Windows capture presentation and complete only its UI-state and accessibility matrix without pulling W-14 clipboard or W-15 packaging work forward.
+
 ## 2026-09-02 - W-12 resolve ambiguous OCR candidates
 
 ### Implementation

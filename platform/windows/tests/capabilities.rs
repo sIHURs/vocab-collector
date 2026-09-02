@@ -5,9 +5,7 @@ use std::{
     thread,
 };
 
-use vocab_platform_api::{
-    Capability, PermissionKind, PlatformCapabilities, PlatformError, ScreenPoint,
-};
+use vocab_platform_api::{Capability, PermissionKind, PlatformCapabilities, PlatformError};
 use vocab_platform_windows::WindowsPlatform;
 use vocab_platform_windows::window::capture_window_extended_style;
 
@@ -42,10 +40,6 @@ fn unverified_native_capabilities_remain_disabled() {
 fn deferred_providers_return_capability_specific_unsupported_errors() {
     let services = WindowsPlatform::new();
 
-    assert_eq!(
-        block_on(services.ocr.recognize_near(ScreenPoint::new(12.0, 34.0))),
-        Err(PlatformError::Unsupported(Capability::ScreenshotOcr))
-    );
     assert_eq!(
         block_on(services.translation.translate("word", "en", "de")),
         Err(PlatformError::Unsupported(Capability::Translation))

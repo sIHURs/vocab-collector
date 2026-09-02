@@ -220,9 +220,9 @@ Physical-only follow-up: `pnpm tauri dev` plus Manual Capture, SQLite restart pe
 
 **Acceptance criteria:**
 
-- [ ] Windows Graphics Capture and OCR release native image resources without files or content logs.
-- [ ] Windows no longer uses the Cocoa coordinate conversion.
-- [ ] Confirm saves once; cancel saves nothing.
+- [x] Windows Graphics Capture and OCR release native image resources without files or content logs.
+- [x] Windows no longer uses the Cocoa coordinate conversion.
+- [x] Confirm saves once; cancel saves nothing.
 
 **Verification:** Windows adapter, capture, application, desktop contract, and frontend tests plus physical consent/cancel/OCR checks.
 

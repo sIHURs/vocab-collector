@@ -6,11 +6,11 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use vocab_platform_api::{
-    Capability, OcrCandidate, OcrProvider, PermissionKind, PermissionProvider, PermissionStatus,
-    PlatformCapabilities, PlatformError, PlatformServices, ScreenPoint, TranslationProvider,
-    TranslationResult, WindowProvider,
+    Capability, PermissionKind, PermissionProvider, PermissionStatus, PlatformCapabilities,
+    PlatformError, PlatformServices, TranslationProvider, TranslationResult, WindowProvider,
 };
 
+mod ocr;
 mod selection;
 pub mod window;
 
@@ -24,23 +24,11 @@ impl WindowsPlatform {
         PlatformServices {
             capabilities: PlatformCapabilities::default(),
             selection: Arc::new(selection::WindowsSelectionProvider),
-            ocr: Arc::new(UnsupportedOcrProvider),
+            ocr: Arc::new(ocr::WindowsOcrProvider),
             translation: Arc::new(UnsupportedTranslationProvider),
             permissions: Arc::new(UnsupportedPermissionProvider),
             window: Arc::new(UnsupportedWindowProvider),
         }
-    }
-}
-
-struct UnsupportedOcrProvider;
-
-#[async_trait]
-impl OcrProvider for UnsupportedOcrProvider {
-    async fn recognize_near(
-        &self,
-        _pointer: ScreenPoint,
-    ) -> Result<Vec<OcrCandidate>, PlatformError> {
-        Err(PlatformError::Unsupported(Capability::ScreenshotOcr))
     }
 }
 
