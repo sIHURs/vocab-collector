@@ -30,10 +30,17 @@ fn block_on<F: Future>(future: F) -> F::Output {
 }
 
 #[test]
-fn unverified_native_capabilities_remain_disabled() {
+fn only_physically_verified_native_capabilities_are_enabled() {
     let services = WindowsPlatform::new();
 
-    assert_eq!(services.capabilities, PlatformCapabilities::default());
+    assert_eq!(
+        services.capabilities,
+        PlatformCapabilities {
+            selection_capture: true,
+            selection_bounds: true,
+            ..PlatformCapabilities::default()
+        }
+    );
 }
 
 #[test]
@@ -84,10 +91,12 @@ fn capture_window_style_is_tool_window_without_app_window_activation() {
 }
 
 #[test]
-#[ignore = "requires a prepared, focused Notepad selection on a Windows 11 physical machine"]
-fn physical_notepad_unicode_selection_matches_the_portable_contract() {
+#[ignore = "requires a prepared, focused application selection on the target Windows 10 Pro physical machine"]
+fn physical_uia_selection_matches_the_portable_contract() {
     let expected = std::env::var("VOCAB_UIA_EXPECTED")
-        .expect("set VOCAB_UIA_EXPECTED to the exact selected Notepad text");
+        .expect("set VOCAB_UIA_EXPECTED to the exact selected application text");
+    let expected_app = std::env::var("VOCAB_UIA_EXPECTED_APP")
+        .expect("set VOCAB_UIA_EXPECTED_APP to the selected application's executable name");
     std::thread::sleep(std::time::Duration::from_secs(2));
 
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -103,7 +112,7 @@ fn physical_notepad_unicode_selection_matches_the_portable_contract() {
         candidate
             .source_app
             .as_deref()
-            .is_some_and(|name| name.eq_ignore_ascii_case("notepad.exe"))
+            .is_some_and(|name| name.eq_ignore_ascii_case(&expected_app))
     );
     assert!(
         candidate

@@ -1,21 +1,27 @@
-# Windows 11 development handoff
+# Windows 10 Pro development handoff
 
 ## Current status
 
-Plan B implementation is in progress. The Windows adapter now contains COM/UI Automation selection, explicit Windows Graphics Capture plus `Windows.Media.Ocr`, DPI/coordinate handling, and narrowly scoped Win32 window behavior. Translation, permission guidance, and the remaining deferred providers still return typed `PlatformError::Unsupported` results. Native capability flags remain `false` until the corresponding physical-machine evidence is recorded; in particular, the implemented OCR provider is not yet advertised through `screenshot_ocr`.
+Plan B implementation is in progress. The Windows adapter now contains COM/UI Automation selection, explicit Windows Graphics Capture plus `Windows.Media.Ocr`, DPI/coordinate handling, and narrowly scoped Win32 window behavior. Translation, permission guidance, and the remaining deferred providers still return typed `PlatformError::Unsupported` results. Physical Notepad and Chrome evidence enables `selection_capture` and `selection_bounds`; the implemented OCR provider is not yet advertised through `screenshot_ocr`.
 
-No Windows code or target was compiled, tested, or run during Plan A on macOS. Hosted CI is intended to establish only build and automated contract status on its Windows runner. All native runtime, permission, application-compatibility, and packaging results below remain unverified until Plan B runs on a Windows 11 x64 physical machine.
+No Windows code or target was compiled, tested, or run during Plan A on macOS. Hosted CI is intended to establish only build and automated contract status on its Windows runner. All native runtime, permission, application-compatibility, and packaging results below remain unverified until Plan B runs on the target Windows 10 Pro x64 physical machine.
 
 ## Plan B machine setup
 
 Target environment:
 
-- Windows 11 x64 on a physical machine
+- Windows 10 Pro x64 on the user's available physical machine
 - Visual Studio 2022 Build Tools with Desktop development with C++ and the Windows SDK
 - Microsoft WebView2 Runtime
 - Rust 1.98 or newer using the MSVC toolchain
 - Node.js 22
 - pnpm 11.19.0
+
+This Windows 10 Pro x64 machine is the primary runtime, compatibility, and release
+verification target. Record its exact reported edition, kernel build,
+architecture, application versions, and tested commit for each evidence run.
+Windows 11 and other Windows editions require separate validation and are not
+release claims of this plan.
 
 In a Developer PowerShell, select the Rust target and install repository dependencies after the tools above are available:
 
@@ -46,23 +52,54 @@ pnpm tauri dev
 
 Passing the automated commands confirms the adapter and shared application compile on that Windows environment; it does not prove native capture support. `pnpm tauri dev` and the physical native-capture checks remain unverified in the current handoff evidence.
 
-## Deferred physical-machine verification
+## Physical-machine verification status
 
-Every item in this section is explicitly deferred to Plan B and remains unverified:
+Completed evidence is recorded in the dated handoffs below. The remaining items
+are still deferred or only partially verified:
 
 - [ ] Application startup and shared SQLite, Today, Vocabulary, Review, Settings, and manual capture behavior
-- [ ] COM initialization and thread ownership
-- [ ] UI Automation TextPattern/TextPattern2 selection, Unicode/UTF-16, geometry, and inaccessible-control behavior
+- [x] COM initialization and thread ownership through automated ownership tests and physical UIA capture
+- [x] UI Automation TextPattern/TextPattern2 selection, Unicode/UTF-16, and geometry for Notepad and Chrome
 - [ ] Global shortcut registration, conflicts, persistence, and repeat suppression
 - [ ] Windows Graphics Capture consent and cancellation
 - [ ] Explicit OCR confirmation, in-memory image handling, and OCR results
 - [ ] Translation provider selection and offline/error behavior
 - [ ] Permission guidance and recovery
 - [ ] Non-activating floating-window focus, task-switcher behavior, per-monitor DPI, negative coordinates, and mixed-scale displays
-- [ ] Edge, Chrome, Firefox, Notepad, Microsoft Word, and PDF-reader compatibility matrix
+- [ ] Extended application compatibility beyond verified Notepad and Chrome; absent applications and optional cases are recorded in `docs/windows-w08-blockers.md`
 - [ ] NSIS packaging, installation, launch, WebView2 behavior, upgrade, and uninstall
 
 Do not mark a Windows capability `true` until its provider and matching Windows tests exist and the relevant physical-machine checks have been recorded.
+
+## 2026-09-02 W-08/W-14 physical decision handoff
+
+Environment: Windows 10 Pro 24H2 x64 physical machine, reported kernel build
+10.0.26100.7171. Application versions: Notepad 10.0.26100.8875, Chrome
+152.0.7977.75, and Word 16.0.20326.20112. The immutable tested commit is recorded
+after the implementation commit and physical rerun.
+
+Verified Windows physical: Notepad exact Unicode selection passed through
+TextPattern2 with context, source metadata, and bounds. Chrome static reading text
+and textarea selection passed through TextPattern with exact text, context, source
+metadata, and bounds when deterministic DOM selections were used.
+
+Recorded limitations: VS Code returned `UnsupportedElement` both normally and
+with forced renderer accessibility. Word returned `EmptySelection` after bounded
+traversal reached 64 nodes. Windows Terminal remains Not run because a reliable
+mouse selection was not established. Edge, Firefox, and a standalone PDF reader
+are absent and are not part of the current-machine compatibility claim.
+
+Product decision: Chrome is the required current browser scenario; absent
+applications do not block; Terminal is optional; VS Code is non-material; ordinary
+English OCR accuracy is acceptable; Word is a known limitation deferred to later
+application testing; elevated target processes are outside the current release
+matrix. Consequently W-14 closes clipboard fallback as Unsupported. Manual
+Capture is the currently available user-visible alternative. OCR remains the
+designed future fallback but is not advertised until `screenshot_ocr` passes its
+own physical gate. The application does not read or mutate clipboard contents.
+
+Capability changes: `selection_capture=true` and `selection_bounds=true`.
+`screenshot_ocr`, `translation`, and `non_activating_window` remain false.
 
 ---
 

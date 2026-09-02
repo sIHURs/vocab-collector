@@ -3,12 +3,14 @@
 ## Current handoff state
 
 Vocab Collector has one shared Rust application and one shared Svelte UI. The
-macOS adapter is implemented under `platform/macos`; `platform/linux` and
-`platform/windows` are static Plan B skeletons. The skeletons report every
-capability as unavailable and return typed `PlatformError::Unsupported`
-results. They were not compiled, tested, or run on macOS. Runtime support is
-established only by the target-machine work in `docs/linux-development.md` and
-`docs/windows-development.md`.
+macOS adapter is implemented under `platform/macos`; `platform/linux` remains a
+static Plan B skeleton. The Windows adapter implements UIA selection, OCR, and
+window behavior incrementally; only selection capture and bounds are currently
+advertised after target-machine evidence. Other Windows capabilities remain
+unavailable through typed `PlatformError::Unsupported` results. The original
+Plan B skeletons were not compiled, tested, or run on macOS. Current runtime
+support is established only by target-machine evidence in
+`docs/linux-development.md` and `docs/windows-development.md`.
 
 ## Dependency direction
 
@@ -109,7 +111,7 @@ platform/
     rust/                  Rust provider implementations and isolated FFI
     native/                SwiftPM package, sources, and native tests
   linux/                   Rust skeleton; native modules arrive in Plan B
-  windows/                 Rust skeleton; native modules arrive in Plan B
+  windows/                 Incremental Rust adapter; capabilities follow evidence gates
 
 apps/desktop/src-tauri/src/
   bootstrap.rs             storage + target adapter composition
@@ -150,7 +152,7 @@ branches.
 ## Plan B references
 
 - Ubuntu 24.04 GNOME Wayland: `docs/linux-development.md`
-- Windows 11 x64: `docs/windows-development.md`
+- Windows 10 Pro x64: `docs/windows-development.md`
 - Cross-platform architecture and milestone boundary:
   `docs/superpowers/specs/2026-08-26-cross-platform-core-and-os-adapters-design.md`
 

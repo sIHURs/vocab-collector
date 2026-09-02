@@ -14,7 +14,7 @@ mod ocr;
 mod selection;
 pub mod window;
 
-/// Builds the Windows provider bundle. Capabilities stay disabled until physical evidence exists.
+/// Builds the Windows provider bundle with only physically verified capabilities enabled.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct WindowsPlatform;
 
@@ -22,7 +22,11 @@ impl WindowsPlatform {
     #[allow(clippy::new_ret_no_self)]
     pub fn new() -> PlatformServices {
         PlatformServices {
-            capabilities: PlatformCapabilities::default(),
+            capabilities: PlatformCapabilities {
+                selection_capture: true,
+                selection_bounds: true,
+                ..PlatformCapabilities::default()
+            },
             selection: Arc::new(selection::WindowsSelectionProvider),
             ocr: Arc::new(ocr::WindowsOcrProvider),
             translation: Arc::new(UnsupportedTranslationProvider),

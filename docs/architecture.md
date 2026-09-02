@@ -15,7 +15,7 @@ vocab-desktop (composition and presentation boundary)
             ▲
             ├── vocab-platform-macos → Swift native package
             ├── vocab-platform-linux (Plan B skeleton)
-            └── vocab-platform-windows (Plan B skeleton)
+            └── vocab-platform-windows (incremental Plan B adapter)
 ```
 
 Dependencies point inward: shared crates never import Tauri, Swift FFI,
@@ -79,11 +79,12 @@ on those styles is enabled only when `nonActivatingWindow` is reported;
 unavailable providers return explicit typed errors.
 
 The macOS adapter and Swift package are the Plan A runtime implementation.
-Linux and Windows crates are contract-compatible skeletons only. Their source
-may be statically formatted on macOS, but their compilation, automated tests,
-and runtime behavior are verified on their target-specific CI lanes and
-physical Plan B hosts as documented in `linux-development.md` and
-`windows-development.md`.
+Linux remains a contract-compatible skeleton. Windows is an incremental Plan B
+adapter: UIA selection and bounds are advertised after target-machine evidence,
+while OCR, translation, and non-activating-window capabilities remain disabled
+until their own evidence gates pass. Target-specific compilation, automated
+tests, and physical runtime evidence are documented in `linux-development.md`
+and `windows-development.md`.
 
 ## Account and enrichment seams
 

@@ -5,8 +5,8 @@ Source: `docs/windows-platform-plan-v2.md`
 Environment labels:
 
 - **Current:** implementation and automated verification can be completed in the current managed workspace.
-- **Hybrid:** implementation and automated verification can run in the current workspace, but the ticket is not complete until its listed Windows 11 physical-machine checks pass.
-- **Physical:** the deciding work and evidence require a Windows 11 x64 physical machine.
+- **Hybrid:** implementation and automated verification can run in the current workspace, but the ticket is not complete until its listed Windows 10 Pro x64 physical-machine checks pass.
+- **Physical:** the deciding work and evidence require the target Windows 10 Pro x64 physical machine.
 
 Every ticket must update `docs/windows-development-log.md`. Native capability flags remain false until automated and physical evidence both exist.
 
@@ -25,7 +25,7 @@ Every ticket must update `docs/windows-development-log.md`. Native capability fl
 - [x] Required tool versions and the current Windows CI lane are recorded.
 - [x] Existing Rust, frontend, and build gates have an exact pass/fail/block result.
 - [x] Windows native capability flags remain false and no later-ticket behavior is implemented.
-- [x] Runtime checks are marked `Not run` unless the host is confirmed to be a Windows 11 x64 physical machine.
+- [x] Runtime checks are marked `Not run` unless the host is confirmed to be the target Windows 10 Pro x64 physical machine.
 - [x] `docs/windows-development-log.md` records scope, decisions, files, commands/results, unverified items, and the W-02 starting point.
 
 **Verification:**
@@ -149,17 +149,22 @@ Physical-only follow-up: `pnpm tauri dev` plus Manual Capture, SQLite restart pe
 - [x] COM ownership is deterministic and native objects do not leak across boundaries.
 - [x] Exact Unicode text, context when available, source metadata, and bounds normalize into portable values.
 - [x] HRESULT details do not leak into normal product UI.
-- [ ] Selection capability becomes true only after Notepad physical evidence.
+- [x] Selection capability becomes true only after Notepad physical evidence.
 
 **Verification:** Windows adapter and contract tests, desktop command-contract tests, Clippy, `pnpm tauri dev`, and physical Notepad Unicode capture.
 
 ## W-08: Expand UIA compatibility and safe diagnostics
 
-**What to build:** Add bounded TextPattern2/TextPattern discovery and content-safe diagnostics for browsers, editors, Terminal, Office, and PDF readers.
+Physical evidence, compatibility limitations, and the resolved scope decision are tracked in
+[`windows-w08-blockers.md`](windows-w08-blockers.md).
+
+**What to build:** Add bounded TextPattern2/TextPattern discovery and content-safe diagnostics for the applications installed on the target machine. Chrome reading and editable content is the required browser baseline; absent applications do not block this ticket.
 
 **Blocked by:** W-07.
 
-**Environment:** Hybrid.
+**Environment:** Hybrid. Run the physical UIA compatibility matrix on the target
+Windows 10 Pro x64 machine and record the exact edition, build, architecture,
+application versions, and commit for every run.
 
 **Directories:** `platform/windows/`; `crates/platform-contract-tests/`; `crates/application/`; `docs/`.
 
@@ -168,9 +173,11 @@ Physical-only follow-up: `pnpm tauri dev` plus Manual Capture, SQLite restart pe
 - [x] Focused fast path and bounded traversal terminate predictably.
 - [x] UTF-16, multiple rectangles, empty selection, unsupported control, and missing metadata have fixture coverage.
 - [x] Default diagnostics print metadata/lengths, not captured content.
-- [ ] Required compatibility-matrix UIA columns are recorded physically.
+- [x] Required compatibility-matrix UIA columns are recorded on the target
+  Windows 10 Pro x64 physical machine, with the operating system identified.
 
-**Verification:** Windows adapter, platform-contract, and application fake-provider tests plus the physical UIA matrix.
+**Verification:** Windows adapter, platform-contract, and application fake-provider
+tests plus the physical UIA matrix on the target Windows 10 Pro x64 machine.
 
 ## W-09: Present a non-activating mixed-DPI capture window
 
@@ -275,15 +282,15 @@ Physical-only follow-up: `pnpm tauri dev` plus Manual Capture, SQLite restart pe
 
 **Acceptance criteria:**
 
-- [ ] The decision names the failing applications/use cases and evidence.
-- [ ] If omitted, the fallback and user-visible alternative are documented.
-- [ ] If implemented, new clipboard updates are distinguished from stale values and previous formats are restored or restoration failure is explicit.
+- [x] The decision names the failing applications/use cases and evidence.
+- [x] Clipboard fallback is omitted as unsupported; Manual Capture is the currently available user-visible alternative, while OCR remains deferred behind its capability gate.
+- [x] Not applicable: clipboard fallback was not implemented, so it introduces no clipboard update or restoration behavior.
 
 **Verification:** Physical compatibility matrix; if implemented, Windows adapter, platform-contract, desktop contract tests, and physical clipboard-format checks.
 
 ## W-15: Produce an installable NSIS preview in CI
 
-**What to build:** Produce a traceable Windows 11 x64 per-user NSIS artifact and verify clean install, WebView2 handling, upgrade, and uninstall-data choices.
+**What to build:** Produce a traceable Windows 10 Pro x64 per-user NSIS artifact and verify clean install, WebView2 handling, upgrade, and uninstall-data choices.
 
 **Blocked by:** W-13, W-14.
 

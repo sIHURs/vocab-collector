@@ -2,7 +2,7 @@
 
 > **For agentic workers:** Implement this plan milestone by milestone. Use `superpowers:subagent-driven-development` or `superpowers:executing-plans`, apply test-driven development within each milestone, and update the handoff evidence before moving to the next milestone.
 
-**Goal:** Deliver a complete, local-first Vocab Collector desktop application for Windows 11 x64 with an independently maintained Windows presentation, UI Automation capture, explicit OCR fallback, persistent review workflows, system integration, and a verifiable NSIS release.
+**Goal:** Deliver a complete, local-first Vocab Collector desktop application for Windows 10 Pro x64 with an independently maintained Windows presentation, UI Automation capture, explicit OCR fallback, persistent review workflows, system integration, and a verifiable NSIS release.
 
 **Architecture:** Domain, application, storage, capture coordination, portable platform contracts, and frontend-facing DTOs remain shared. Windows owns its Svelte presentation and native adapter; Tauri remains the composition boundary between product workflows and Windows services. UI Automation, Win32, WinRT, COM, HRESULT, HWND, and native image types must remain below `platform-api` or inside narrowly scoped desktop window integration.
 
@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Target Windows 11 x64 on a physical machine. ARM64 and Windows 10 are not claimed by this plan.
+- Target Windows 10 Pro x64 on the user's available physical machine. Windows 11, ARM64, and other Windows editions are not claimed by this plan without separate validation.
 - Preserve the dependency direction `desktop/application -> platform-api <- platform/windows`; shared crates must not import Windows APIs or the Windows adapter.
 - Keep Windows page-level UI and platform styling independent from the unfinished macOS presentation. Share stable DTOs, backend contracts, event contracts, and visual tokens only where their behavior is already proven.
 - Match the existing Vocab Collector visual identity where practical: colors, density, typography hierarchy, component proportions, and capture-card tone. Windows interaction, focus, title bar, scaling, and accessibility behavior take precedence over pixel identity.
@@ -306,7 +306,7 @@ Each milestone ends with a runnable or independently verifiable slice and a docu
 
 **Scope:** `platform/windows`, workspace manifests, `apps/desktop`, `ui`, CI configuration, and Windows development evidence. Do not add native capabilities.
 
-**Dependencies:** Physical Windows 11 x64; Visual Studio 2022 Build Tools with Desktop C++ and Windows SDK; WebView2 Runtime; Rust 1.98 MSVC; Node.js 22; pnpm 11.19.0.
+**Dependencies:** Physical Windows 10 Pro x64; Visual Studio 2022 Build Tools with Desktop C++ and Windows SDK; WebView2 Runtime; Rust 1.98 MSVC; Node.js 22; pnpm 11.19.0.
 
 **Acceptance:** All applicable automated gates pass; `pnpm tauri dev` opens the skeleton application; SQLite, Today, Vocabulary, Review, Settings persistence, and Manual Capture are exercised; every native capability still reports false.
 
@@ -477,6 +477,10 @@ pnpm tauri dev
 
 **Dependencies:** Milestones 3 and 6 plus completed application matrix.
 
+For this decision gate, use the W-08 application matrix recorded on the target
+Windows 10 Pro x64 physical machine and name the exact environment in the
+clipboard decision.
+
 **Acceptance without implementation:** The matrix names no material case where clipboard is better than UIA/OCR; the release documents clipboard as unsupported and the milestone closes with no code.
 
 **Acceptance with implementation:** Plain text is accepted only after a new clipboard sequence/update; existing formats are restored; stale values, delayed owners, large payloads, no selection, and restoration failure are tested; the feature can be disabled independently.
@@ -498,7 +502,7 @@ pnpm tauri dev
 
 **Dependencies:** Milestone 7; Milestone 8 decision recorded.
 
-**Acceptance:** x64 per-user NSIS installs on a clean Windows 11 user account; WebView2 strategy succeeds; first launch initializes SQLite; installing a newer build preserves data/settings; uninstall removes binaries, tray/autostart integration, and shortcuts; local database remains unless the user selects explicit deletion; running app is handled before upgrade/uninstall.
+**Acceptance:** x64 per-user NSIS installs on a clean Windows 10 Pro user account; WebView2 strategy succeeds; first launch initializes SQLite; installing a newer build preserves data/settings; uninstall removes binaries, tray/autostart integration, and shortcuts; local database remains unless the user selects explicit deletion; running app is handled before upgrade/uninstall.
 
 **Verification:**
 
@@ -559,20 +563,25 @@ Do not unit-test private call order when the public provider or workflow result 
 
 ### 6.5 Windows physical-device matrix
 
-Record application version/commit, Windows build, architecture, WebView2 version, display layout/scales, application version, selected text kind, and result for every row.
+Record application version/commit, Windows build, architecture, WebView2 version, display layout/scales, application version, selected text kind, and result for every row. The 2026-09-02 product decision makes installed applications the current compatibility surface: Chrome reading/editable content is required; absent applications are not blockers; Terminal is optional; VS Code is not a material clipboard-fallback use case.
+
+Complete the physical matrix on the target Windows 10 Pro x64 machine. Record
+the exact edition/build in the evidence and use the W-08 UIA columns for the W-14
+clipboard decision.
 
 | Application/scenario | UIA text | Bounds | Context | Source metadata | OCR | Focus preserved | Notes |
 |---|---:|---:|---:|---:|---:|---:|---|
-| Notepad plain text | Not run | Not run | Not run | Not run | Not run | Not run | Required |
-| Windows Terminal | Not run | Not run | Not run | Not run | Not run | Not run | Required |
-| VS Code editor | Not run | Not run | Not run | Not run | Not run | Not run | Required Electron case |
-| Edge static page | Not run | Not run | Not run | Not run | Not run | Not run | Required Chromium case |
-| Edge textarea/contenteditable | Not run | Not run | Not run | Not run | Not run | Not run | Required |
-| Chrome static/editable page | Not run | Not run | Not run | Not run | Not run | Not run | Required |
-| Firefox static/editable page | Not run | Not run | Not run | Not run | Not run | Not run | Required |
-| Microsoft Word | Not run | Not run | Not run | Not run | Not run | Not run | Required if licensed on test host |
-| PDF reader | Not run | Not run | Not run | Not run | Not run | Not run | Record product/version |
-| Elevated target process | Not run | Not run | Not run | Not run | Not run | Not run | Error guidance required |
+| Notepad plain text | Pass | Pass | Pass | Pass | Not run | Not run | Verified physical with exact Unicode fixture; TextPattern2 |
+| Windows Terminal | Not run | Not run | Not run | Not run | Not run | Not run | Optional; reliable mouse selection was not established |
+| VS Code editor | Unsupported | N/A | N/A | N/A | Not run | Not run | Tested normally and with forced renderer accessibility; not a material target case |
+| Edge static page | N/A | N/A | N/A | N/A | N/A | N/A | Not installed; not a current blocker |
+| Edge textarea/contenteditable | N/A | N/A | N/A | N/A | N/A | N/A | Not installed; not a current blocker |
+| Chrome static page | Pass | Pass | Pass | Pass | Not needed | Not run | Chrome 152.0.7977.75; deterministic DOM selection; TextPattern |
+| Chrome textarea | Pass | Pass | Pass | Pass | Not needed | Not run | Chrome 152.0.7977.75; deterministic textarea selection; TextPattern |
+| Firefox static/editable page | N/A | N/A | N/A | N/A | N/A | N/A | Not installed; not a current blocker |
+| Microsoft Word | Empty selection | N/A | N/A | N/A | Not run | Not run | Word 16.0.20326.20112; known limitation deferred to later application testing |
+| PDF reader | N/A | N/A | N/A | N/A | N/A | N/A | No standalone reader installed; not a current blocker |
+| Elevated target process | N/A | N/A | N/A | N/A | N/A | N/A | Excluded from the current release matrix by product decision |
 
 Additional physical suites:
 
@@ -590,7 +599,7 @@ Additional physical suites:
 
 ### NSIS and WebView2
 
-- Build a Windows 11 x64 per-user NSIS installer through Tauri.
+- Build a Windows 10 Pro x64 per-user NSIS installer through Tauri.
 - Select and document a WebView2 installation mode supported by the pinned Tauri version. Validation of the exact bootstrapper/offline strategy is **Not run** on a clean VM or user account.
 - Keep the existing application identifier stable so upgrades target the same installation and data directory.
 - Do not add an in-app updater in v2.
@@ -655,7 +664,7 @@ No plan item may turn a **Not run** statement into a release claim without recor
 
 Windows Platform v2 is done only when all of the following are true:
 
-1. The Windows 11 x64 application installs from NSIS and starts without Rust, Node, pnpm, or preconfigured developer tooling.
+1. The Windows 10 Pro x64 application installs from NSIS and starts without Rust, Node, pnpm, or preconfigured developer tooling.
 2. Startup initializes or migrates SQLite and restores Settings without losing prior data.
 3. The Windows-owned presentation provides Today, Vocabulary, Review, Settings, Manual Capture, word detail, native result, and OCR confirmation with complete loading/empty/error states.
 4. Closing the main window keeps capture available in the tray; Open and Exit behave predictably; launch-at-login and review notifications match Settings.

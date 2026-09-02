@@ -847,3 +847,112 @@ No shared application or Windows-native adapter file changed.
 ### Next ticket starting point
 
 W-13 remains open at its physical accessibility gate. Run `pnpm tauri dev` on a confirmed Windows 11 x64 physical machine and complete the Narrator, High Contrast, minimum-size, and text-scaling matrix before treating W-13 as physically complete. W-14 then starts from the existing UIA/OCR compatibility evidence and must decide clipboard fallback from physical application-matrix results; it must not infer that decision from these presentation changes.
+
+## 2026-09-02 - Windows release target changed to Windows 10 Pro x64
+
+### Implementation
+
+- Changed the global Windows runtime, compatibility, packaging, and release target from Windows 11 x64 to Windows 10 Pro x64, using the user's available machine as the primary physical validation environment.
+- Updated W-08 and W-14 so the Windows 10 Pro application matrix is the deciding clipboard evidence rather than an exception.
+- Updated the NSIS preview and release Definition of Done to require Windows 10 Pro x64.
+- Updated the Windows presentation ADR, porting guide, development handoff, ticket environment labels, and physical Notepad test description.
+
+### Key decisions
+
+- Windows 10 Pro x64 is now the only claimed Windows release target. Windows 11, ARM64, and other Windows editions require separate validation.
+- Every physical run must record the exact reported Windows edition, kernel build, architecture, application versions, tested commit, selected-text scenario, and observed result.
+- The current host reports `Windows 10 Pro` through the product query and kernel version `10.0.26100.7171` through `cmd /c ver`; both values must be retained in evidence because the edition label and kernel build must not be inferred from one another.
+- Historical Windows 11 entries remain unchanged as historical evidence; they do not define the new release target.
+- No capability flag changes as a result of the target change; flags still require the provider, automated contracts, and applicable Windows 10 Pro physical evidence.
+
+### Main files changed
+
+- `docs/windows-platform-tickets.md`
+- `docs/windows-platform-plan-v2.md`
+- `docs/windows-development.md`
+- `docs/windows-development-log.md`
+- `docs/adr/0001-independent-windows-presentation.md`
+- `docs/cross-platform-porting-guide.md`
+- `platform/windows/tests/capabilities.rs`
+
+### Tests and results
+
+- `cmd /c ver`: **Verified automated** environment query; reported `Microsoft Windows [Version 10.0.26100.7171]`.
+- `[System.Environment]::OSVersion.Version`: **Verified automated** environment query; reported `10.0.26100.0`.
+- `git diff --check`: **Verified automated**; no whitespace errors.
+- No runtime behavior was exercised; the Rust change only updates an ignored physical-test description.
+
+### Not yet verified
+
+- **Not run:** the W-08 UIA application matrix on the target Windows 10 Pro x64 machine.
+- **Not run:** W-09 through W-16 physical runtime, accessibility, lifecycle, privacy, and installer evidence on the target Windows 10 Pro x64 machine.
+
+### Next ticket starting point
+
+Run the W-08 UIA matrix on the target Windows 10 Pro x64 physical machine and record the exact environment and per-application results. W-14 can then decide whether clipboard fallback is unsupported or materially justified by those results. Subsequent physical tickets and release gates should use the same target machine unless a recorded test explicitly names another Windows 10 Pro x64 environment.
+
+## 2026-09-02 - W-08 physical matrix and W-14 clipboard decision
+
+### Implementation
+
+- Generalized the ignored physical UIA contract test so any prepared foreground application can supply its expected text and executable name.
+- Added local static and textarea Chrome fixtures that establish deterministic DOM selections without network access.
+- Enabled `selection_capture` and `selection_bounds` after physical Notepad and Chrome evidence passed.
+- Closed clipboard fallback as `Unsupported`; no clipboard API, synthetic Copy, or shared application branch was added.
+- Updated the W-08 matrix, blocker record, tickets, and Windows handoff with the approved current-machine scope.
+
+### Key decisions
+
+- Chrome is the required current browser baseline. Other browsers and applications may be added later, but applications absent from the target machine do not block this release.
+- Windows Terminal is optional and remains Not run. VS Code is not a material current use case. Word's UIA failure is recorded but does not justify clipboard behavior.
+- The first Notepad failure was a test setup error: `Ctrl+A` included a terminal paragraph marker. Adjusting the selection endpoint proved the provider preserves exact user-selected text; production output is not trimmed.
+- Chrome must use a real, deterministic DOM selection for physical evidence. Static content and textarea both passed TextPattern with portable context, metadata, and bounds.
+- With no material case where UIA fails and the current Manual Capture alternative is unacceptable, clipboard fallback would add side effects without evidence of product value. OCR remains a deferred designed path because its capability is still false.
+- Windows-native types and APIs remain below `platform-api`; shared application crates are unchanged.
+- After submission review, the product owner explicitly classified Word as a known limitation deferred to later application testing and excluded elevated target processes from the current release matrix. These decisions close the remaining W-08 scope questions and finalize W-14 as unsupported.
+
+### Main files changed
+
+- `platform/windows/src/lib.rs`
+- `platform/windows/tests/capabilities.rs`
+- `platform/windows/tests/fixtures/uia-browser-static.html`
+- `platform/windows/tests/fixtures/uia-browser-editable.html`
+- `docs/windows-platform-plan-v2.md`
+- `docs/windows-platform-tickets.md`
+- `docs/windows-w08-blockers.md`
+- `docs/windows-development.md`
+- `docs/windows-development-log.md`
+
+### Tests and results
+
+- Notepad physical provider contract: **Verified Windows physical**, 1 passed; exact Unicode, context, `notepad.exe`, title, and bounds.
+- Chrome static physical provider contract: **Verified Windows physical**, 1 passed; Chrome 152.0.7977.75, TextPattern, exact text, context, metadata, and bounds.
+- Chrome textarea physical provider contract: **Verified Windows physical**, 1 passed; Chrome 152.0.7977.75, TextPattern, exact text, context, metadata, and three rectangles.
+- VS Code physical probes: `UnsupportedElement` normally and with forced renderer accessibility; recorded limitation, not a current blocker.
+- Word physical probe: `EmptySelection`, 64-node traversal cap reached; recorded limitation, not a current blocker.
+- Windows Terminal probe: `EmptySelection`, but no reliable mouse selection was established; classified Not run rather than an application failure.
+- Capability TDD: the new public capability expectation failed with both flags false, then passed after enabling only selection and bounds.
+- `cargo fmt --all --check`: **Verified automated**, passed.
+- `cargo test -p vocab-platform-windows`: **Verified automated**, 16 tests passed and the explicit physical test remained ignored in the ordinary suite.
+- `cargo test -p vocab-platform-contract-tests`: **Verified automated**, 8 tests passed.
+- `cargo test -p vocab-application --test platform_fakes`: **Verified automated**, 13 tests passed.
+- `cargo test -p vocab-desktop --test command_contract`: **Verified automated**, 27 tests passed.
+- `cargo clippy --workspace --all-targets --exclude vocab-platform-macos --exclude vocab-platform-linux -- -D warnings`: **Verified automated**, passed with no warnings.
+- `cargo test --workspace --exclude vocab-platform-macos --exclude vocab-platform-linux`: **Verified automated**, passed.
+- `cargo build --workspace --exclude vocab-platform-macos --exclude vocab-platform-linux`: **Verified automated**, passed.
+- `pnpm check`: initial restricted-sandbox run was **Blocked** by `esbuild spawn EPERM`; the exact sandbox-external rerun was **Verified automated**, with 0 errors and 0 warnings.
+- `pnpm test`: initial restricted-sandbox run was **Blocked** by `esbuild spawn EPERM`; the exact sandbox-external rerun was **Verified automated**, with 57 tests passing across 7 files.
+- `pnpm build`: initial restricted-sandbox run was **Blocked** by `esbuild spawn EPERM`; the exact sandbox-external rerun was **Verified automated**, with 127 modules transformed.
+
+### Not yet verified
+
+- **Not run:** Windows Terminal with a manually dragged selection; optional under the approved scope.
+- **Not run:** OCR accuracy for ordinary English on the recorded UIA failure cases. OCR remains a designed future fallback path, but it is not currently advertised and `screenshot_ocr` stays false pending its own physical evidence.
+- **N/A:** Edge, Firefox, Notion, and a standalone PDF reader are absent from the target machine and do not block W-08/W-14.
+- **Known limitation:** Word UIA returned `EmptySelection`; Word support is deferred to later application testing.
+- **N/A:** elevated target processes are outside the current release matrix by product decision.
+- **Not run:** focus preservation for the matrix; it remains owned by W-09 and does not affect the W-14 clipboard decision.
+
+### Next ticket starting point
+
+W-15 starts from a Windows 10 Pro x64 release target with UIA selection and bounds advertised, clipboard fallback unsupported, Manual Capture available, and OCR deferred behind its capability gate. Do not add clipboard behavior without new physical evidence and a new product decision.
