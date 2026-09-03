@@ -350,6 +350,26 @@ describe("Windows main presentation", () => {
     expect(container.querySelector(".windows-shell")).toHaveAttribute("data-reduced-motion", "true");
   });
 
+  it("offers automatic source detection but requires an explicit target", async () => {
+    const api = new TrackingSettingsBackend(false);
+    render(WindowsApp, { api });
+    await screen.findByText("No captures yet");
+
+    await fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    const source = screen.getByLabelText("Source language");
+    const target = screen.getByLabelText("Translate into");
+    expect(within(source).getByRole("option", { name: "Auto detect" })).toHaveValue("auto");
+    expect(within(target).queryByRole("option", { name: "Auto detect" })).toBeNull();
+    expect(within(source).getByRole("option", { name: "Chinese (Simplified)" })).toHaveValue("zh-Hans");
+    expect(within(target).getByRole("option", { name: "Chinese (Traditional)" })).toHaveValue("zh-Hant");
+
+    await fireEvent.change(source, { target: { value: "auto" } });
+    await fireEvent.change(target, { target: { value: "zh-Hant" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
+
+    expect(api.updates[0]).toMatchObject({ sourceLanguage: "auto", targetLanguage: "zh-Hant" });
+  });
+
   it("keeps saved visual preferences active when a settings save fails", async () => {
     const api = new TrackingSettingsBackend(false);
     api.updateSettings = async () => { throw new Error("Could not save settings"); };

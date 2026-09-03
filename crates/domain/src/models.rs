@@ -165,6 +165,27 @@ impl Default for UserSettings {
     }
 }
 
+impl UserSettings {
+    pub fn normalize_languages(&mut self) {
+        self.source_language = normalize_language_code(&self.source_language);
+        self.target_language = normalize_language_code(&self.target_language);
+    }
+
+    pub fn languages_are_valid(&self) -> bool {
+        !self.source_language.trim().is_empty()
+            && !self.target_language.trim().is_empty()
+            && self.target_language != "auto"
+    }
+}
+
+fn normalize_language_code(value: &str) -> String {
+    match value.trim() {
+        "zh" | "zh-hans" | "zh-Hans" => "zh-Hans".into(),
+        "zh-hant" | "zh-Hant" => "zh-Hant".into(),
+        value => value.to_string(),
+    }
+}
+
 fn default_recent_captures_limit() -> usize {
     20
 }

@@ -317,8 +317,8 @@
           {#if settingsError}<div class="dialog-error settings-message" role="alert">{settingsError}</div>{/if}
           <div class="settings-grid">
             <fieldset><legend>Languages</legend><p>Used for capture and translation.</p>
-              <label>Source language<select bind:value={settingsDraft.sourceLanguage}><option value="en">English</option><option value="de">German</option><option value="fr">French</option><option value="es">Spanish</option><option value="zh">Chinese</option></select></label>
-              <label>Translate into<select bind:value={settingsDraft.targetLanguage}><option value="en">English</option><option value="de">German</option><option value="fr">French</option><option value="es">Spanish</option><option value="zh">Chinese</option></select></label>
+              <label>Source language<select bind:value={settingsDraft.sourceLanguage}><option value="auto">Auto detect</option><option value="en">English</option><option value="de">German</option><option value="fr">French</option><option value="es">Spanish</option><option value="zh-Hans">Chinese (Simplified)</option><option value="zh-Hant">Chinese (Traditional)</option></select></label>
+              <label>Translate into<select bind:value={settingsDraft.targetLanguage}><option value="en">English</option><option value="de">German</option><option value="fr">French</option><option value="es">Spanish</option><option value="zh-Hans">Chinese (Simplified)</option><option value="zh-Hant">Chinese (Traditional)</option></select></label>
             </fieldset>
             <fieldset><legend>Review</legend><p>Set the size of your daily session.</p>
               <label>Review time<input type="time" bind:value={settingsDraft.reviewTime} /></label>

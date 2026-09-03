@@ -1142,3 +1142,51 @@ Ticket 02 can load and validate developer-only configuration in the desktop comp
 ### Next ticket starting point
 
 Ticket 03 starts at the shared `UserSettings` boundary: add the explicit `auto` source option, prohibit blank/automatic targets, normalize legacy `zh` to `zh-Hans`, and expose the choices in Windows Settings without coupling settings to Azure.
+
+## 2026-09-03 - Azure Translator Ticket 03: language settings contract
+
+### Implementation
+
+- Added shared language normalization and validation to `UserSettings` and enforced it at the application settings boundary.
+- Added `auto` as an explicit source-language setting while rejecting blank or automatic target languages.
+- Normalized legacy `zh` settings to `zh-Hans` and preserved distinct `zh-Hans`/`zh-Hant` values.
+- Updated Windows Settings to expose automatic source detection and explicit English, German, French, Spanish, Simplified Chinese, and Traditional Chinese targets.
+
+### Key decisions
+
+- Language rules live in the shared domain/application boundary, not in the Azure provider or Windows presentation.
+- `auto` is a durable source setting but never a valid completed target language.
+- Legacy Chinese normalization occurs when settings cross the application boundary, preserving storage compatibility without a schema migration.
+- A provider-detected language continues to replace `auto` in `TranslationResult`; the provider behavior was already covered by Ticket 01.
+
+### Main files changed
+
+- `crates/domain/src/models.rs`
+- `crates/application/src/lib.rs`
+- `crates/application/tests/application_flow.rs`
+- `crates/application/tests/debug_session.rs`
+- `ui/src/windows/WindowsApp.svelte`
+- `ui/src/windows/WindowsApp.test.ts`
+- `docs/windows-development-log.md`
+
+### Tests and results
+
+- Application settings TDD: **Verified automated**, automatic target and legacy `zh` tests failed first, then all 9 application-flow tests passed.
+- Windows Settings TDD: **Verified automated**, the component test failed first because “Auto detect” and explicit Chinese variants were absent, then all 19 WindowsApp tests passed.
+- `cargo fmt --all --check`: **Verified automated**, passed.
+- `cargo test -p vocab-domain`: **Verified automated**, 7 tests passed.
+- `cargo test -p vocab-storage`: **Verified automated**, 8 tests passed.
+- `cargo test -p vocab-application`: **Verified automated**, 29 tests passed across all application suites.
+- `cargo test -p vocab-desktop --test command_contract`: **Verified automated**, 29 tests passed. The ticket's original filtered command matched no test names, so the explicit integration-test command was also run.
+- `pnpm --dir ui test -- WindowsApp.test.ts`: restricted sandbox run was **Blocked** by `esbuild spawn EPERM`; approved external rerun was **Verified automated**, 19 tests passed.
+- `pnpm --dir ui check`: **Verified automated**, 0 errors and 0 warnings.
+
+### Not yet verified
+
+- **Not run:** translated Capture Candidate editing and unified save behavior; owned by Ticket 04.
+- **Not run:** automatic translation from the Windows capture window; owned by Ticket 05.
+- **Not run:** physical Windows interaction or a real Azure request.
+
+### Next ticket starting point
+
+Ticket 04 starts at `CaptureCoordinator` and `PlatformCaptureWorkflow`: permit edits after a successful Automatic Translation, preserve independent field semantics, authorize blank translation through the same save action, and retain save-once and stale-request protection.

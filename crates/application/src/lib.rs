@@ -43,6 +43,8 @@ pub enum ApplicationError {
     Repository(#[from] RepositoryError),
     #[error("word not found")]
     WordNotFound,
+    #[error("target language must be explicit")]
+    InvalidTargetLanguage,
 }
 
 pub struct AppService {
@@ -88,7 +90,8 @@ impl AppService {
     }
 
     pub fn get_today(&self, now: DateTime<Utc>) -> Result<TodayView, ApplicationError> {
-        let settings = SettingsRepository::get(self.store.as_ref())?;
+        let mut settings = SettingsRepository::get(self.store.as_ref())?;
+        settings.normalize_languages();
         let words = self.store.list()?;
         let queue = build_review_queue(words.iter(), now, settings.daily_limit);
         let review_queue = queue
@@ -196,10 +199,16 @@ impl AppService {
     }
 
     pub fn get_settings(&self) -> Result<UserSettings, ApplicationError> {
-        Ok(SettingsRepository::get(self.store.as_ref())?)
+        let mut settings = SettingsRepository::get(self.store.as_ref())?;
+        settings.normalize_languages();
+        Ok(settings)
     }
 
-    pub fn update_settings(&self, settings: UserSettings) -> Result<(), ApplicationError> {
+    pub fn update_settings(&self, mut settings: UserSettings) -> Result<(), ApplicationError> {
+        settings.normalize_languages();
+        if !settings.languages_are_valid() {
+            return Err(ApplicationError::InvalidTargetLanguage);
+        }
         SettingsRepository::save(self.store.as_ref(), &settings)?;
         Ok(())
     }

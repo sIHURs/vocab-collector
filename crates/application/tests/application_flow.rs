@@ -75,6 +75,49 @@ fn settings_update_is_visible_to_today_view() {
 }
 
 #[test]
+fn automatic_source_and_explicit_target_round_trip_through_settings() {
+    let store = Arc::new(SqliteStore::open_in_memory().unwrap());
+    let service = AppService::new(store, Uuid::now_v7());
+    let mut settings = service.get_settings().unwrap();
+    settings.source_language = "auto".into();
+    settings.target_language = "zh-Hant".into();
+
+    service.update_settings(settings).unwrap();
+
+    let saved = service.get_settings().unwrap();
+    assert_eq!(saved.source_language, "auto");
+    assert_eq!(saved.target_language, "zh-Hant");
+}
+
+#[test]
+fn automatic_or_blank_target_language_is_rejected() {
+    let store = Arc::new(SqliteStore::open_in_memory().unwrap());
+    let service = AppService::new(store, Uuid::now_v7());
+    let mut settings = service.get_settings().unwrap();
+    settings.target_language = "auto".into();
+
+    assert_eq!(
+        service.update_settings(settings).unwrap_err().to_string(),
+        "target language must be explicit"
+    );
+}
+
+#[test]
+fn legacy_chinese_language_codes_are_normalized_at_the_application_boundary() {
+    let store = Arc::new(SqliteStore::open_in_memory().unwrap());
+    let mut settings = SettingsRepository::get(store.as_ref()).unwrap();
+    settings.source_language = "zh".into();
+    settings.target_language = "zh".into();
+    SettingsRepository::save(store.as_ref(), &settings).unwrap();
+    let service = AppService::new(store, Uuid::now_v7());
+
+    let normalized = service.get_settings().unwrap();
+
+    assert_eq!(normalized.source_language, "zh-Hans");
+    assert_eq!(normalized.target_language, "zh-Hans");
+}
+
+#[test]
 fn recent_captures_use_the_configured_limit() {
     let store = Arc::new(SqliteStore::open_in_memory().unwrap());
     let service = AppService::new(store.clone(), Uuid::now_v7());

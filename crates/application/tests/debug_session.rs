@@ -96,7 +96,7 @@ fn session_exposes_settings_today_and_read_only_database_diagnostics() {
     settings.target_language = "zh".into();
     let updated = session.update_settings(settings).unwrap();
     assert_eq!(updated.daily_limit, 9);
-    assert_eq!(updated.target_language, "zh");
+    assert_eq!(updated.target_language, "zh-Hans");
 
     let today = session
         .today(Utc.with_ymd_and_hms(2026, 8, 29, 12, 1, 0).unwrap())
