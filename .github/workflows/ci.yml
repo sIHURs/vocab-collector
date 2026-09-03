@@ -24,6 +24,7 @@ jobs:
       - run: cargo clippy --workspace --all-targets --exclude vocab-platform-linux --exclude vocab-platform-windows -- -D warnings
       - run: cargo test --workspace --exclude vocab-platform-linux --exclude vocab-platform-windows
       - run: cargo test -p vocab-translation-azure
+      - run: cargo test -p vocab-translation-deepl
       - run: cargo test -p vocab-platform-macos
       - run: cargo build --workspace --exclude vocab-platform-linux --exclude vocab-platform-windows
       - run: swift test --package-path platform/macos/native
@@ -52,6 +53,7 @@ jobs:
       - run: cargo clippy --workspace --all-targets --exclude vocab-platform-macos --exclude vocab-platform-windows -- -D warnings
       - run: cargo test --workspace --exclude vocab-platform-macos --exclude vocab-platform-windows
       - run: cargo test -p vocab-translation-azure
+      - run: cargo test -p vocab-translation-deepl
       - run: cargo test -p vocab-platform-linux
       - run: cargo build --workspace --exclude vocab-platform-macos --exclude vocab-platform-windows
       - run: pnpm check
@@ -78,6 +80,7 @@ jobs:
       - run: cargo clippy --workspace --all-targets --exclude vocab-platform-macos --exclude vocab-platform-linux -- -D warnings
       - run: cargo test --workspace --exclude vocab-platform-macos --exclude vocab-platform-linux
       - run: cargo test -p vocab-translation-azure
+      - run: cargo test -p vocab-translation-deepl
       - run: cargo test -p vocab-platform-windows
       - run: cargo build --workspace --exclude vocab-platform-macos --exclude vocab-platform-linux
       - run: pnpm check

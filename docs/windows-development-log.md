@@ -1411,3 +1411,53 @@ Ticket 08 must run on the Windows physical machine with a developer-owned Azure 
 ### Next ticket starting point
 
 Supply the developer credential outside Git, then resume Ticket 08 at the ignored fixed-text live test. Do not mark translation physically verified until all native selection, edit/apply/save, OCR confirmation, and failure-recovery scenarios pass on this machine.
+
+## 2026-09-03 - Azure and DeepL selectable development providers
+
+### Implementation
+
+- Added a standalone DeepL provider implementing the existing portable translation contract with private JSON protocol types, language adaptation, bounded retries, one overall timeout budget, and content-safe failures.
+- Added explicit `VOCAB_TRANSLATION_PROVIDER=azure|deepl` composition. Missing selection remains unavailable; only the selected provider is parsed, so coexisting keys never trigger guessing or fallback.
+- Added DeepL Free/Pro endpoint configuration, an ignored fixed-text live test, three-platform CI coverage, and provider-neutral development documentation.
+
+### Key decisions
+
+- Provider selection is explicit and belongs only to the desktop composition root. Shared application, capture coordination, Windows adapter, commands, and frontend remain provider-neutral.
+- DeepL Free and Pro differ only by configured HTTPS endpoint.
+- Default automation contacts neither service. Automatic fallback, account integration, quota ownership, and release credential delivery remain out of scope.
+
+### Main files changed
+
+- `crates/translation-deepl/`
+- `apps/desktop/src-tauri/src/config.rs`
+- `apps/desktop/src-tauri/src/bootstrap.rs`
+- `.env.example`
+- `.github/workflows/ci.yml`
+- Workspace manifests and lockfile
+- `README.md`
+- `docs/architecture.md`
+- `docs/development.md`
+- `docs/windows-development-log.md`
+
+### Tests and results
+
+- Ticket 01 provider gate: **Verified automated**, DeepL format/Clippy passed, 5 mock provider tests passed, the ignored live test compiled but did not run, and 8 shared contract tests passed.
+- Ticket 02 composition gate: **Verified automated**, 8 desktop unit tests, 29 command-contract tests, 17 Windows adapter tests (1 physical test ignored), Clippy, desktop build, and `.env.local` ignore check passed.
+- Ticket 03 `cargo fmt --all --check`: **Verified automated**, passed.
+- Ticket 03 `cargo clippy --workspace --all-targets -- -D warnings`: **Verified automated**, passed.
+- Ticket 03 `cargo test --workspace --exclude vocab-platform-macos`: **Verified automated**, all Windows-applicable/shared suites passed; Azure and DeepL live tests plus the physical UIA test remained ignored.
+- Ticket 03 `cargo build --workspace`: **Verified automated**, passed.
+- Ticket 03 `pnpm check`: **Verified automated**, 0 errors and 0 warnings.
+- Ticket 03 `pnpm test`: **Verified automated**, 66 tests passed across 7 files.
+- Ticket 03 `pnpm build`: **Verified automated**, production bundle built successfully.
+- Ticket 03 `git diff --check`: **Verified automated**, passed.
+- Ticket 03 credential-assignment scan: **Verified automated**, found only intentionally empty template/documentation values; no populated Azure or DeepL credential was found.
+
+### Not yet verified
+
+- **Not run:** real DeepL API translation and real provider switching in the Windows capture window.
+- **Not run:** Azure Ticket 08 physical scenarios remain unchanged.
+
+### Next ticket starting point
+
+After the credential-free complete gate passes, supply a developer-owned credential outside Git and run only the matching ignored provider smoke test before any physical Windows claim.

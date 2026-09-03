@@ -23,7 +23,7 @@ process-environment credentials, but credential delivery and release readiness a
 - `platform/macos/rust` — safe Rust adapter around the Swift JSON/C ABI
 - `platform/linux` — static Plan B adapter skeleton
 - `platform/windows` — incremental UIA/OCR/Win32 adapter with capability-gated evidence
-- `crates/translation-azure` — replaceable development-only network translation provider
+- `crates/translation-azure` and `crates/translation-deepl` — replaceable development-only network translation providers
 - `supabase` — production database schema and row-level security
 - `docs` — architecture and development documentation
 

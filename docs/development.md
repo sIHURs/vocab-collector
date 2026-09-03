@@ -22,29 +22,34 @@ cargo fetch
 
 The browser backend and Rust application service implement the same frontend-facing contract. New UI interactions must be added to that contract and the Tauri command layer together.
 
-## Development-only Azure Translator
+## Development-only network translation
 
-Windows debug builds may use a developer-owned Azure Translator resource. Copy
-the empty `.env.example` to an untracked workspace-root `.env.local`, then set
-`VOCAB_AZURE_TRANSLATOR_KEY`. The endpoint defaults to Azure's global endpoint;
-set `VOCAB_AZURE_TRANSLATOR_REGION` only when the resource requires it and adjust
-`VOCAB_AZURE_TRANSLATOR_TIMEOUT_MS` only when needed. Existing process environment
-variables take precedence over `.env.local`.
+Windows builds may use a developer-owned Azure Translator or DeepL resource.
+Copy the empty `.env.example` to an untracked workspace-root `.env.local`, set
+`VOCAB_TRANSLATION_PROVIDER` to `azure` or `deepl`, and configure the matching
+key. The app never guesses a provider from available keys and parses only the
+selected provider. Existing process environment variables take precedence.
+
+Azure defaults to its global endpoint and optionally accepts a region. DeepL
+Free defaults to `https://api-free.deepl.com`; DeepL Pro uses
+`https://api.deepl.com`. The endpoint selects the DeepL tier—there is no separate
+plan setting. Provider-specific timeout settings default to ten seconds.
 
 Missing configuration keeps translation unavailable. Partial or invalid
 configuration fails safely during startup without exposing configured values.
 Release builds do not load `.env.local`. Never commit that file or put credentials
 in frontend state, logs, screenshots, test output, or documentation.
 
-All default tests use local mock HTTP servers and do not contact Azure. On the
-target Windows physical machine, a developer may explicitly run the ignored
-fixed-text smoke test after setting credentials:
+All default tests use local mock HTTP servers and contact neither provider. On
+the target Windows physical machine, a developer may explicitly run the matching
+ignored fixed-text smoke test after setting credentials:
 
 ```powershell
 cargo test -p vocab-translation-azure --test live_translation -- --ignored
+cargo test -p vocab-translation-deepl --test live_translation -- --ignored
 ```
 
-That provider smoke test alone does not physically verify the capture window or
+Either provider smoke test alone does not physically verify the capture window or
 OCR workflow. Accounts, proxying, quota ownership, release credentials,
 installers, and production readiness remain out of scope for this development path.
 

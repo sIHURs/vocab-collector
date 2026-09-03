@@ -37,6 +37,7 @@ vocab-platform-linux = { path = "../../../platform/linux" }
 [target.'cfg(target_os = "windows")'.dependencies]
 vocab-platform-windows = { path = "../../../platform/windows" }
 vocab-translation-azure = { path = "../../../crates/translation-azure" }
+vocab-translation-deepl = { path = "../../../crates/translation-deepl" }
 
 [dev-dependencies]
 async-trait.workspace = true

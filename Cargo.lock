@@ -4822,6 +4822,7 @@ dependencies = [
  "vocab-storage",
  "vocab-sync",
  "vocab-translation-azure",
+ "vocab-translation-deepl",
 ]
 
 [[package]]
@@ -4917,6 +4918,18 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.20",
+ "tokio",
+ "vocab-platform-api",
+ "vocab-platform-contract-tests",
+]
+
+[[package]]
+name = "vocab-translation-deepl"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "reqwest",
+ "serde",
  "tokio",
  "vocab-platform-api",
  "vocab-platform-contract-tests",

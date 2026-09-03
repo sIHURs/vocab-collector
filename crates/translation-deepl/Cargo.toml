@@ -1,0 +1,17 @@
+[package]
+name = "vocab-translation-deepl"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+tokio = { version = "1", features = ["time"] }
+vocab-platform-api = { path = "../platform-api" }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt", "time"] }
+vocab-platform-contract-tests = { path = "../platform-contract-tests" }
