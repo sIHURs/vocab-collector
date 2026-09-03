@@ -35,6 +35,7 @@
   let settingsSaving = false;
   let settingsError = "";
   let settingsSaved = false;
+  let settingsSavedTimer: ReturnType<typeof setTimeout> | undefined;
   let initialLoadComplete = false;
   let systemStatus: SystemSettingsStatus = {};
   let captureTrigger: HTMLElement | null = null;
@@ -199,6 +200,7 @@
 
   async function saveSettings() {
     if (!settingsDraft || settingsSaving) return;
+    clearTimeout(settingsSavedTimer);
     settingsSaving = true;
     settingsError = "";
     settingsSaved = false;
@@ -226,6 +228,7 @@
       settingsDraft = { ...persisted };
       appliedSettings = { ...persisted };
       settingsSaved = true;
+      settingsSavedTimer = setTimeout(() => { settingsSaved = false; }, 1200);
       try { today = await api.getToday(); }
       catch (cause) { error = cause instanceof Error ? cause.message : String(cause); }
     } catch (cause) { settingsError = cause instanceof Error ? cause.message : String(cause); }
@@ -268,6 +271,7 @@
     }
     return () => {
       mounted = false;
+      clearTimeout(settingsSavedTimer);
       unlisten?.();
     };
   });
@@ -311,7 +315,6 @@
       {:else if settingsDraft}
         <form class="settings" onsubmit={(event) => { event.preventDefault(); saveSettings(); }}>
           {#if settingsError}<div class="dialog-error settings-message" role="alert">{settingsError}</div>{/if}
-          {#if settingsSaved}<div class="settings-success" role="status">Settings saved</div>{/if}
           <div class="settings-grid">
             <fieldset><legend>Languages</legend><p>Used for capture and translation.</p>
               <label>Source language<select bind:value={settingsDraft.sourceLanguage}><option value="en">English</option><option value="de">German</option><option value="fr">French</option><option value="es">Spanish</option><option value="zh">Chinese</option></select></label>
@@ -340,6 +343,7 @@
     </section>
   </main>
 </div>
+{#if settingsSaved}<div class="settings-success settings-toast" role="status">Settings saved</div>{/if}
 
 {#if captureOpen}<div class="backdrop"><div bind:this={captureDialog} class="dialog" role="dialog" tabindex="-1" aria-modal="true" aria-labelledby="manual-capture-title" onkeydown={trapDialogFocus}><form onsubmit={(event) => { event.preventDefault(); saveCapture(); }}><div class="dialog-heading"><div><span class="eyebrow">Manual Capture</span><h2 id="manual-capture-title">Save a reading context</h2></div><button type="button" class="icon" aria-label="Close manual capture" onclick={closeCapture}>×</button></div>{#if captureError}<div class="dialog-error" role="alert">{captureError}</div>{/if}<label>Word or phrase<input bind:this={captureFirstField} bind:value={captureInput.selectedText} /></label><label>Translation <small>Optional</small><input bind:value={captureInput.translation} /></label><label>Context<textarea bind:value={captureInput.sentence}></textarea></label><div class="actions"><button type="button" class="secondary" onclick={closeCapture}>Cancel</button><button class="primary" disabled={saving || !captureInput.selectedText.trim() || !captureInput.sentence.trim()}>{saving ? "Saving..." : "Save capture"}</button></div></form></div></div>{/if}
 
@@ -373,7 +377,8 @@
   .tools { display: flex; align-items: end; justify-content: space-between; margin-bottom: 12px; color: var(--muted); font-size: 11px; }.tools label { display: grid; gap: 6px; }.tools input { width: 310px; height: 34px; padding: 0 10px; border: 1px solid var(--line); border-radius: 6px; color: var(--text); background: var(--surface); }
   .error { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 14px; padding: 11px 13px; border: 1px solid #724747; border-radius: 6px; color: #f0b4b4; background: #321f24; }.error button { border: 0; color: #cad0ff; background: transparent; cursor: pointer; }
   .dialog-error { padding: 9px 10px; border: 1px solid #724747; border-radius: 6px; color: #f0b4b4; background: #321f24; font-size: 12px; }
-  .settings { max-width: 900px; margin: 0 auto; }.settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }.settings fieldset { min-width: 0; display: grid; align-content: start; gap: 14px; margin: 0; padding: 18px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); }.settings legend { padding: 0; color: var(--text); font-size: 15px; font-weight: 700; }.settings fieldset > p { color: var(--muted); font-size: 11px; }.settings label { display: grid; gap: 6px; color: var(--muted); font-size: 11px; }.settings input:not([type="checkbox"]), .settings select { width: 100%; min-height: 36px; padding: 0 10px; border: 1px solid var(--line); border-radius: 6px; color: var(--text); background: var(--field); }.toggle-row { grid-template-columns: 1fr auto; align-items: center; }.toggle-row span { display: grid; gap: 3px; }.toggle-row strong { color: var(--text); font-size: 12px; }.toggle-row small { color: var(--muted); }.toggle-row input { width: 18px; height: 18px; accent-color: #7584ef; }.settings-actions { display: flex; justify-content: flex-end; margin-top: 14px; }.settings-message, .settings-success { margin-bottom: 12px; }.settings-success { padding: 9px 10px; border: 1px solid #3f755f; border-radius: 6px; color: #28624d; background: #dff4e9; font-size: 12px; }
+  .settings { max-width: 900px; margin: 0 auto; }.settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }.settings fieldset { min-width: 0; display: grid; align-content: start; gap: 14px; margin: 0; padding: 18px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); }.settings legend { padding: 0; color: var(--text); font-size: 15px; font-weight: 700; }.settings fieldset > p { color: var(--muted); font-size: 11px; }.settings label { display: grid; gap: 6px; color: var(--muted); font-size: 11px; }.settings input:not([type="checkbox"]), .settings select { width: 100%; min-height: 36px; padding: 0 10px; border: 1px solid var(--line); border-radius: 6px; color: var(--text); background: var(--field); }.toggle-row { grid-template-columns: 1fr auto; align-items: center; }.toggle-row span { display: grid; gap: 3px; }.toggle-row strong { color: var(--text); font-size: 12px; }.toggle-row small { color: var(--muted); }.toggle-row input { width: 18px; height: 18px; accent-color: #7584ef; }.settings-actions { display: flex; justify-content: flex-end; margin-top: 14px; }.settings-message { margin-bottom: 12px; }.settings-success { padding: 9px 10px; border: 1px solid #3f755f; border-radius: 6px; color: #28624d; background: #dff4e9; font-size: 12px; }.settings-toast { position: fixed; z-index: 40; top: 18px; left: 50%; width: min(520px, calc(100vw - 32px)); margin: 0; box-shadow: 0 12px 36px rgba(0,0,0,.24); transform: translateX(-50%); animation: settings-toast-out 200ms ease 1s forwards; }
+  @keyframes settings-toast-out { to { opacity: 0; transform: translate(-50%, -6px); } }
   .field-error { color: #f0b4b4; font-size: 11px; line-height: 1.4; }
   .windows-presentation[data-reduced-motion="true"], .windows-presentation[data-reduced-motion="true"] * { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
   .review-card { max-width: 620px; margin: 24px auto; padding: 28px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }.review-progress { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; color: var(--muted); font-size: 11px; }.review-card h2 { margin: 10px 0; font-size: 30px; }.review-card > p { color: var(--muted); line-height: 1.6; }.review-translation { display: grid; gap: 5px; margin: 22px 0; padding: 14px; border-radius: 7px; background: rgba(117,132,239,.12); }.review-translation small { color: var(--muted); }.review-translation strong { color: #7a86e8; font-size: 16px; }.review-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 18px; }
