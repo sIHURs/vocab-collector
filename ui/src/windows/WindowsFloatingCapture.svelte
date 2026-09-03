@@ -220,7 +220,7 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <main class="windows-capture" data-presentation="windows-capture" aria-label="Capture" onmouseenter={clearDismissTimer} onmouseleave={() => scheduleDismiss()} onfocusin={clearDismissTimer} onfocusout={() => scheduleDismiss()}>
-  <header><span><i aria-hidden="true"></i>Vocab Collector</span><button aria-label="Cancel capture" onclick={cancel}>×</button></header>
+  <header data-tauri-drag-region><span data-tauri-drag-region><i aria-hidden="true" data-tauri-drag-region></i>Vocab Collector</span><button aria-label="Cancel capture" onclick={cancel}>×</button></header>
   <section class="scrollable-content" aria-live="polite" aria-busy={busy || ocrBusy}>
     {#if saved}
       <small>Saved</small>
@@ -272,10 +272,10 @@
   :global(html), :global(body.windows-capture-document), :global(#app) { width: 100%; height: 100%; margin: 0; background: transparent; overflow: hidden; }
   :global(body.windows-capture-document) { min-width: 0; min-height: 0; }
   .windows-capture { box-sizing: border-box; display: flex; flex-direction: column; width: 100%; height: 100%; padding: 14px 16px; overflow: hidden; border: 1px solid #4b4f60; border-radius: 8px; color: #eeeef3; background: rgba(30, 31, 40, .98); box-shadow: 0 18px 48px rgba(0, 0, 0, .42); font: 14px "Segoe UI Variable", "Segoe UI", sans-serif; }
-  header { display: flex; align-items: center; justify-content: space-between; color: #aaadba; font-size: 12px; }
+  header { display: flex; align-items: center; justify-content: space-between; color: #aaadba; font-size: 12px; cursor: move; user-select: none; }
   header span { display: flex; align-items: center; gap: 7px; }
   button { border: 0; color: inherit; background: transparent; cursor: pointer; }
-  header button { font-size: 20px; }
+  header button { font-size: 20px; cursor: pointer; }
   header i { width: 7px; height: 7px; border-radius: 50%; background: #7584ef; }
   .scrollable-content { min-height: 0; padding: 18px 4px 6px; overflow-x: hidden; overflow-y: auto; }
   h1 { margin: 3px 0 4px; font-size: 25px; }

@@ -201,7 +201,7 @@
 </script>
 
 <main class="native-capture" onmouseenter={clearDismissTimer} onmouseleave={() => saved && scheduleDismissal(activeRequest)}>
-  <header><span><i></i> Vocab Collector</span><button aria-label="Close capture" onclick={() => hide(activeRequest)}>×</button></header>
+  <header data-tauri-drag-region><span data-tauri-drag-region><i data-tauri-drag-region></i> Vocab Collector</span><button aria-label="Close capture" onclick={() => hide(activeRequest)}>×</button></header>
   {#if failure}
     <section class="capture-message"><strong>Capture needs attention</strong><p>{failure.message}</p>
       {#if failure.code === "permission_required" && permissionAction === "accessibility"}<button class="primary" onclick={grantAccessibility}>Allow Accessibility</button>{/if}
@@ -224,9 +224,9 @@
 <style>
   :global(html), :global(body), :global(#app) { width: 100%; height: 100%; margin: 0; background: transparent; overflow: hidden; }
   .native-capture { box-sizing: border-box; width: 100%; min-height: 220px; padding: 14px 16px 16px; color: #e9e7f2; background: rgba(30,29,38,.97); border: 1px solid #4b475b; border-radius: 12px; box-shadow: 0 18px 48px rgba(0,0,0,.42); font: 14px -apple-system, BlinkMacSystemFont, sans-serif; }
-  header { display:flex; justify-content:space-between; align-items:center; color:#a8a4b6; font-size:12px; }
+  header { display:flex; justify-content:space-between; align-items:center; color:#a8a4b6; font-size:12px; cursor:move; user-select:none; }
   header span { display:flex; align-items:center; gap:7px; } header i { width:7px; height:7px; border-radius:50%; background:#9b7cff; box-shadow:0 0 10px #9b7cff; }
-  button { border:0; color:inherit; background:transparent; cursor:pointer; } header button { font-size:20px; }
+  button { border:0; color:inherit; background:transparent; cursor:pointer; } header button { font-size:20px; cursor:pointer; }
   section { padding:18px 4px 6px; } h1 { margin:3px 0 4px; font-size:25px; font-weight:650; } p { color:#b9b5c5; line-height:1.45; } small { color:#817c91; }
   .capture-result { display:flex; gap:12px; } .check { display:grid; place-items:center; flex:0 0 25px; height:25px; border-radius:50%; background:#765bd7; }
   .undo { margin:9px 0 0 40px; color:#a98fff; } .primary { padding:8px 12px; border-radius:7px; background:#765bd7; color:white; }

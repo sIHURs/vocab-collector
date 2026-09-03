@@ -70,6 +70,17 @@ describe("floating capture request freshness", () => {
     vi.restoreAllMocks();
   });
 
+  it("uses the top bar as a native window drag region without making the close button draggable", () => {
+    const view = render(FloatingCapture);
+    const header = view.container.querySelector("header");
+    const title = header?.querySelector("span");
+    const closeButton = screen.getByRole("button", { name: "Close capture" });
+
+    expect(header).toHaveAttribute("data-tauri-drag-region");
+    expect(title).toHaveAttribute("data-tauri-drag-region");
+    expect(closeButton).not.toHaveAttribute("data-tauri-drag-region");
+  });
+
   it("does not let a late failure from an old request replace the current card", async () => {
     let rejectFirstSettings!: (error: Error) => void;
     const firstSettings = new Promise((_, reject) => { rejectFirstSettings = reject; });

@@ -42,6 +42,19 @@ use vocab_platform_api::{
 use vocab_storage::SqliteStore;
 
 #[test]
+fn capture_window_can_start_native_dragging() {
+    let capability: serde_json::Value = serde_json::from_str(include_str!(
+        "../capabilities/default.json"
+    ))
+    .unwrap();
+    let permissions = capability["permissions"].as_array().unwrap();
+
+    assert!(permissions.iter().any(|permission| {
+        permission.as_str() == Some("core:window:allow-start-dragging")
+    }));
+}
+
+#[test]
 fn capture_command_names_are_available_on_the_platform_neutral_surface() {
     let _ = get_permission_status;
     let _ = request_accessibility_permission;

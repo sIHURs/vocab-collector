@@ -3,5 +3,8 @@
   "identifier": "main-capability",
   "description": "Permissions required by the Vocab Collector desktop windows",
   "windows": ["main", "capture"],
-  "permissions": ["core:default"]
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging"
+  ]
 }

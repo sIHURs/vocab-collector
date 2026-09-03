@@ -49,6 +49,17 @@ describe("Windows floating capture presentation", () => {
     mocks.ocr = undefined;
   });
 
+  it("uses the top bar as a native window drag region without making the close button draggable", () => {
+    const view = render(WindowsFloatingCapture, { captureBackend });
+    const header = view.container.querySelector("header");
+    const title = header?.querySelector("span");
+    const closeButton = screen.getByRole("button", { name: "Cancel capture" });
+
+    expect(header).toHaveAttribute("data-tauri-drag-region");
+    expect(title).toHaveAttribute("data-tauri-drag-region");
+    expect(closeButton).not.toHaveAttribute("data-tauri-drag-region");
+  });
+
   it("requires explicit confirmation before an OCR candidate can enter the save flow", async () => {
     render(WindowsFloatingCapture, { captureBackend });
     await waitFor(() => expect(mocks.error).toBeTypeOf("function"));
