@@ -1370,3 +1370,44 @@ Ticket 07 starts with the complete network-independent gate: update CI matrices 
 ### Next ticket starting point
 
 Ticket 08 must run on the Windows physical machine with a developer-owned Azure resource. Start by supplying credentials outside Git and running the ignored fixed-text smoke test; only after it passes should the real native-capture, edit/apply/save, OCR gate, and failure-recovery scenarios be exercised and recorded.
+
+## 2026-09-03 - Azure integration final review corrections
+
+### Implementation
+
+- Enforced one overall Azure translation deadline across requests, `Retry-After`, and bounded retries; an upstream delay cannot extend the configured budget.
+- Closed the asynchronous busy-state window before settings/capability lookup and guarded OCR confirmation against duplicate activation.
+- Corrected documentation to distinguish debug-only `.env.local` loading from technically available release process-environment configuration, while keeping release credential delivery out of scope.
+
+### Key decisions
+
+- Retry budget is measured once at the provider entry point and every request/sleep must fit inside the remaining duration.
+- OCR confirmation owns the busy gate until confirmation finishes, then starts the separately guarded translation operation.
+- Review suggestions to consolidate the component's draft/workflow state and introduce a typed automatic-source-language value are retained as non-blocking refactoring opportunities; current public behavior is covered and they are not required to complete the tickets.
+
+### Main files changed
+
+- `crates/translation-azure/src/client.rs`
+- `crates/translation-azure/tests/provider.rs`
+- `ui/src/windows/WindowsFloatingCapture.svelte`
+- `ui/src/windows/WindowsFloatingCapture.test.ts`
+- `README.md`
+- `docs/architecture.md`
+- `docs/windows-development-log.md`
+
+### Tests and results
+
+- `cargo test -p vocab-translation-azure`: **Verified automated**, 7 non-live tests passed and the live test remained ignored.
+- `cargo clippy -p vocab-translation-azure --all-targets -- -D warnings`: **Verified automated**, passed.
+- `cargo fmt --all --check`: **Verified automated**, passed.
+- `pnpm --dir ui test -- WindowsFloatingCapture.test.ts`: **Verified automated**, 19 tests passed, including duplicate OCR confirmation.
+- `pnpm --dir ui check`: **Verified automated**, 0 errors and 0 warnings.
+- `git diff --check`: **Verified automated**, passed.
+
+### Not yet verified
+
+- Ticket 08 remains **Blocked** because neither `VOCAB_AZURE_TRANSLATOR_KEY` nor `.env.local` is present. No live request or physical capture scenario was run.
+
+### Next ticket starting point
+
+Supply the developer credential outside Git, then resume Ticket 08 at the ignored fixed-text live test. Do not mark translation physically verified until all native selection, edit/apply/save, OCR confirmation, and failure-recovery scenarios pass on this machine.

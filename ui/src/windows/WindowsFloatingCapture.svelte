@@ -106,17 +106,18 @@
   }
 
   async function translateCandidate(requestId: string, text: string) {
-    const [capabilities, currentSettings] = await Promise.all([
-      captureBackend.getCapabilities(),
-      captureBackend.getSettings(),
-    ]);
-    if (!mounted || requestId !== activeRequest) return;
-    translationAvailable = capabilities.translation;
-    if (!translationAvailable || busy) return;
+    if (busy) return;
     busy = true;
     error = "";
     translationFailed = false;
     try {
+      const [capabilities, currentSettings] = await Promise.all([
+        captureBackend.getCapabilities(),
+        captureBackend.getSettings(),
+      ]);
+      if (!mounted || requestId !== activeRequest) return;
+      translationAvailable = capabilities.translation;
+      if (!translationAvailable) return;
       const result = await captureBackend.translate(requestId, text, currentSettings.sourceLanguage, currentSettings.targetLanguage);
       if (!mounted || requestId !== activeRequest) return;
       translation = result.translatedText;
@@ -153,12 +154,21 @@
   }
 
   async function confirmOcrCandidate() {
+    if (busy) return;
     const requestId = activeRequest;
     const selected = ocrCandidates[selectedOcrIndex];
     if (!selected) return;
-    await captureBackend.confirmOcr(requestId, selectedOcrIndex);
-    if (!mounted || requestId !== activeRequest) return;
-    ocrNeedsConfirmation = false;
+    busy = true;
+    try {
+      await captureBackend.confirmOcr(requestId, selectedOcrIndex);
+      if (!mounted || requestId !== activeRequest) return;
+      ocrNeedsConfirmation = false;
+    } catch {
+      if (mounted && requestId === activeRequest) error = "OCR confirmation failed. Please try again.";
+      return;
+    } finally {
+      if (mounted && requestId === activeRequest) busy = false;
+    }
     void translateCandidate(requestId, selected.text);
   }
 
@@ -301,7 +311,7 @@
           <h1>{selectedText}</h1>
           <p>“{sentence}”</p>
         {/if}
-        <button class="primary" onclick={confirmOcrCandidate}>Confirm OCR candidate</button>
+        <button class="primary" disabled={busy} onclick={confirmOcrCandidate}>Confirm OCR candidate</button>
         <button class="secondary" onclick={cancel}>Cancel OCR</button>
       {:else if editing}
         <label>Selected text<input aria-label="Selected text" bind:value={selectedText} /></label>

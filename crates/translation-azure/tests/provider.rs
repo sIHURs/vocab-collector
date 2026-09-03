@@ -236,3 +236,34 @@ async fn transient_service_failures_retry_twice_then_return_the_translation() {
     assert_eq!(result.translated_text, "Straße");
     assert_eq!(requests.join().unwrap().len(), 3);
 }
+
+#[tokio::test(flavor = "current_thread")]
+async fn retry_after_cannot_exceed_the_overall_timeout_budget() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let request = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let mut buffer = [0_u8; 4096];
+        let _ = stream.read(&mut buffer);
+        stream
+            .write_all(b"HTTP/1.1 429 Too Many Requests\r\nRetry-After: 2\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{}")
+            .unwrap();
+    });
+    let config = AzureTranslatorConfig::for_test(
+        format!("http://{address}"),
+        "private-key",
+        Duration::from_millis(100),
+    )
+    .unwrap();
+    let provider = AzureTranslationProvider::new(config).unwrap();
+    let started = std::time::Instant::now();
+
+    let error = provider.translate("hello", "auto", "de").await.unwrap_err();
+
+    assert_eq!(
+        error,
+        PlatformError::Operation("azure translation timed out".into())
+    );
+    assert!(started.elapsed() < Duration::from_millis(500));
+    request.join().unwrap();
+}

@@ -2,7 +2,7 @@ use std::{fmt, time::Duration};
 
 use async_trait::async_trait;
 use reqwest::{Client, Url, header};
-use tokio::time::sleep;
+use tokio::time::{Instant, sleep, timeout_at};
 use vocab_platform_api::{PlatformError, TranslationProvider, TranslationResult};
 
 use crate::{
@@ -11,6 +11,11 @@ use crate::{
 };
 
 const MAX_ATTEMPTS: usize = 3;
+
+struct AttemptFailure {
+    kind: AzureTranslationError,
+    retry_after: Option<Duration>,
+}
 
 #[derive(Clone)]
 pub struct AzureTranslatorConfig {
@@ -113,12 +118,15 @@ impl AzureTranslationProvider {
         text: &str,
         source: &str,
         target: &str,
-    ) -> Result<TranslationResult, (AzureTranslationError, Option<Duration>)> {
+    ) -> Result<TranslationResult, AttemptFailure> {
         let mut url = self
             .config
             .endpoint
             .join("translate")
-            .map_err(|_| (AzureTranslationError::InvalidResponse, None))?;
+            .map_err(|_| AttemptFailure {
+                kind: AzureTranslationError::InvalidResponse,
+                retry_after: None,
+            })?;
         {
             let mut query = url.query_pairs_mut();
             query
@@ -142,34 +150,45 @@ impl AzureTranslationProvider {
             } else {
                 AzureTranslationError::Network
             };
-            (kind, None)
+            AttemptFailure {
+                kind,
+                retry_after: None,
+            }
         })?;
         if !response.status().is_success() {
             let retry_after = retry_after(response.headers());
-            return Err((
-                AzureTranslationError::from_status(response.status()),
+            return Err(AttemptFailure {
+                kind: AzureTranslationError::from_status(response.status()),
                 retry_after,
-            ));
+            });
         }
-        let mut payload: Vec<TranslateResponse> = response
-            .json()
-            .await
-            .map_err(|_| (AzureTranslationError::InvalidResponse, None))?;
-        let payload = payload
-            .pop()
-            .ok_or((AzureTranslationError::InvalidResponse, None))?;
+        let mut payload: Vec<TranslateResponse> =
+            response.json().await.map_err(|_| AttemptFailure {
+                kind: AzureTranslationError::InvalidResponse,
+                retry_after: None,
+            })?;
+        let payload = payload.pop().ok_or(AttemptFailure {
+            kind: AzureTranslationError::InvalidResponse,
+            retry_after: None,
+        })?;
         let translation = payload
             .translations
             .into_iter()
             .next()
             .filter(|value| !value.text.is_empty())
-            .ok_or((AzureTranslationError::InvalidResponse, None))?;
+            .ok_or(AttemptFailure {
+                kind: AzureTranslationError::InvalidResponse,
+                retry_after: None,
+            })?;
         let source_language = if source == "auto" {
             payload
                 .detected_language
                 .map(|value| value.language)
                 .filter(|value| !value.is_empty())
-                .ok_or((AzureTranslationError::InvalidResponse, None))?
+                .ok_or(AttemptFailure {
+                    kind: AzureTranslationError::InvalidResponse,
+                    retry_after: None,
+                })?
         } else {
             source.to_owned()
         };
@@ -189,17 +208,24 @@ impl TranslationProvider for AzureTranslationProvider {
         source: &str,
         target: &str,
     ) -> Result<TranslationResult, PlatformError> {
+        let deadline = Instant::now() + self.config.timeout;
         let mut last_error = AzureTranslationError::InvalidResponse;
         for attempt in 0..MAX_ATTEMPTS {
-            match self.translate_once(text, source, target).await {
-                Ok(result) => return Ok(result),
-                Err((error, retry_after)) => {
-                    last_error = error;
-                    if !error.retryable() || attempt + 1 == MAX_ATTEMPTS {
+            match timeout_at(deadline, self.translate_once(text, source, target)).await {
+                Ok(Ok(result)) => return Ok(result),
+                Err(_) => return Err(AzureTranslationError::Timeout.into()),
+                Ok(Err(failure)) => {
+                    last_error = failure.kind;
+                    if !failure.kind.retryable() || attempt + 1 == MAX_ATTEMPTS {
                         break;
                     }
-                    sleep(retry_after.unwrap_or_else(|| Duration::from_millis(25 << attempt)))
-                        .await;
+                    let delay = failure
+                        .retry_after
+                        .unwrap_or_else(|| Duration::from_millis(25 << attempt));
+                    if Instant::now() + delay >= deadline {
+                        return Err(AzureTranslationError::Timeout.into());
+                    }
+                    sleep(delay).await;
                 }
             }
         }

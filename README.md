@@ -5,6 +5,8 @@ SQLite, and an optional Supabase synchronization boundary. The macOS adapter is
 implemented; Linux remains an unsupported-capability skeleton, while Windows is
 an incremental Plan B adapter with physically verified UIA selection and an
 automated, developer-configured Azure translation path awaiting live evidence.
+Only `.env.local` loading is debug-only; a release process can technically inject
+process-environment credentials, but credential delivery and release readiness are out of scope.
 
 ## Workspace
 

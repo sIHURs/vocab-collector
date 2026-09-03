@@ -46,13 +46,16 @@ describe("Windows floating capture presentation", () => {
     mocks.close.mockClear();
     mocks.hide.mockClear();
     mocks.apply.mockClear();
-    mocks.save.mockClear();
+    mocks.save.mockReset();
+    mocks.save.mockResolvedValue({ wordId: "word-1", encounterId: "encounter-1", displayForm: "nuance", context: "A useful nuance.", encounterCount: 1, isExistingWord: false });
     mocks.undo.mockClear();
     mocks.startOcr.mockClear();
-    mocks.confirmOcr.mockClear();
-    mocks.getCapabilities.mockClear();
+    mocks.confirmOcr.mockReset();
+    mocks.confirmOcr.mockResolvedValue(undefined);
+    mocks.getCapabilities.mockReset();
     mocks.getSettings.mockClear();
-    mocks.translate.mockClear();
+    mocks.translate.mockReset();
+    mocks.translate.mockResolvedValue({ translatedText: "Feinheit", sourceLanguage: "en", targetLanguage: "de" });
     mocks.getCapabilities.mockResolvedValue({ selectionCapture: false, selectionBounds: false, screenshotOcr: true, translation: false, nonActivatingWindow: false });
     mocks.ready = undefined;
     mocks.error = undefined;
@@ -115,6 +118,22 @@ describe("Windows floating capture presentation", () => {
     await waitFor(() => expect(mocks.translate).toHaveBeenCalledTimes(1));
     expect(mocks.translate).toHaveBeenCalledWith("ocr-request", "serendipity", "auto", "de");
     expect(await screen.findByRole("button", { name: "Save capture" })).toBeVisible();
+  });
+
+  it("prevents duplicate OCR confirmation while the first confirmation is pending", async () => {
+    let finishConfirmation: (() => void) | undefined;
+    mocks.confirmOcr.mockImplementationOnce(() => new Promise<void>((resolve) => { finishConfirmation = resolve; }));
+    render(WindowsFloatingCapture, { captureBackend });
+    await waitFor(() => expect(mocks.ocr).toBeTypeOf("function"));
+    mocks.error?.({ requestId: "ocr-double", failure: { code: "empty_selection", message: "No selection" } });
+    mocks.ocr?.({ requestId: "ocr-double", candidates: [{ text: "candidate", bounds: { x: 1, y: 2, width: 30, height: 12 }, confidence: 0.8 }], ambiguous: false });
+    const button = await screen.findByRole("button", { name: "Confirm OCR candidate" });
+
+    await fireEvent.click(button);
+    await fireEvent.click(button);
+
+    expect(mocks.confirmOcr).toHaveBeenCalledTimes(1);
+    finishConfirmation?.();
   });
 
   it("recovers from a provider-neutral translation failure by retrying the current edited text", async () => {
@@ -227,7 +246,9 @@ describe("Windows floating capture presentation", () => {
     await waitFor(() => expect(mocks.ready).toBeTypeOf("function"));
     mocks.ready?.({ requestId: "request-plain", candidate: { selectedText: "nuance", sentence: "A useful nuance.", origin: "accessibility" } });
 
-    await fireEvent.click(await screen.findByRole("button", { name: "Save capture" }));
+    const saveButton = await screen.findByRole("button", { name: "Save capture" });
+    await waitFor(() => expect(saveButton).toBeEnabled());
+    await fireEvent.click(saveButton);
 
     expect(mocks.save).toHaveBeenCalledWith("request-plain", true);
   });
@@ -267,11 +288,15 @@ describe("Windows floating capture presentation", () => {
     const view = render(WindowsFloatingCapture, { captureBackend });
     await waitFor(() => expect(mocks.ready).toBeTypeOf("function"));
     mocks.ready?.({ requestId: "timed-request", candidate: { selectedText: "nuance", sentence: "A useful nuance.", origin: "accessibility" } });
+    const saveButton = await screen.findByRole("button", { name: "Save capture" });
+    await waitFor(() => expect(mocks.getCapabilities).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(view.container.querySelector("section")).toHaveAttribute("aria-busy", "false"));
+    await waitFor(() => expect(saveButton).toBeEnabled());
+    await fireEvent.click(saveButton);
+    expect(await screen.findByText("Saved")).toBeVisible();
+    await fireEvent.mouseEnter(view.container.querySelector("main")!);
     vi.useFakeTimers();
     try {
-      await fireEvent.click(await screen.findByRole("button", { name: "Save capture" }));
-      vi.advanceTimersByTime(3_000);
-      await fireEvent.mouseEnter(view.container.querySelector("main")!);
       vi.advanceTimersByTime(5_000);
       expect(mocks.hide).not.toHaveBeenCalled();
       await fireEvent.mouseLeave(view.container.querySelector("main")!);
