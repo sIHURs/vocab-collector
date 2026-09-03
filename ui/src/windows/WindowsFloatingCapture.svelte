@@ -14,6 +14,9 @@
   let selectedText = "";
   let sentence = "";
   let translation = "";
+  let translationSource = "";
+  let translationTarget = "";
+  let translationAvailable = false;
   let saved: CaptureCard | null = null;
   let busy = false;
   let error = "";
@@ -57,17 +60,38 @@
     editing = true;
   }
 
-  async function save(withoutTranslation: boolean) {
+  function correction() {
+    return {
+      selectedText: selectedText.trim(),
+      sentence: sentence.trim(),
+      ...(translation.trim() ? { translation: translation.trim() } : {}),
+    };
+  }
+
+  async function applyChanges() {
     if (!candidate || busy) return;
     const requestId = activeRequest;
     busy = true;
     error = "";
     try {
-      const result = await captureBackend.save(requestId, {
-        selectedText: selectedText.trim(),
-        sentence: sentence.trim(),
-        ...(translation.trim() ? { translation: translation.trim() } : {}),
-      }, withoutTranslation);
+      await captureBackend.apply(requestId, correction());
+      if (!mounted || requestId !== activeRequest) return;
+      editing = false;
+    } catch (cause) {
+      if (!mounted || requestId !== activeRequest) return;
+      error = cause instanceof Error ? cause.message : String(cause);
+    } finally {
+      if (mounted && requestId === activeRequest) busy = false;
+    }
+  }
+
+  async function save() {
+    if (!candidate || busy) return;
+    const requestId = activeRequest;
+    busy = true;
+    error = "";
+    try {
+      const result = await captureBackend.save(requestId, !translation.trim());
       if (!mounted || requestId !== activeRequest) return;
       saved = result;
       editing = false;
@@ -75,6 +99,29 @@
     } catch (cause) {
       if (!mounted || requestId !== activeRequest) return;
       error = cause instanceof Error ? cause.message : String(cause);
+    } finally {
+      if (mounted && requestId === activeRequest) busy = false;
+    }
+  }
+
+  async function translateCandidate(requestId: string, text: string) {
+    const [capabilities, currentSettings] = await Promise.all([
+      captureBackend.getCapabilities(),
+      captureBackend.getSettings(),
+    ]);
+    if (!mounted || requestId !== activeRequest) return;
+    translationAvailable = capabilities.translation;
+    if (!translationAvailable || busy) return;
+    busy = true;
+    try {
+      const result = await captureBackend.translate(requestId, text, currentSettings.sourceLanguage, currentSettings.targetLanguage);
+      if (!mounted || requestId !== activeRequest) return;
+      translation = result.translatedText;
+      translationSource = result.sourceLanguage;
+      translationTarget = result.targetLanguage;
+      await captureBackend.apply(requestId, correction());
+    } catch {
+      // Ticket 06 adds the recoverable failure presentation.
     } finally {
       if (mounted && requestId === activeRequest) busy = false;
     }
@@ -174,10 +221,13 @@
       selectedText = event.candidate.selectedText;
       sentence = event.candidate.sentence;
       translation = "";
+      translationSource = "";
+      translationTarget = "";
       saved = null;
       error = "";
       editing = false;
       resetOcrState();
+      if (event.candidate.origin !== "ocr") void translateCandidate(event.requestId, event.candidate.selectedText);
     });
     void captureBackend.getCapabilities().then((capabilities) => {
       if (mounted) {
@@ -250,13 +300,20 @@
         <label>Selected text<input aria-label="Selected text" bind:value={selectedText} /></label>
         <label>Context<textarea aria-label="Context" bind:value={sentence}></textarea></label>
         <label>Translation <small>Optional</small><input aria-label="Translation (optional)" bind:value={translation} /></label>
-        <button class="primary" disabled={busy || !selectedText.trim()} onclick={() => save(!translation.trim())}>Save capture</button>
+        <button class="primary" disabled={busy || !selectedText.trim()} onclick={applyChanges}>Apply changes</button>
       {:else}
         <h1>{selectedText}</h1>
         <p>“{sentence}”</p>
-        <p class="notice">Automatic translation is unavailable on Windows. Add one manually, or save without it.</p>
-        <button class="primary" onclick={beginEditing}>Edit capture</button>
-        <button class="secondary" disabled={busy} onclick={() => save(true)}>Save without translation</button>
+        {#if translation}
+          <p>{translation}</p>
+          <p class="notice">{translationSource} → {translationTarget}</p>
+        {:else if busy && translationAvailable}
+          <p class="notice">Translating…</p>
+        {:else if !translationAvailable}
+          <p class="notice">Automatic translation is unavailable. You can add a translation manually.</p>
+        {/if}
+        <button class="primary" disabled={busy} onclick={beginEditing}>Edit capture</button>
+        <button class="secondary" disabled={busy} onclick={save}>Save capture</button>
       {/if}
     {:else if ocrOffer}
       <p role="alert">{error}</p>

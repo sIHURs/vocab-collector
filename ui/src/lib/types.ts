@@ -36,6 +36,12 @@ export interface Settings {
   reducedMotion: boolean;
 }
 
+export interface TranslationResult {
+  translatedText: string;
+  sourceLanguage: string;
+  targetLanguage: string;
+}
+
 export interface SystemSettingsStatus {
   shortcutError?: string;
   autostartError?: string;

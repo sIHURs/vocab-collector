@@ -1231,3 +1231,43 @@ Ticket 04 starts at `CaptureCoordinator` and `PlatformCaptureWorkflow`: permit e
 ### Next ticket starting point
 
 Ticket 05 can now connect the Windows presentation to `get_settings` and `translate_text`, automatically translate a confirmed non-OCR Native Capture when capability is available, render the editable preview, and call the existing correction/save seams only after explicit user actions.
+
+## 2026-09-03 - Azure Translator Ticket 05: Windows translation preview
+
+### Implementation
+
+- Connected the Windows floating capture presentation to provider-neutral settings, capability, and translation Tauri commands.
+- Automatically translates confirmed non-OCR native selections when translation capability is enabled and renders the translated text plus source/target languages without saving.
+- Split draft correction (`Apply changes`) from persistence (`Save capture`) and uses the same save label for translated, manually translated, and blank drafts.
+- Preserved the manual edit/save flow when translation capability is unavailable and ignored late responses for replaced request IDs.
+
+### Key decisions
+
+- The TypeScript boundary exposes only shared `Settings`, `PlatformCapabilities`, and `TranslationResult`; Azure endpoint, region, credentials, and protocol errors remain behind Rust/Tauri.
+- Automatic translation applies the returned translation to the in-memory coordinator draft so the later save persists exactly the preview, but does not create a vocabulary item or encounter.
+- Provider failure is deliberately swallowed in this ticket to avoid leaking diagnostics; Ticket 06 owns the provider-neutral recovery message and retry UI.
+
+### Main files changed
+
+- `ui/src/lib/types.ts`
+- `ui/src/windows/captureBackend.ts`
+- `ui/src/windows/WindowsFloatingCapture.svelte`
+- `ui/src/windows/WindowsFloatingCapture.test.ts`
+- `docs/windows-development-log.md`
+
+### Tests and results
+
+- Windows translation-preview TDD: **Verified automated**, the new test first failed because no automatic translation preview existed, then all 17 component tests passed.
+- `cargo test -p vocab-desktop --test command_contract`: **Verified automated**, 29 tests passed. The ticket's filtered command was made explicit to avoid matching zero tests.
+- `pnpm --dir ui test -- WindowsFloatingCapture.test.ts`: restricted sandbox run was **Blocked** by `esbuild spawn EPERM`; approved external rerun was **Verified automated**, 17 tests passed.
+- `pnpm --dir ui check`: **Verified automated**, 0 errors and 0 warnings.
+- `pnpm --dir ui build`: **Verified automated**, production bundle built successfully.
+
+### Not yet verified
+
+- **Not run:** friendly provider-failure categories, retry behavior, and post-confirmation OCR translation; owned by Ticket 06.
+- **Not run:** real Azure request and physical Windows capture-window interaction.
+
+### Next ticket starting point
+
+Ticket 06 starts in `WindowsFloatingCapture.svelte`: retain provider-neutral translation failures, expose retry/edit/save recovery, and invoke translation only after OCR confirmation while expanding shared privacy/category contract tests.

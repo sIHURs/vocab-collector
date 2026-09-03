@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import type { CaptureCandidate, CaptureCard, CaptureFailure, PlatformCapabilities } from "../lib/types";
+import type { CaptureCandidate, CaptureCard, CaptureFailure, PlatformCapabilities, Settings, TranslationResult } from "../lib/types";
 
 export type CaptureReady = { requestId: string; candidate: CaptureCandidate };
 export type CaptureError = { requestId: string; failure: CaptureFailure };
@@ -15,11 +15,14 @@ export interface WindowsCaptureBackend {
   releaseFocus(): Promise<void>;
   close(requestId: string): Promise<void>;
   hide(requestId: string): Promise<void>;
-  save(requestId: string, correction: { selectedText: string; sentence: string; translation?: string }, withoutTranslation: boolean): Promise<CaptureCard>;
+  apply(requestId: string, correction: { selectedText: string; sentence: string; translation?: string }): Promise<void>;
+  save(requestId: string, withoutTranslation: boolean): Promise<CaptureCard>;
   undo(requestId: string, encounterId: string): Promise<void>;
   startOcr(requestId: string): Promise<void>;
   confirmOcr(requestId: string, candidateIndex: number): Promise<void>;
   getCapabilities(): Promise<PlatformCapabilities>;
+  getSettings(): Promise<Settings>;
+  translate(requestId: string, text: string, sourceLanguage: string, targetLanguage: string): Promise<TranslationResult>;
 }
 
 export const tauriWindowsCaptureBackend: WindowsCaptureBackend = {
@@ -30,12 +33,12 @@ export const tauriWindowsCaptureBackend: WindowsCaptureBackend = {
   releaseFocus: () => invoke("release_capture_window_focus"),
   close: (requestId) => invoke("close_capture_window", { requestId }),
   hide: (requestId) => invoke("hide_capture_window", { requestId }),
-  save: async (requestId, correction, withoutTranslation) => {
-    await invoke("correct_native_capture", { requestId, selectedText: correction.selectedText, sentence: correction.sentence, manualTranslation: correction.translation });
-    return invoke<CaptureCard>("save_native_capture", { requestId, withoutTranslation });
-  },
+  apply: (requestId, correction) => invoke("correct_native_capture", { requestId, selectedText: correction.selectedText, sentence: correction.sentence, manualTranslation: correction.translation }),
+  save: (requestId, withoutTranslation) => invoke<CaptureCard>("save_native_capture", { requestId, withoutTranslation }),
   undo: (requestId, encounterId) => invoke("undo_native_capture", { requestId, encounterId }),
   startOcr: (requestId) => invoke("capture_with_ocr", { requestId }),
   confirmOcr: (requestId, candidateIndex) => invoke("confirm_ocr", { requestId, candidateIndex }),
   getCapabilities: () => invoke("get_platform_capabilities"),
+  getSettings: () => invoke("get_settings"),
+  translate: (requestId, text, sourceLanguage, targetLanguage) => invoke("translate_text", { requestId, text, sourceLanguage, targetLanguage }),
 };
