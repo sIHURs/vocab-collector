@@ -22,6 +22,32 @@ cargo fetch
 
 The browser backend and Rust application service implement the same frontend-facing contract. New UI interactions must be added to that contract and the Tauri command layer together.
 
+## Development-only Azure Translator
+
+Windows debug builds may use a developer-owned Azure Translator resource. Copy
+the empty `.env.example` to an untracked workspace-root `.env.local`, then set
+`VOCAB_AZURE_TRANSLATOR_KEY`. The endpoint defaults to Azure's global endpoint;
+set `VOCAB_AZURE_TRANSLATOR_REGION` only when the resource requires it and adjust
+`VOCAB_AZURE_TRANSLATOR_TIMEOUT_MS` only when needed. Existing process environment
+variables take precedence over `.env.local`.
+
+Missing configuration keeps translation unavailable. Partial or invalid
+configuration fails safely during startup without exposing configured values.
+Release builds do not load `.env.local`. Never commit that file or put credentials
+in frontend state, logs, screenshots, test output, or documentation.
+
+All default tests use local mock HTTP servers and do not contact Azure. On the
+target Windows physical machine, a developer may explicitly run the ignored
+fixed-text smoke test after setting credentials:
+
+```powershell
+cargo test -p vocab-translation-azure --test live_translation -- --ignored
+```
+
+That provider smoke test alone does not physically verify the capture window or
+OCR workflow. Accounts, proxying, quota ownership, release credentials,
+installers, and production readiness remain out of scope for this development path.
+
 ## Core debugging
 
 Run the lightweight core REPL without Tauri or a platform adapter:

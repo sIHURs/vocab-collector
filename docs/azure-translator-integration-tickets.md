@@ -4,6 +4,11 @@ Source plan: `docs/plans/2026-09-03-azure-translator-integration.md`
 
 These tickets cover developer-configured Azure Translator integration only. They do not include user accounts, a backend proxy, shared quotas, release credential delivery, installer configuration, or production readiness. Tickets are numbered in dependency order. `ready-for-agent` means the ticket is fully specified; its blockers must still be complete before implementation begins.
 
+Implementation evidence as of 2026-09-03: Tickets 01–07 are implemented and
+**Verified automated** through their recorded gates. Ticket 08 is **Not run**;
+neither a real Azure request nor the Windows capture/OCR translation scenarios
+are physically verified. See `windows-development-log.md` for command-level evidence.
+
 ## Dependency overview
 
 ```text

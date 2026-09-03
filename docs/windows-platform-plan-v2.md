@@ -674,7 +674,7 @@ Windows Platform v2 is done only when all of the following are true:
 8. Users can correct captured text/context, provide an optional manual translation, save without translation, Undo, and create repeat Encounters without duplicate Vocabulary Items.
 9. The floating window is non-activating on presentation, keyboard accessible on interaction, correctly positioned on mixed-DPI/negative-origin displays, and absent from the taskbar as designed.
 10. No Windows-specific type or conditional leaks into `crates/domain`, `crates/application`, `crates/storage`, or `crates/capture`.
-11. Windows reports automatic translation unavailable honestly; no network translation or hidden external executable is introduced.
+11. Windows uses network translation only through the accepted developer-configured Azure provider in debug development builds. Missing configuration remains honestly unavailable; credentials stay below the WebView boundary. Accounts, proxying, quota ownership, release credentials, installers, production readiness, and hidden external executables are outside this exception.
 12. Automated Rust, frontend, Tauri contract, build, and NSIS gates pass on the release commit.
 13. Physical-device, compatibility, accessibility, lifecycle, privacy, and installer matrices are complete for the release artifact.
 14. Upgrade preserves user data and Settings; uninstall behavior matches the retained/delete-data choice.

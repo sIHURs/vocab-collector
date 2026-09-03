@@ -2,7 +2,7 @@
 
 ## Current status
 
-Plan B implementation is in progress. The Windows adapter now contains COM/UI Automation selection, explicit Windows Graphics Capture plus `Windows.Media.Ocr`, DPI/coordinate handling, and narrowly scoped Win32 window behavior. Translation, permission guidance, and the remaining deferred providers still return typed `PlatformError::Unsupported` results. Physical Notepad and Chrome evidence enables `selection_capture` and `selection_bounds`; the implemented OCR provider is not yet advertised through `screenshot_ocr`. W-15 now configures a per-user NSIS preview with an embedded WebView2 bootstrapper, explicit retain/delete-data uninstall behavior, and commit-traceable CI artifact publication. The installer builds locally, but W-15 remains open: hosted-CI retention and every install/upgrade/uninstall runtime scenario remain unverified, and W-16 is blocked until those gates pass.
+Plan B implementation is in progress. The Windows adapter now contains COM/UI Automation selection, explicit Windows Graphics Capture plus `Windows.Media.Ocr`, DPI/coordinate handling, and narrowly scoped Win32 window behavior. A replaceable Azure Translator provider can be injected by developer configuration in debug builds; automated mock tests pass, but real Azure and capture-window behavior are not yet physically verified. Permission guidance and the remaining deferred providers still return typed `PlatformError::Unsupported` results. Physical Notepad and Chrome evidence enables `selection_capture` and `selection_bounds`; the implemented OCR provider is not yet advertised through `screenshot_ocr`. W-15 now configures a per-user NSIS preview with an embedded WebView2 bootstrapper, explicit retain/delete-data uninstall behavior, and commit-traceable CI artifact publication. The installer builds locally, but W-15 remains open: hosted-CI retention and every install/upgrade/uninstall runtime scenario remain unverified, and W-16 is blocked until those gates pass.
 
 No Windows code or target was compiled, tested, or run during Plan A on macOS. Hosted CI is intended to establish only build and automated contract status on its Windows runner. All native runtime, permission, application-compatibility, and packaging results below remain unverified until Plan B runs on the target Windows 10 Pro x64 physical machine.
 
@@ -63,7 +63,7 @@ are still deferred or only partially verified:
 - [ ] Global shortcut registration, conflicts, persistence, and repeat suppression
 - [ ] Windows Graphics Capture consent and cancellation
 - [ ] Explicit OCR confirmation, in-memory image handling, and OCR results
-- [ ] Translation provider selection and offline/error behavior
+- [ ] Azure translation provider live request, recovery, and capture-window behavior (mock automation is verified; physical scenarios are Not run)
 - [ ] Permission guidance and recovery
 - [ ] Non-activating floating-window focus, task-switcher behavior, per-monitor DPI, negative coordinates, and mixed-scale displays
 - [ ] Extended application compatibility beyond verified Notepad and Chrome; absent applications and optional cases are recorded in `docs/windows-w08-blockers.md`

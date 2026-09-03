@@ -1317,3 +1317,56 @@ Ticket 06 starts in `WindowsFloatingCapture.svelte`: retain provider-neutral tra
 ### Next ticket starting point
 
 Ticket 07 starts with the complete network-independent gate: update CI matrices and architecture/development documentation, document the ignored live-test setup, and run workspace-wide Rust/UI verification plus a targeted secret scan.
+
+## 2026-09-03 - Azure Translator Ticket 07: reproducible gates and documentation
+
+### Implementation
+
+- Added an explicit Azure mock-provider test step to macOS, Linux, and Windows CI jobs; the provider uses the cross-platform Rustls transport and no CI secret.
+- Added an ignored, fixed-text live-test harness that requires explicit developer credentials and remains excluded from default runs.
+- Documented debug `.env.local` setup, process-environment precedence, safe failure behavior, the live-test command, and the development-only/release boundary.
+- Reconciled architecture, README, Windows handoff, Windows plan, and ticket evidence with the accepted optional network provider while retaining physical-verification caveats.
+
+### Key decisions
+
+- CI calls the Azure crate explicitly on every OS even though workspace commands already include it, making cross-platform provider coverage visible and resistant to future workspace exclusions.
+- The live test uses fixed non-sensitive text, prints no content or configuration, and is ignored by default.
+- A configured debug provider may advertise translation capability, but automated mocks are not physical evidence. Accounts, proxying, shared quota ownership, release credentials, installers, and production readiness remain out of scope.
+- The repository's literal `cargo test --workspace` is not a valid Windows gate because the macOS adapter integration test links Swift C-ABI symbols. The existing target-specific CI exclusion remains the authoritative design rather than weakening native adapter coverage.
+
+### Main files changed
+
+- `.github/workflows/ci.yml`
+- `.env.example` (verified unchanged and credential-empty)
+- `crates/translation-azure/tests/live_translation.rs`
+- `README.md`
+- `docs/architecture.md`
+- `docs/development.md`
+- `docs/windows-development.md`
+- `docs/windows-platform-plan-v2.md`
+- `docs/azure-translator-integration-tickets.md`
+- `docs/windows-development-log.md`
+
+### Tests and results
+
+- `cargo fmt --all --check`: **Verified automated**, passed.
+- `cargo clippy --workspace --all-targets -- -D warnings`: **Verified automated**, passed on Windows, including both platform crates and Azure.
+- `cargo test --workspace`: **Blocked** on Windows at the macOS adapter integration-test link step because Swift C-ABI symbols are unavailable; no Azure test failed.
+- `cargo test --workspace --exclude vocab-platform-macos`: **Verified automated**, all applicable Windows/shared suites passed; the physical UIA test and live Azure test remained explicitly ignored.
+- `cargo build --workspace`: **Verified automated**, passed.
+- `pnpm check`: **Verified automated**, 0 errors and 0 warnings.
+- `pnpm test`: **Verified automated**, 65 tests passed across 7 files.
+- `pnpm build`: **Verified automated**, production bundle built successfully.
+- `git diff --check`: **Verified automated**, passed.
+- Targeted Azure credential-assignment grep: **Verified automated**, found only intentionally empty documentation/template values; no populated credential was found.
+- `git check-ignore .env.local`: **Verified automated**, `.env.local` is ignored.
+
+### Not yet verified
+
+- **Not run:** the ignored live Azure request; no developer credential was consumed.
+- **Not run:** real Windows native selection translation, OCR-confirmation translation, invalid-credential recovery, and disconnected-network recovery.
+- **Not run:** macOS/Linux CI execution for this commit; workflow configuration now contains the explicit jobs, but hosted results are external evidence.
+
+### Next ticket starting point
+
+Ticket 08 must run on the Windows physical machine with a developer-owned Azure resource. Start by supplying credentials outside Git and running the ignored fixed-text smoke test; only after it passes should the real native-capture, edit/apply/save, OCR gate, and failure-recovery scenarios be exercised and recorded.

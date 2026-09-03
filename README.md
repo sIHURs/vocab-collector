@@ -2,8 +2,9 @@
 
 A lightweight, local-first vocabulary coach built with Tauri 2, Rust, Svelte 5,
 SQLite, and an optional Supabase synchronization boundary. The macOS adapter is
-implemented; Linux and Windows currently have honest unsupported-capability
-skeletons for Plan B development on their physical target machines.
+implemented; Linux remains an unsupported-capability skeleton, while Windows is
+an incremental Plan B adapter with physically verified UIA selection and an
+automated, developer-configured Azure translation path awaiting live evidence.
 
 ## Workspace
 
@@ -18,7 +19,9 @@ skeletons for Plan B development on their physical target machines.
 - `crates/sync` — synchronization model and orchestration
 - `platform/macos/native` — Swift bridge for Accessibility, Translation, ScreenCaptureKit, Vision, permissions, and AppKit
 - `platform/macos/rust` — safe Rust adapter around the Swift JSON/C ABI
-- `platform/linux` and `platform/windows` — static Plan B adapter skeletons; native behavior is not implemented or verified
+- `platform/linux` — static Plan B adapter skeleton
+- `platform/windows` — incremental UIA/OCR/Win32 adapter with capability-gated evidence
+- `crates/translation-azure` — replaceable development-only network translation provider
 - `supabase` — production database schema and row-level security
 - `docs` — architecture and development documentation
 

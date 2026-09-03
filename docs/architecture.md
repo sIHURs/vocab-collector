@@ -15,7 +15,8 @@ vocab-desktop (composition and presentation boundary)
             ▲
             ├── vocab-platform-macos → Swift native package
             ├── vocab-platform-linux (Plan B skeleton)
-            └── vocab-platform-windows (incremental Plan B adapter)
+            ├── vocab-platform-windows (incremental Plan B adapter)
+            └── vocab-translation-azure (replaceable network provider)
 ```
 
 Dependencies point inward: shared crates never import Tauri, Swift FFI,
@@ -40,6 +41,9 @@ dependency tables.
   `PermissionProvider`, and `WindowProvider` traits.
 - `vocab-platform-contract-tests` provides reusable adapter contract checks;
   application tests use fake providers without native permissions.
+- `vocab-translation-azure` implements only the portable `TranslationProvider`
+  contract. Azure HTTP, credentials, retry policy, and protocol DTOs stay private
+  to that crate; the Windows adapter has no Azure dependency.
 - `vocab-desktop` selects one platform service bundle, constructs the shared
   workflow, normalizes Tauri presentation data, and exposes stable commands and
   events. It does not call the Swift ABI directly.
@@ -80,9 +84,11 @@ unavailable providers return explicit typed errors.
 
 The macOS adapter and Swift package are the Plan A runtime implementation.
 Linux remains a contract-compatible skeleton. Windows is an incremental Plan B
-adapter: UIA selection and bounds are advertised after target-machine evidence,
-while OCR, translation, and non-activating-window capabilities remain disabled
-until their own evidence gates pass. Target-specific compilation, automated
+adapter: UIA selection and bounds are advertised after target-machine evidence.
+In debug development only, the desktop composition root may inject the optional
+Azure provider and then advertise translation; credentials stay in Rust below
+the WebView boundary. OCR, Azure-backed translation behavior, and non-activating
+window behavior remain physically unverified until their own evidence gates pass. Target-specific compilation, automated
 tests, and physical runtime evidence are documented in `linux-development.md`
 and `windows-development.md`.
 
