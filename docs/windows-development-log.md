@@ -1092,3 +1092,53 @@ with the documented fixture-specific `VOCAB_UIA_EXPECTED` and
 ### Next ticket starting point
 
 Ticket 02 can load and validate developer-only configuration in the desktop composition root, inject `AzureTranslationProvider` into a generic Windows provider seam, and advertise translation capability without a startup network request.
+
+## 2026-09-03 - Azure Translator Ticket 02: developer configuration and Windows composition
+
+### Implementation
+
+- Added debug-only loading of the workspace-root `.env.local`, with process environment variables taking precedence.
+- Added strict, content-safe parsing for the Azure key, endpoint, optional region, and timeout, plus a committed empty `.env.example`.
+- Added a generic Windows translation-provider injection seam that enables only the translation capability.
+- Updated the Windows desktop composition root to inject Azure when configured and retain the unavailable provider when all Azure settings are absent.
+
+### Key decisions
+
+- `platform/windows` accepts only `Arc<dyn TranslationProvider>` and remains unaware of Azure, HTTP, environment variables, and credential formats.
+- A developer key alone is a complete global-resource configuration because endpoint and timeout have safe defaults; region remains optional.
+- Any Azure-related value without a key is a partial configuration and fails debug startup rather than silently disabling translation.
+- Translation capability means a provider is installed. Startup never probes Azure, so invalid credentials remain a runtime provider failure.
+- `.env.local` parsing is compiled only with debug assertions. Release builds read process environment variables only and cannot load that file.
+
+### Main files changed
+
+- `.env.example`
+- `apps/desktop/src-tauri/Cargo.toml`
+- `apps/desktop/src-tauri/src/config.rs`
+- `apps/desktop/src-tauri/src/bootstrap.rs`
+- `apps/desktop/src-tauri/src/lib.rs`
+- `platform/windows/src/lib.rs`
+- `platform/windows/tests/capabilities.rs`
+- `docs/windows-development-log.md`
+
+### Tests and results
+
+- Windows provider-injection TDD test: **Verified automated**, failed first because `with_translation` did not exist, then passed and proved only translation capability changed.
+- Desktop configuration TDD tests: **Verified automated**, failed first because the configuration seam did not exist, then 3 tests passed for absent, defaulted, and partial/redacted configuration.
+- `cargo fmt --all --check`: **Verified automated**, passed.
+- `cargo clippy -p vocab-desktop -p vocab-platform-windows --all-targets -- -D warnings`: **Verified automated**, passed.
+- `cargo test -p vocab-desktop`: **Verified automated**, 36 tests passed across unit and command-contract suites.
+- `cargo test -p vocab-platform-windows`: **Verified automated**, 17 tests passed and 1 physical UIA test remained ignored.
+- `cargo build -p vocab-desktop`: **Verified automated**, passed.
+- `git check-ignore .env.local`: **Verified automated**, returned `.env.local`.
+
+### Not yet verified
+
+- **Not run:** a real Azure request or credential validation.
+- **Not run:** automatic source-language Settings behavior; owned by Ticket 03.
+- **Not run:** Windows capture-window translation behavior; owned by Tickets 05 and 06.
+- **Not run:** physical Windows runtime translation behavior.
+
+### Next ticket starting point
+
+Ticket 03 starts at the shared `UserSettings` boundary: add the explicit `auto` source option, prohibit blank/automatic targets, normalize legacy `zh` to `zh-Hans`, and expose the choices in Windows Settings without coupling settings to Azure.

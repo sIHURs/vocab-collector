@@ -21,15 +21,28 @@ pub struct WindowsPlatform;
 impl WindowsPlatform {
     #[allow(clippy::new_ret_no_self)]
     pub fn new() -> PlatformServices {
+        Self::services(Arc::new(UnsupportedTranslationProvider), false)
+    }
+
+    #[allow(clippy::new_ret_no_self)]
+    pub fn with_translation(translation: Arc<dyn TranslationProvider>) -> PlatformServices {
+        Self::services(translation, true)
+    }
+
+    fn services(
+        translation: Arc<dyn TranslationProvider>,
+        translation_enabled: bool,
+    ) -> PlatformServices {
         PlatformServices {
             capabilities: PlatformCapabilities {
                 selection_capture: true,
                 selection_bounds: true,
+                translation: translation_enabled,
                 ..PlatformCapabilities::default()
             },
             selection: Arc::new(selection::WindowsSelectionProvider),
             ocr: Arc::new(ocr::WindowsOcrProvider),
-            translation: Arc::new(UnsupportedTranslationProvider),
+            translation,
             permissions: Arc::new(UnsupportedPermissionProvider),
             window: Arc::new(UnsupportedWindowProvider),
         }

@@ -5,7 +5,11 @@ use std::{
     thread,
 };
 
-use vocab_platform_api::{Capability, PermissionKind, PlatformCapabilities, PlatformError};
+use async_trait::async_trait;
+use vocab_platform_api::{
+    Capability, PermissionKind, PlatformCapabilities, PlatformError, TranslationProvider,
+    TranslationResult,
+};
 use vocab_platform_windows::WindowsPlatform;
 use vocab_platform_windows::window::capture_window_extended_style;
 
@@ -40,6 +44,45 @@ fn only_physically_verified_native_capabilities_are_enabled() {
             selection_bounds: true,
             ..PlatformCapabilities::default()
         }
+    );
+}
+
+struct ConfiguredTranslation;
+
+#[async_trait]
+impl TranslationProvider for ConfiguredTranslation {
+    async fn translate(
+        &self,
+        _text: &str,
+        source: &str,
+        target: &str,
+    ) -> Result<TranslationResult, PlatformError> {
+        Ok(TranslationResult {
+            translated_text: "configured".into(),
+            source_language: source.into(),
+            target_language: target.into(),
+        })
+    }
+}
+
+#[test]
+fn injected_translation_provider_enables_only_translation_capability() {
+    let services = WindowsPlatform::with_translation(Arc::new(ConfiguredTranslation));
+
+    assert_eq!(
+        services.capabilities,
+        PlatformCapabilities {
+            selection_capture: true,
+            selection_bounds: true,
+            translation: true,
+            ..PlatformCapabilities::default()
+        }
+    );
+    assert_eq!(
+        block_on(services.translation.translate("word", "en", "de"))
+            .unwrap()
+            .translated_text,
+        "configured"
     );
 }
 

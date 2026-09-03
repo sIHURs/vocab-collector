@@ -59,7 +59,13 @@ pub fn selected_platform() -> Result<PlatformServices, PlatformError> {
 
 #[cfg(target_os = "windows")]
 pub fn selected_platform() -> Result<PlatformServices, PlatformError> {
-    Ok(vocab_platform_windows::WindowsPlatform::new())
+    let Some(config) = crate::config::azure_translation_config()? else {
+        return Ok(vocab_platform_windows::WindowsPlatform::new());
+    };
+    let provider = vocab_translation_azure::AzureTranslationProvider::new(config)?;
+    Ok(vocab_platform_windows::WindowsPlatform::with_translation(
+        Arc::new(provider),
+    ))
 }
 
 #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]

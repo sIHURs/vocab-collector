@@ -8,6 +8,8 @@ use vocab_storage::SqliteStore;
 
 pub mod bootstrap;
 pub mod commands;
+#[cfg(target_os = "windows")]
+pub mod config;
 pub mod events;
 pub mod lifecycle;
 pub mod system_settings;
