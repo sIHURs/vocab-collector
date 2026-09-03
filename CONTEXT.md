@@ -28,6 +28,18 @@ _Avoid_: Automatic capture, background monitoring
 The explicit user decision that turns an OCR-derived suggestion into an accepted capture candidate. Nothing is translated or saved before this decision.
 _Avoid_: OCR permission, automatic OCR save
 
+**Automatic Translation**:
+A translation proposed by a configured Translation Provider for the selected vocabulary text. The surrounding context is not sent for translation. An automatic translation remains an editable part of the capture draft and is not saved until the user explicitly saves the capture.
+_Avoid_: Guaranteed translation, background translation
+
+**Manual Translation**:
+Translation text entered or edited by the user. Selected text, context, and translation are independently editable; the user confirms their final combination when saving.
+_Avoid_: Corrected automatic translation
+
+**Translation Provider**:
+A replaceable service that translates selected vocabulary text between a requested source and target language. Provider availability does not imply that its credentials, network connection, quota, or requested language pair are currently usable.
+_Avoid_: Windows translator, translation engine
+
 **Review**:
 A scheduled recall decision for a vocabulary item, recorded as either forgotten or remembered.
 _Avoid_: Quiz, test
