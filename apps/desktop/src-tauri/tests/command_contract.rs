@@ -15,12 +15,10 @@ use vocab_desktop_lib::{
     bootstrap::build_app_state,
     commands::capture::{
         capture_selected_text, capture_with_ocr, close_capture_window, close_capture_window_for,
-        confirm_ocr, correct_native_capture,
-        get_permission_status, get_platform_capabilities, hide_capture_window,
-        hide_then_restore_focus,
-        hide_capture_window_for, request_accessibility_permission,
-        request_screen_recording_permission, save_native_capture, translate_text,
-        undo_native_capture,
+        confirm_ocr, correct_native_capture, get_permission_status, get_platform_capabilities,
+        hide_capture_window, hide_capture_window_for, hide_then_restore_focus,
+        request_accessibility_permission, request_screen_recording_permission, save_native_capture,
+        translate_text, undo_native_capture,
     },
     commands::presentation::get_presentation_family,
     events::{
@@ -43,15 +41,15 @@ use vocab_storage::SqliteStore;
 
 #[test]
 fn capture_window_can_start_native_dragging() {
-    let capability: serde_json::Value = serde_json::from_str(include_str!(
-        "../capabilities/default.json"
-    ))
-    .unwrap();
+    let capability: serde_json::Value =
+        serde_json::from_str(include_str!("../capabilities/default.json")).unwrap();
     let permissions = capability["permissions"].as_array().unwrap();
 
-    assert!(permissions.iter().any(|permission| {
-        permission.as_str() == Some("core:window:allow-start-dragging")
-    }));
+    assert!(
+        permissions
+            .iter()
+            .any(|permission| { permission.as_str() == Some("core:window:allow-start-dragging") })
+    );
 }
 
 #[test]

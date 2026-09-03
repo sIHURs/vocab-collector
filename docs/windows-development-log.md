@@ -1044,3 +1044,51 @@ cargo test -p vocab-platform-windows physical_uia_selection_matches_the_portable
 
 with the documented fixture-specific `VOCAB_UIA_EXPECTED` and
 `VOCAB_UIA_EXPECTED_APP` values. Result for each invocation: 1 passed, 0 failed.
+
+## 2026-09-03 - Azure Translator Ticket 01: portable provider
+
+### Implementation
+
+- Added the `vocab-translation-azure` workspace crate as a deep implementation of the existing portable `TranslationProvider` contract.
+- Added Azure Translator v3 request/response mapping, automatic source detection, explicit source and target handling, Unicode support, bounded retry, timeout configuration, optional region headers, and content-safe platform errors.
+- Added local TCP mock tests so the default suite exercises the HTTP boundary without Azure credentials or internet access.
+
+### Key decisions
+
+- Azure protocol DTOs, HTTP behavior, credentials, retry policy, and internal error categories remain private to the provider crate.
+- Only selected vocabulary text can enter the provider contract; surrounding context is not accepted by the interface.
+- Configuration diagnostics redact the credential and endpoint. Azure response bodies and translated/captured text are never copied into platform errors.
+- HTTP 429, timeouts, connection failures, and 5xx responses are retryable with at most three total attempts. Authentication and unsupported-language responses fail without retry.
+- TLS uses Reqwest's explicit Rustls feature with platform certificate verification for later cross-platform composition.
+
+### Main files changed
+
+- `Cargo.toml`
+- `Cargo.lock`
+- `crates/translation-azure/Cargo.toml`
+- `crates/translation-azure/src/lib.rs`
+- `crates/translation-azure/src/client.rs`
+- `crates/translation-azure/src/error.rs`
+- `crates/translation-azure/src/protocol.rs`
+- `crates/translation-azure/tests/provider.rs`
+- `apps/desktop/src-tauri/tests/command_contract.rs` (workspace formatter output required by the ticket gate)
+- `docs/windows-development-log.md`
+
+### Tests and results
+
+- TDD tracer test for automatic source detection, Unicode request content, explicit target, and portable response: **Verified automated**, failed first because the public provider types did not exist, then passed.
+- TDD explicit-source/region test: **Verified automated**, failed first because the test configuration had no region seam, then passed after adding the content-safe test builder.
+- `cargo fmt --all --check`: **Verified automated**, passed after applying workspace formatting.
+- `cargo clippy -p vocab-translation-azure --all-targets -- -D warnings`: **Verified automated**, passed.
+- `cargo test -p vocab-translation-azure`: **Verified automated**, 6 tests passed (1 internal category test and 5 provider-boundary tests).
+- `cargo test -p vocab-platform-contract-tests`: **Verified automated**, 8 tests passed.
+
+### Not yet verified
+
+- **Not run:** any request against the real Azure Translator service; no developer credential was used.
+- **Not run:** Windows desktop composition, capability advertisement, or `.env.local` loading; owned by Ticket 02.
+- **Not run:** Windows runtime behavior or physical UI verification.
+
+### Next ticket starting point
+
+Ticket 02 can load and validate developer-only configuration in the desktop composition root, inject `AzureTranslationProvider` into a generic Windows provider seam, and advertise translation capability without a startup network request.
