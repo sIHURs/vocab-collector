@@ -176,7 +176,7 @@ impl CaptureCoordinator {
         let mut guard = self.current(request_id)?;
         let session = guard.as_mut().ok_or(CoordinatorError::StaleRequest)?;
         match session.phase {
-            Phase::TranslationPending | Phase::TranslationFailed => {
+            Phase::TranslationPending | Phase::TranslationFailed | Phase::ReadyToSave => {
                 session.phase = Phase::Translating;
             }
             _ => return Err(CoordinatorError::InvalidTransition),
@@ -205,7 +205,11 @@ impl CaptureCoordinator {
         if session.phase != Phase::Translating {
             return Err(CoordinatorError::InvalidTransition);
         }
-        session.phase = Phase::TranslationFailed;
+        session.phase = if session.translation.is_some() {
+            Phase::ReadyToSave
+        } else {
+            Phase::TranslationFailed
+        };
         Ok(())
     }
 
@@ -218,7 +222,7 @@ impl CaptureCoordinator {
         let mut guard = self.current(request_id)?;
         let session = guard.as_mut().ok_or(CoordinatorError::StaleRequest)?;
         match session.phase {
-            Phase::TranslationPending | Phase::TranslationFailed => {}
+            Phase::TranslationPending | Phase::TranslationFailed | Phase::ReadyToSave => {}
             _ => return Err(CoordinatorError::InvalidTransition),
         }
         session.candidate = Some(candidate);

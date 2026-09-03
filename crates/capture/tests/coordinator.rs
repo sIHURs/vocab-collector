@@ -303,6 +303,57 @@ fn correction_and_manual_translation_stay_on_the_current_request() {
 }
 
 #[test]
+fn translated_capture_can_be_independently_edited_before_explicit_save() {
+    let coordinator = CaptureCoordinator::default();
+    let request = coordinator.start();
+    coordinator
+        .set_candidate(request, candidate(CaptureOrigin::Accessibility))
+        .unwrap();
+    coordinator.begin_translation(request).unwrap();
+    coordinator.set_translation(request, translation()).unwrap();
+    let mut corrected = candidate(CaptureOrigin::Accessibility);
+    corrected.selected_text = "independently edited".into();
+    corrected.sentence = "An independently edited context.".into();
+    let edited_translation = TranslationResult {
+        translated_text: "frei bearbeitet".into(),
+        ..translation()
+    };
+
+    coordinator
+        .correct(request, corrected, Some(edited_translation.clone()))
+        .unwrap();
+    let snapshot = coordinator
+        .save_with(request, false, |snapshot| Ok::<_, &str>(snapshot.clone()))
+        .unwrap();
+
+    assert_eq!(snapshot.candidate.selected_text, "independently edited");
+    assert_eq!(
+        snapshot.candidate.sentence,
+        "An independently edited context."
+    );
+    assert_eq!(snapshot.translation, Some(edited_translation));
+}
+
+#[test]
+fn failed_retry_preserves_the_previous_translation_for_saving() {
+    let coordinator = CaptureCoordinator::default();
+    let request = coordinator.start();
+    coordinator
+        .set_candidate(request, candidate(CaptureOrigin::Accessibility))
+        .unwrap();
+    coordinator.begin_translation(request).unwrap();
+    coordinator.set_translation(request, translation()).unwrap();
+
+    coordinator.begin_translation(request).unwrap();
+    coordinator.translation_failed(request).unwrap();
+    let snapshot = coordinator
+        .save_with(request, false, |snapshot| Ok::<_, &str>(snapshot.clone()))
+        .unwrap();
+
+    assert_eq!(snapshot.translation, Some(translation()));
+}
+
+#[test]
 fn untranslated_correction_requires_the_explicit_save_without_translation_path() {
     let coordinator = CaptureCoordinator::default();
     let request = coordinator.start();

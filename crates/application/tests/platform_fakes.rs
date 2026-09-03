@@ -466,6 +466,46 @@ fn corrected_native_capture_and_manual_translation_use_the_shared_workflow() {
 }
 
 #[test]
+fn translated_capture_applies_independent_edits_before_saving_once() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let translation: Arc<dyn TranslationProvider> = Arc::new(CountingTranslationProvider {
+        calls: calls.clone(),
+    });
+    let (workflow, application) = workflow_with_translation(Ok(candidate("original")), translation);
+    let request = workflow.start_request();
+    workflow
+        .set_candidate(request, candidate("original"))
+        .unwrap();
+    block_on(workflow.translate(request, "original", "en", "de")).unwrap();
+
+    workflow
+        .correct(
+            request,
+            "edited word".into(),
+            "An independently edited context.".into(),
+            Some("manuell bearbeitet".into()),
+        )
+        .unwrap();
+    assert!(application.list_words().unwrap().is_empty());
+
+    let card = workflow.save(request, false, captured_at()).unwrap();
+    let detail = application.get_word(card.word_id).unwrap();
+    assert_eq!(card.display_form, "edited word");
+    assert_eq!(card.translation.as_deref(), Some("manuell bearbeitet"));
+    assert_eq!(
+        detail.encounters[0].sentence,
+        "An independently edited context."
+    );
+    assert!(matches!(
+        workflow.save(request, false, captured_at()),
+        Err(PlatformCaptureError::Coordinator(
+            CoordinatorError::AlreadySaved
+        ))
+    ));
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+}
+
+#[test]
 fn blank_manual_translation_still_requires_explicit_untranslated_save() {
     let (workflow, _) = workflow(Ok(candidate("serendipity")));
     let prepared = block_on(workflow.prepare_selection()).unwrap();

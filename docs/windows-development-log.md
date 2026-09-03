@@ -1190,3 +1190,44 @@ Ticket 03 starts at the shared `UserSettings` boundary: add the explicit `auto` 
 ### Next ticket starting point
 
 Ticket 04 starts at `CaptureCoordinator` and `PlatformCaptureWorkflow`: permit edits after a successful Automatic Translation, preserve independent field semantics, authorize blank translation through the same save action, and retain save-once and stale-request protection.
+
+## 2026-09-03 - Azure Translator Ticket 04: editable translated draft
+
+### Implementation
+
+- Extended `CaptureCoordinator` so a ready translated Capture Candidate can be independently corrected or explicitly retried before saving.
+- Preserved an existing translation when an explicit retry fails, keeping the prior preview valid and saveable.
+- Added coordinator and application-level regression tests proving edit/apply does not persist and final save stores the exact independently edited fields once.
+
+### Key decisions
+
+- Selected text, context, and translation remain independent fields after Automatic Translation; changing selected text does not implicitly clear translation.
+- `ReadyToSave` may enter `Translating` only through the existing explicit `begin_translation` authorization seam.
+- Failed first translation remains `TranslationFailed`; failed retry with an existing translation returns to `ReadyToSave`.
+- Blank translation still uses the existing explicit optional-translation boolean at the backend seam. Ticket 05 will present the same visible `Save capture` label regardless of that internal authorization value.
+
+### Main files changed
+
+- `crates/capture/src/coordinator.rs`
+- `crates/capture/tests/coordinator.rs`
+- `crates/application/tests/platform_fakes.rs`
+- `docs/windows-development-log.md`
+
+### Tests and results
+
+- Coordinator edit-after-translation TDD: **Verified automated**, failed first with `InvalidTransition`, then passed after adding the explicit ready-state transitions.
+- `cargo fmt --all --check`: **Verified automated**, passed.
+- `cargo clippy -p vocab-capture -p vocab-application -p vocab-desktop --all-targets -- -D warnings`: **Verified automated**, passed.
+- `cargo test -p vocab-capture`: **Verified automated**, 33 tests passed across coordinator, OCR ranking, placement, and shortcut suites.
+- `cargo test -p vocab-application --test platform_fakes`: **Verified automated**, 14 tests passed.
+- `cargo test -p vocab-desktop --test command_contract`: **Verified automated**, 29 tests passed.
+
+### Not yet verified
+
+- **Not run:** Windows capture-window automatic translation and edit/apply presentation; owned by Ticket 05.
+- **Not run:** provider-failure and OCR recovery presentation; owned by Ticket 06.
+- **Not run:** physical Windows behavior or real Azure translation.
+
+### Next ticket starting point
+
+Ticket 05 can now connect the Windows presentation to `get_settings` and `translate_text`, automatically translate a confirmed non-OCR Native Capture when capability is available, render the editable preview, and call the existing correction/save seams only after explicit user actions.
