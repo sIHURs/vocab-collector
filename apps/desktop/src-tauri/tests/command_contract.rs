@@ -550,14 +550,20 @@ fn non_translation_unsupported_and_internal_failures_map_to_operation() {
 
 #[test]
 fn translation_operation_failures_have_a_typed_retryable_context() {
-    let failure = CaptureFailure::from_translation(PlatformCaptureError::Platform(
-        PlatformError::Operation("native translation timed out".into()),
-    ));
+    let failure =
+        CaptureFailure::from_translation(PlatformCaptureError::Platform(PlatformError::Operation(
+            "credential private-key; selected private-word; https://private.example/translate"
+                .into(),
+        )));
 
     assert_eq!(failure.code, CaptureFailureCode::TranslationFailed);
     assert_eq!(
         serde_json::to_value(&failure).unwrap()["code"],
         "translation_failed"
+    );
+    assert_eq!(
+        failure.message,
+        "Translation is temporarily unavailable. You can retry or continue editing."
     );
 }
 

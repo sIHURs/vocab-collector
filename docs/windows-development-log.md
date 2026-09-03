@@ -1271,3 +1271,49 @@ Ticket 05 can now connect the Windows presentation to `get_settings` and `transl
 ### Next ticket starting point
 
 Ticket 06 starts in `WindowsFloatingCapture.svelte`: retain provider-neutral translation failures, expose retry/edit/save recovery, and invoke translation only after OCR confirmation while expanding shared privacy/category contract tests.
+
+## 2026-09-03 - Azure Translator Ticket 06: OCR and translation recovery
+
+### Implementation
+
+- Starts OCR translation only after the selected OCR candidate is explicitly confirmed.
+- Added provider-neutral translation failure presentation with `Retry translation`, `Edit capture`, and `Save capture` recovery actions.
+- Retry translates the current independently edited selected text, remains single-flight through the shared busy state, and replaces the draft translation only after success.
+- Sanitized translation failures at the Tauri boundary and expanded Azure's internal status-category regression coverage.
+
+### Key decisions
+
+- Provider diagnostics are discarded at both the component catch boundary and the serialized Tauri failure boundary; frontend state receives only fixed product copy.
+- A failed translation leaves the candidate saveable and editable. Applying edits does not erase retry availability.
+- OCR candidate text stays local to the OCR presentation until `confirm_ocr` succeeds; only then can `translate_text` receive it.
+- Azure-specific authentication, quota, rate-limit, timeout, network, unsupported-language, server, and invalid-response categories remain private to the replaceable provider.
+
+### Main files changed
+
+- `ui/src/windows/WindowsFloatingCapture.svelte`
+- `ui/src/windows/WindowsFloatingCapture.test.ts`
+- `apps/desktop/src-tauri/src/events.rs`
+- `apps/desktop/src-tauri/tests/command_contract.rs`
+- `crates/translation-azure/src/error.rs`
+- `docs/windows-development-log.md`
+
+### Tests and results
+
+- OCR/recovery component TDD: **Verified automated**, tests cover no translation before confirmation, exactly one call after confirmation, sanitized failure UI, independent edit/apply, retry of current text, and explicit save; all 18 component tests passed.
+- `cargo fmt --all --check`: **Verified automated**, passed after applying formatter output.
+- `cargo test -p vocab-capture`: **Verified automated**, 33 tests passed.
+- `cargo test -p vocab-application --test platform_fakes`: **Verified automated**, 14 tests passed.
+- `cargo test -p vocab-platform-contract-tests`: **Verified automated**, 8 tests passed.
+- `cargo test -p vocab-desktop --test command_contract`: **Verified automated**, 29 tests passed.
+- `cargo test -p vocab-translation-azure`: **Verified automated**, 6 tests passed, including internal category and content-safety checks.
+- `pnpm --dir ui test -- WindowsFloatingCapture.test.ts`: **Verified automated**, 18 tests passed.
+- `pnpm --dir ui check`: **Verified automated**, 0 errors and 0 warnings.
+
+### Not yet verified
+
+- **Not run:** real Azure authentication, quota, network disconnection, and live translation behavior.
+- **Not run:** physical Windows capture-window and OCR interaction.
+
+### Next ticket starting point
+
+Ticket 07 starts with the complete network-independent gate: update CI matrices and architecture/development documentation, document the ignored live-test setup, and run workspace-wide Rust/UI verification plus a targeted secret scan.

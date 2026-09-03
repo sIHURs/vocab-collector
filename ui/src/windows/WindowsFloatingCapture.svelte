@@ -17,6 +17,7 @@
   let translationSource = "";
   let translationTarget = "";
   let translationAvailable = false;
+  let translationFailed = false;
   let saved: CaptureCard | null = null;
   let busy = false;
   let error = "";
@@ -113,6 +114,8 @@
     translationAvailable = capabilities.translation;
     if (!translationAvailable || busy) return;
     busy = true;
+    error = "";
+    translationFailed = false;
     try {
       const result = await captureBackend.translate(requestId, text, currentSettings.sourceLanguage, currentSettings.targetLanguage);
       if (!mounted || requestId !== activeRequest) return;
@@ -121,7 +124,9 @@
       translationTarget = result.targetLanguage;
       await captureBackend.apply(requestId, correction());
     } catch {
-      // Ticket 06 adds the recoverable failure presentation.
+      if (!mounted || requestId !== activeRequest) return;
+      translationFailed = true;
+      error = "Translation is temporarily unavailable. You can retry or continue editing.";
     } finally {
       if (mounted && requestId === activeRequest) busy = false;
     }
@@ -154,6 +159,7 @@
     await captureBackend.confirmOcr(requestId, selectedOcrIndex);
     if (!mounted || requestId !== activeRequest) return;
     ocrNeedsConfirmation = false;
+    void translateCandidate(requestId, selected.text);
   }
 
   async function startOcr() {
@@ -223,6 +229,7 @@
       translation = "";
       translationSource = "";
       translationTarget = "";
+      translationFailed = false;
       saved = null;
       error = "";
       editing = false;
@@ -312,6 +319,7 @@
         {:else if !translationAvailable}
           <p class="notice">Automatic translation is unavailable. You can add a translation manually.</p>
         {/if}
+        {#if translationFailed}<button class="secondary" disabled={busy} onclick={() => translateCandidate(activeRequest, selectedText.trim())}>Retry translation</button>{/if}
         <button class="primary" disabled={busy} onclick={beginEditing}>Edit capture</button>
         <button class="secondary" disabled={busy} onclick={save}>Save capture</button>
       {/if}

@@ -97,6 +97,7 @@ describe("Windows floating capture presentation", () => {
   });
 
   it("requires explicit confirmation before an OCR candidate can enter the save flow", async () => {
+    mocks.getCapabilities.mockResolvedValue({ selectionCapture: false, selectionBounds: false, screenshotOcr: true, translation: true, nonActivatingWindow: false });
     render(WindowsFloatingCapture, { captureBackend });
     await waitFor(() => expect(mocks.error).toBeTypeOf("function"));
     await waitFor(() => expect(mocks.getCapabilities).toHaveBeenCalled());
@@ -107,10 +108,39 @@ describe("Windows floating capture presentation", () => {
     const suggestion = { text: "serendipity", bounds: { x: 1, y: 2, width: 30, height: 12 }, confidence: 0.91 };
     mocks.ocr?.({ requestId: "ocr-request", candidates: [suggestion], ambiguous: false });
     expect(screen.queryByRole("button", { name: "Save capture" })).not.toBeInTheDocument();
+    expect(mocks.translate).not.toHaveBeenCalled();
 
     await fireEvent.click(await screen.findByRole("button", { name: "Confirm OCR candidate" }));
     expect(mocks.confirmOcr).toHaveBeenCalledWith("ocr-request", 0);
+    await waitFor(() => expect(mocks.translate).toHaveBeenCalledTimes(1));
+    expect(mocks.translate).toHaveBeenCalledWith("ocr-request", "serendipity", "auto", "de");
     expect(await screen.findByRole("button", { name: "Save capture" })).toBeVisible();
+  });
+
+  it("recovers from a provider-neutral translation failure by retrying the current edited text", async () => {
+    mocks.getCapabilities.mockResolvedValue({ selectionCapture: false, selectionBounds: false, screenshotOcr: true, translation: true, nonActivatingWindow: false });
+    mocks.translate.mockRejectedValueOnce({ code: "translation_failed", message: "secret provider response" });
+    render(WindowsFloatingCapture, { captureBackend });
+    await waitFor(() => expect(mocks.ready).toBeTypeOf("function"));
+    mocks.ready?.({ requestId: "retry-request", candidate: { selectedText: "nuance", sentence: "A useful nuance.", origin: "accessibility" } });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Translation is temporarily unavailable");
+    expect(screen.queryByText(/secret provider response/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Retry translation" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Edit capture" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Save capture" })).toBeEnabled();
+
+    await fireEvent.click(screen.getByRole("button", { name: "Edit capture" }));
+    await fireEvent.input(screen.getByLabelText("Selected text"), { target: { value: "subtlety" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Apply changes" }));
+    mocks.translate.mockResolvedValueOnce({ translatedText: "Feinheit", sourceLanguage: "en", targetLanguage: "de" });
+    await fireEvent.click(screen.getByRole("button", { name: "Retry translation" }));
+
+    await waitFor(() => expect(mocks.translate).toHaveBeenLastCalledWith("retry-request", "subtlety", "auto", "de"));
+    expect(await screen.findByText("Feinheit")).toBeVisible();
+    expect(mocks.save).not.toHaveBeenCalled();
+    await fireEvent.click(screen.getByRole("button", { name: "Save capture" }));
+    expect(mocks.save).toHaveBeenCalledTimes(1);
   });
 
   it("cancels OCR confirmation without saving", async () => {

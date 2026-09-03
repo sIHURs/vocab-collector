@@ -35,9 +35,11 @@ impl CaptureFailure {
 
     pub fn from_translation(error: PlatformCaptureError) -> Self {
         match error {
-            PlatformCaptureError::Platform(PlatformError::Operation(message)) => Self {
+            PlatformCaptureError::Platform(PlatformError::Operation(_)) => Self {
                 code: CaptureFailureCode::TranslationFailed,
-                message: PlatformError::Operation(message).to_string(),
+                message:
+                    "Translation is temporarily unavailable. You can retry or continue editing."
+                        .into(),
             },
             error => error.into(),
         }

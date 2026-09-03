@@ -68,7 +68,25 @@ mod tests {
             AzureTranslationError::from_status(StatusCode::TOO_MANY_REQUESTS),
             AzureTranslationError::RateLimited
         );
+        assert_eq!(
+            AzureTranslationError::from_status(StatusCode::PAYMENT_REQUIRED),
+            AzureTranslationError::QuotaExceeded
+        );
+        assert_eq!(
+            AzureTranslationError::from_status(StatusCode::BAD_REQUEST),
+            AzureTranslationError::UnsupportedLanguage
+        );
+        assert_eq!(
+            AzureTranslationError::from_status(StatusCode::BAD_GATEWAY),
+            AzureTranslationError::Server
+        );
+        assert_eq!(
+            AzureTranslationError::from_status(StatusCode::NOT_FOUND),
+            AzureTranslationError::InvalidResponse
+        );
         assert!(AzureTranslationError::RateLimited.retryable());
+        assert!(AzureTranslationError::Timeout.retryable());
+        assert!(AzureTranslationError::Network.retryable());
         assert!(!AzureTranslationError::Unauthorized.retryable());
     }
 }
