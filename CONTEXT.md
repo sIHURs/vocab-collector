@@ -21,11 +21,19 @@ A capture entered directly by the user rather than obtained from another applica
 _Avoid_: Fallback capture
 
 **Native Capture**:
-A capture initiated by the global shortcut and resolved from the active application through platform-native selection or OCR.
+A capture initiated by an explicitly chosen Selection Capture or Region OCR Capture action.
 _Avoid_: Automatic capture, background monitoring
 
+**Selection Capture**:
+A recommended Native Capture mode that reads the selection already made in the active application through platform-native accessibility APIs.
+_Avoid_: Word Capture, normal capture, primary capture
+
+**Region OCR Capture**:
+A Native Capture mode in which the user draws a screen region containing a vocabulary item before text is recognized from that region.
+_Avoid_: OCR fallback, automatic OCR, pointer OCR
+
 **OCR Confirmation**:
-The explicit user decision that turns an OCR-derived suggestion into an accepted capture candidate. Nothing is translated or saved before this decision.
+The explicit user decision that accepts the editable vocabulary and optional context produced during Region OCR Capture. Nothing is translated or saved before this decision.
 _Avoid_: OCR permission, automatic OCR save
 
 **Automatic Translation**:
