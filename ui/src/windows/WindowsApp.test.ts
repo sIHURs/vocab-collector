@@ -261,6 +261,22 @@ describe("Windows main presentation", () => {
     expect(screen.getByRole("button", { name: "Remembered" })).toBeVisible();
   });
 
+  it("shows core-backed Encounter and repeated-forgetting Insight after rating", async () => {
+    const api = new DemoBackend(true);
+    const submit = api.submitReview.bind(api);
+    api.submitReview = async (wordId, rating) => ({
+      ...(await submit(wordId, rating)), encounterCount: 4, repeatedForgetting: true,
+    });
+    render(WindowsApp, { api });
+
+    await fireEvent.click(await screen.findByRole("button", { name: "Start review (3)" }));
+    await revealAndRate("Forgot");
+
+    expect(await screen.findByText("Encountered 4 times")).toBeVisible();
+    expect(screen.getByText(/repeatedly forgotten/i)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Review contexts" })).toBeVisible();
+  });
+
   it("shows an empty Review state when nothing is due", async () => {
     render(WindowsApp, { api: new DemoBackend(false) });
     await screen.findByText("No captures yet");

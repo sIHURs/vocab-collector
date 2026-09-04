@@ -49,6 +49,8 @@ pub struct ReviewResult {
     pub stability: f32,
     pub difficulty: f32,
     pub lapse_count: u32,
+    pub encounter_count: usize,
+    pub repeated_forgetting: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

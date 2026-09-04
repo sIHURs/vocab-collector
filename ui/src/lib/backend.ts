@@ -140,7 +140,8 @@ export class DemoBackend implements Backend {
     word.item.nextReviewAt = nextDueAt;
     return { wordId, rating, reviewedAt, previousDueAt, nextDueAt,
       previousStability: 1, stability: rating === "forgot" ? 0.5 : 3,
-      difficulty: rating === "forgot" ? 5.5 : 4.85, lapseCount: rating === "forgot" ? 1 : 0 };
+      difficulty: rating === "forgot" ? 5.5 : 4.85, lapseCount: rating === "forgot" ? 1 : 0,
+      encounterCount: word.encounters.length, repeatedForgetting: false };
   }
   async getSettings() { return { ...this.settings }; }
   async updateSettings(settings: Settings) { this.settings = { ...settings }; }

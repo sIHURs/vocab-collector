@@ -125,6 +125,8 @@ export interface ReviewResult {
   stability: number;
   difficulty: number;
   lapseCount: number;
+  encounterCount: number;
+  repeatedForgetting: boolean;
 }
 
 export interface TodayView {

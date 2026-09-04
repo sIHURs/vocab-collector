@@ -4,7 +4,7 @@
 
 **Blocked by:** 01: Require active recall and return a Review result
 
-**Status:** ready-for-agent
+**Status:** completed
 
 - [ ] Every successful Review result includes the current non-deleted Encounter count for its Vocabulary Item.
 - [ ] The shared core defines and tests one explicit repeated-forgetting threshold based on persisted Review history or the resulting lapse state.
@@ -16,4 +16,3 @@
 - [ ] Reading Insight facts does not create a Review, modify scheduling, or add a separate durable learning event.
 - [ ] Storage and application tests prove the returned facts match the same committed Review and Vocabulary Item state.
 - [ ] The feature remains portable: no native platform dependency enters the domain, application, or storage implementation.
-

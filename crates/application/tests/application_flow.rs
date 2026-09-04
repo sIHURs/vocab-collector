@@ -71,6 +71,38 @@ fn repeated_capture_and_undo_return_frontend_ready_counts() {
 }
 
 #[test]
+fn review_result_reports_encounters_and_repeated_forgetting_after_three_consecutive_lapses() {
+    let store = Arc::new(SqliteStore::open_in_memory().unwrap());
+    let service = AppService::new(store, Uuid::now_v7());
+    let first = service.capture(request("Nuance", "Feinheit")).unwrap();
+    service.capture(request("nuance", "Feinheit")).unwrap();
+    let start = Utc.with_ymd_and_hms(2026, 8, 25, 12, 0, 0).unwrap();
+
+    let one = service
+        .submit_review(first.word_id, ReviewRating::Forgot, start)
+        .unwrap();
+    let two = service
+        .submit_review(
+            first.word_id,
+            ReviewRating::Forgot,
+            start + chrono::Duration::days(1),
+        )
+        .unwrap();
+    let three = service
+        .submit_review(
+            first.word_id,
+            ReviewRating::Forgot,
+            start + chrono::Duration::days(2),
+        )
+        .unwrap();
+
+    assert_eq!(three.encounter_count, 2);
+    assert!(!one.repeated_forgetting);
+    assert!(!two.repeated_forgetting);
+    assert!(three.repeated_forgetting);
+}
+
+#[test]
 fn settings_update_is_visible_to_today_view() {
     let store = Arc::new(SqliteStore::open_in_memory().unwrap());
     let service = AppService::new(store.clone(), Uuid::now_v7());

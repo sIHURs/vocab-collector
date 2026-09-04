@@ -201,6 +201,14 @@ impl AppService {
             device_id: self.device_id,
         };
         self.store.record_review(&word, &review)?;
+        let encounter_count = self.store.list_for_word(word_id)?.len();
+        let review_history =
+            vocab_domain::ReviewRepository::list_for_word(self.store.as_ref(), word_id)?;
+        let consecutive_forgotten = review_history
+            .iter()
+            .rev()
+            .take_while(|review| review.rating == ReviewRating::Forgot)
+            .count();
         let result = word
             .review_state
             .as_ref()
@@ -215,6 +223,8 @@ impl AppService {
             stability: result.stability,
             difficulty: result.difficulty,
             lapse_count: result.lapse_count,
+            encounter_count,
+            repeated_forgetting: consecutive_forgotten >= 3,
         })
     }
 
