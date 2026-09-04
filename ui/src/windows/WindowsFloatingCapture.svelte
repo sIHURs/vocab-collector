@@ -28,7 +28,6 @@
   let ocrAvailable = false;
   let ocrEligibleFailure = false;
   let ocrCandidates: OcrCandidate[] = [];
-  let selectedOcrIndex = 0;
   let ocrBusy = false;
   let ocrAttempted = false;
 
@@ -156,11 +155,10 @@
   async function confirmOcrCandidate() {
     if (busy) return;
     const requestId = activeRequest;
-    const selected = ocrCandidates[selectedOcrIndex];
-    if (!selected) return;
+    if (!candidate || !selectedText.trim()) return;
     busy = true;
     try {
-      await captureBackend.confirmOcr(requestId, selectedOcrIndex);
+      await captureBackend.confirmOcr(requestId, selectedText, sentence);
       if (!mounted || requestId !== activeRequest) return;
       ocrNeedsConfirmation = false;
     } catch {
@@ -169,7 +167,7 @@
     } finally {
       if (mounted && requestId === activeRequest) busy = false;
     }
-    void translateCandidate(requestId, selected.text);
+    void translateCandidate(requestId, selectedText.trim());
   }
 
   async function startOcr() {
@@ -189,29 +187,18 @@
     }
   }
 
-  function chooseOcrCandidate(index: number) {
-    selectedOcrIndex = index;
-    const selected = ocrCandidates[index];
-    if (!selected) return;
+  function useOcrDraft(candidates: OcrCandidate[]) {
+    const text = candidates.map((item) => item.text.trim()).filter(Boolean).join(" ");
+    const selected = candidates[0];
+    if (!selected || !text) return;
     candidate = {
-      selectedText: selected.text,
-      sentence: selected.text,
+      selectedText: text,
+      sentence: "",
       selectionBounds: selected.bounds,
       origin: "ocr",
     };
-    selectedText = selected.text;
-    sentence = selected.text;
-  }
-
-  function handleCandidateKeydown(event: KeyboardEvent) {
-    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-      event.preventDefault();
-      const delta = event.key === "ArrowDown" ? 1 : -1;
-      chooseOcrCandidate((selectedOcrIndex + delta + ocrCandidates.length) % ocrCandidates.length);
-    } else if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      void confirmOcrCandidate();
-    }
+    selectedText = text;
+    sentence = "";
   }
 
   async function cancel() {
@@ -267,11 +254,11 @@
     const ocr = captureBackend.listenOcrCandidate((event) => {
       if (event.requestId !== activeRequest) return;
       ocrCandidates = event.candidates;
-      chooseOcrCandidate(0);
+      useOcrDraft(event.candidates);
       error = "";
       ocrOffer = false;
       ocrNeedsConfirmation = true;
-      if (event.ambiguous) void captureBackend.focus();
+      void captureBackend.focus();
     });
     const regionOcr = captureBackend.listenRegionOcrStart((event) => {
       activeRequest = event.requestId;
@@ -309,18 +296,10 @@
       <small>{editing ? "Editing" : "Captured"}</small>
       {#if error}<p role="alert">{error}</p>{/if}
       {#if ocrNeedsConfirmation}
-        {#if ocrCandidates.length > 1}
-          <p id="ocr-choice-help">Choose the text nearest the pointer.</p>
-          <div class="candidate-list" role="listbox" aria-label="OCR candidates" aria-describedby="ocr-choice-help" aria-activedescendant={`ocr-candidate-${selectedOcrIndex}`} tabindex="0" onkeydown={handleCandidateKeydown}>
-            {#each ocrCandidates as item, index}
-              <button id={`ocr-candidate-${index}`} role="option" aria-selected={index === selectedOcrIndex} tabindex="-1" onclick={() => chooseOcrCandidate(index)}>{item.text}</button>
-            {/each}
-          </div>
-        {:else}
-          <h1>{selectedText}</h1>
-          <p>“{sentence}”</p>
-        {/if}
-        <button class="primary" disabled={busy} onclick={confirmOcrCandidate}>Confirm OCR candidate</button>
+        {#if ocrCandidates.length > 1}<p role="status">识别到多个词，请保留你要收集的词汇。</p>{/if}
+        <label>Vocabulary<input bind:value={selectedText} /></label>
+        <label>Context sentence <small>Optional</small><textarea bind:value={sentence}></textarea></label>
+        <button class="primary" disabled={busy || !selectedText.trim()} onclick={confirmOcrCandidate}>Confirm</button>
         <button class="secondary" onclick={cancel}>Cancel OCR</button>
       {:else if editing}
         <label>Selected text<input aria-label="Selected text" bind:value={selectedText} /></label>
@@ -371,11 +350,8 @@
   input, textarea { box-sizing: border-box; display: block; width: 100%; margin-top: 2px; padding: 5px 7px; border: 1px solid #55596a; border-radius: 5px; color: #eeeef3; background: #252732; font: inherit; }
   textarea { min-height: 42px; resize: vertical; }
   .notice { margin: 8px 0; font-size: 12px; }
-  .candidate-list { display: grid; gap: 4px; max-height: 100px; margin: 6px 0 10px; overflow: auto; outline: none; }
-  .candidate-list button { padding: 6px 8px; border-radius: 5px; text-align: left; }
-  .candidate-list button[aria-selected="true"] { background: #6676e8; color: white; }
-  button:focus-visible, input:focus-visible, textarea:focus-visible, .candidate-list:focus-visible { outline: 2px solid #aab3ff; outline-offset: 2px; }
-  @media (forced-colors: active) { .windows-capture { border-color: CanvasText; color: CanvasText; background: Canvas; box-shadow: none; } p, small, label, header { color: CanvasText; } .primary, .secondary, input, textarea, .candidate-list button { border: 1px solid ButtonText; color: ButtonText; background: ButtonFace; } .candidate-list button[aria-selected="true"] { color: HighlightText; background: Highlight; } }
+  button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid #aab3ff; outline-offset: 2px; }
+  @media (forced-colors: active) { .windows-capture { border-color: CanvasText; color: CanvasText; background: Canvas; box-shadow: none; } p, small, label, header { color: CanvasText; } .primary, .secondary, input, textarea { border: 1px solid ButtonText; color: ButtonText; background: ButtonFace; } }
   @media (prefers-reduced-motion: reduce) { .windows-capture, .windows-capture * { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
   @media (max-width: 320px), (min-resolution: 1.5dppx) and (max-width: 520px) { .windows-capture { font-size: 1rem; } .scrollable-content { padding-top: .75rem; } h1 { overflow-wrap: anywhere; font-size: 1.5rem; } .primary, .secondary { min-height: 2.5rem; } }
 </style>

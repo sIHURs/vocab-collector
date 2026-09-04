@@ -13,7 +13,7 @@ const mocks = {
   undo: vi.fn(async (_requestId: string, _encounterId: string) => {}),
   recognizeRegion: vi.fn(async () => {}),
   startRegionOcr: vi.fn(async () => "region-request"),
-  confirmOcr: vi.fn(async (_requestId: string, _candidateIndex: number) => {}),
+  confirmOcr: vi.fn(async (_requestId: string, _selectedText: string, _sentence: string) => {}),
   getCapabilities: vi.fn(async () => ({ selectionCapture: false, selectionBounds: false, screenshotOcr: true, translation: false, nonActivatingWindow: false })),
   getSettings: vi.fn(async () => ({ sourceLanguage: "auto", targetLanguage: "de", selectionCaptureShortcut: "Alt+Shift+V", regionOcrCaptureShortcut: "Alt+Shift+O", reviewTime: "18:00", dailyLimit: 20, recentCapturesLimit: 10, launchAtLogin: false, appearance: "system" as const, reducedMotion: false })),
   translate: vi.fn(async () => ({ translatedText: "Feinheit", sourceLanguage: "en", targetLanguage: "de" })),
@@ -119,8 +119,8 @@ describe("Windows floating capture presentation", () => {
     expect(screen.queryByRole("button", { name: "Save capture" })).not.toBeInTheDocument();
     expect(mocks.translate).not.toHaveBeenCalled();
 
-    await fireEvent.click(await screen.findByRole("button", { name: "Confirm OCR candidate" }));
-    expect(mocks.confirmOcr).toHaveBeenCalledWith("ocr-request", 0);
+    await fireEvent.click(await screen.findByRole("button", { name: "Confirm" }));
+    expect(mocks.confirmOcr).toHaveBeenCalledWith("ocr-request", "serendipity", "");
     await waitFor(() => expect(mocks.translate).toHaveBeenCalledTimes(1));
     expect(mocks.translate).toHaveBeenCalledWith("ocr-request", "serendipity", "auto", "de");
     expect(await screen.findByRole("button", { name: "Save capture" })).toBeVisible();
@@ -133,7 +133,7 @@ describe("Windows floating capture presentation", () => {
     await waitFor(() => expect(mocks.ocr).toBeTypeOf("function"));
     mocks.error?.({ requestId: "ocr-double", failure: { code: "empty_selection", message: "No selection" } });
     mocks.ocr?.({ requestId: "ocr-double", candidates: [{ text: "candidate", bounds: { x: 1, y: 2, width: 30, height: 12 }, confidence: 0.8 }], ambiguous: false });
-    const button = await screen.findByRole("button", { name: "Confirm OCR candidate" });
+    const button = await screen.findByRole("button", { name: "Confirm" });
 
     await fireEvent.click(button);
     await fireEvent.click(button);
@@ -180,7 +180,7 @@ describe("Windows floating capture presentation", () => {
     expect(mocks.save).not.toHaveBeenCalled();
   });
 
-  it("offers close OCR candidates as a keyboard-selectable accessible list", async () => {
+  it("turns multiple recognized words into an editable OCR draft", async () => {
     render(WindowsFloatingCapture, { captureBackend });
     await waitFor(() => expect(mocks.ocr).toBeTypeOf("function"));
     const candidates = [
@@ -191,16 +191,14 @@ describe("Windows floating capture presentation", () => {
     mocks.error?.({ requestId: "ocr-ambiguous", failure: { code: "unsupported_element", message: "Unsupported" } });
     mocks.ocr?.({ requestId: "ocr-ambiguous", candidates, ambiguous: true });
 
-    const list = await screen.findByRole("listbox", { name: "OCR candidates" });
-    expect(list).toBeVisible();
-    expect(list).toHaveAttribute("aria-activedescendant", "ocr-candidate-0");
-    expect(screen.getByRole("option", { name: "architecture" })).toHaveAttribute("aria-selected", "true");
-    await fireEvent.keyDown(list, { key: "ArrowDown" });
-    expect(screen.getByRole("option", { name: "heterogeneous" })).toHaveAttribute("aria-selected", "true");
-    expect(list).toHaveAttribute("aria-activedescendant", "ocr-candidate-1");
-    await fireEvent.keyDown(list, { key: "Enter" });
+    expect(await screen.findByText("识别到多个词，请保留你要收集的词汇。")).toBeVisible();
+    expect(screen.getByLabelText("Vocabulary")).toHaveValue("architecture heterogeneous");
+    expect(screen.getByLabelText(/Context sentence/)).toHaveValue("");
+    await fireEvent.input(screen.getByLabelText("Vocabulary"), { target: { value: "heterogeneous" } });
+    await fireEvent.input(screen.getByLabelText(/Context sentence/), { target: { value: "A heterogeneous system." } });
+    await fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
 
-    expect(mocks.confirmOcr).toHaveBeenCalledWith("ocr-ambiguous", 1);
+    expect(mocks.confirmOcr).toHaveBeenCalledWith("ocr-ambiguous", "heterogeneous", "A heterogeneous system.");
     expect(await screen.findByRole("button", { name: "Save capture" })).toBeVisible();
   });
 

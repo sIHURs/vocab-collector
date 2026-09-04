@@ -22,7 +22,7 @@ export interface WindowsCaptureBackend {
   undo(requestId: string, encounterId: string): Promise<void>;
   recognizeRegion(requestId: string, region: { x: number; y: number; width: number; height: number }): Promise<void>;
   startRegionOcr(): Promise<string>;
-  confirmOcr(requestId: string, candidateIndex: number): Promise<void>;
+  confirmOcr(requestId: string, selectedText: string, sentence: string): Promise<void>;
   getCapabilities(): Promise<PlatformCapabilities>;
   getSettings(): Promise<Settings>;
   translate(requestId: string, text: string, sourceLanguage: string, targetLanguage: string): Promise<TranslationResult>;
@@ -42,7 +42,7 @@ export const tauriWindowsCaptureBackend: WindowsCaptureBackend = {
   undo: (requestId, encounterId) => invoke("undo_native_capture", { requestId, encounterId }),
   recognizeRegion: (requestId, region) => invoke("capture_ocr_region", { requestId, region }),
   startRegionOcr: () => invoke<string>("start_region_ocr_capture"),
-  confirmOcr: (requestId, candidateIndex) => invoke("confirm_ocr", { requestId, candidateIndex }),
+  confirmOcr: (requestId, selectedText, sentence) => invoke("confirm_ocr", { requestId, selectedText, sentence }),
   getCapabilities: () => invoke("get_platform_capabilities"),
   getSettings: () => invoke("get_settings"),
   translate: (requestId, text, sourceLanguage, targetLanguage) => invoke("translate_text", { requestId, text, sourceLanguage, targetLanguage }),

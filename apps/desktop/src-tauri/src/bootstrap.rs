@@ -177,27 +177,31 @@ impl AppState {
         })
     }
 
-    pub(crate) fn confirm_ocr_candidate(
+    pub(crate) fn confirm_ocr_draft(
         &self,
         request_id: Uuid,
-        candidate_index: usize,
+        selected_text: String,
+        sentence: String,
     ) -> Result<(), vocab_application::PlatformCaptureError> {
-        let candidate = self
+        if selected_text.trim().is_empty() {
+            return Err(vocab_capture::CoordinatorError::InvalidTransition.into());
+        }
+        let bounds = self
             .pending_ocr
             .lock()
             .unwrap()
             .as_ref()
             .filter(|(pending_request, _)| *pending_request == request_id)
-            .and_then(|(_, candidates)| candidates.get(candidate_index))
-            .cloned()
+            .and_then(|(_, candidates)| candidates.first())
+            .map(|candidate| candidate.bounds)
             .ok_or(vocab_capture::CoordinatorError::StaleRequest)?;
         let candidate = CaptureCandidate {
-            selected_text: candidate.text.clone(),
-            sentence: candidate.text,
+            selected_text: selected_text.trim().into(),
+            sentence: sentence.trim().into(),
             source_app: None,
             source_title: None,
             source_url: None,
-            selection_bounds: Some(candidate.bounds),
+            selection_bounds: Some(bounds),
             origin: vocab_domain::CaptureOrigin::Ocr,
         };
         self.workflow.set_candidate(request_id, candidate)?;

@@ -196,10 +196,11 @@ pub async fn translate_text(
 pub fn confirm_ocr(
     state: State<'_, AppState>,
     request_id: Uuid,
-    candidate_index: usize,
+    selected_text: String,
+    sentence: String,
 ) -> Result<(), CaptureFailure> {
     state
-        .confirm_ocr_candidate(request_id, candidate_index)
+        .confirm_ocr_draft(request_id, selected_text, sentence)
         .map_err(CaptureFailure::from)
 }
 

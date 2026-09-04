@@ -4,9 +4,9 @@
 
 **Blocked by:** 04: Deliver a user-drawn OCR region.
 
-**Status:** ready-for-agent
+**Status:** complete
 
-- [ ] Vocabulary starts with recognized text and Context sentence starts empty.
-- [ ] Multiple words produce guidance instead of automatic importance selection.
-- [ ] Translation and save are impossible before OCR Confirmation.
-- [ ] Cancellation retains no OCR draft.
+- [x] Vocabulary starts with recognized text and Context sentence starts empty.
+- [x] Multiple words produce guidance instead of automatic importance selection.
+- [x] Translation and save are impossible before OCR Confirmation.
+- [x] Cancellation retains no OCR draft.
