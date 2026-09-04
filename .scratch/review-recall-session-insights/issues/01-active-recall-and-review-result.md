@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** completed
 
 - [ ] A Windows Review card initially shows the Vocabulary Item, saved context, progress, and a `Show answer` action without exposing the translation.
 - [ ] `Forgot` and `Remembered` are unavailable until the user explicitly reveals the answer.
@@ -16,4 +16,3 @@
 - [ ] Focus moves predictably to revealed content and then to the result action; newly revealed content is announced without announcing the hidden answer early.
 - [ ] Shared domain, application, storage, and desktop command tests cover the result contract without importing or branching on Windows APIs.
 - [ ] Existing macOS and Linux compilation boundaries continue to consume the same platform-neutral Review command contract even though their presentations do not implement the new flow in this ticket.
-

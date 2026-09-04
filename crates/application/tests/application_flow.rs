@@ -40,9 +40,18 @@ fn capture_today_review_and_vocabulary_flow_share_one_source_of_truth() {
     assert_eq!(today.review_queue[0].word_id, card.word_id);
     assert_eq!(today.recent_captures.len(), 1);
 
-    service
+    let result = service
         .submit_review(card.word_id, ReviewRating::Remembered, now)
         .unwrap();
+    assert_eq!(result.word_id, card.word_id);
+    assert_eq!(result.rating, ReviewRating::Remembered);
+    assert_eq!(result.reviewed_at, now);
+    assert_eq!(result.previous_stability, 1.0);
+    assert_eq!(result.stability, 3.0);
+    assert_eq!(
+        result.next_due_at,
+        Utc.with_ymd_and_hms(2026, 8, 28, 12, 5, 0).unwrap()
+    );
     assert_eq!(service.get_today(now).unwrap().due_count, 0);
     assert_eq!(service.list_words().unwrap()[0].encounter_count, 1);
 }

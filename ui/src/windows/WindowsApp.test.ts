@@ -9,7 +9,7 @@ class TrackingReviewBackend extends DemoBackend {
 
   override async submitReview(wordId: string, rating: "forgot" | "remembered") {
     this.ratings.push({ wordId, rating });
-    await super.submitReview(wordId, rating);
+    return super.submitReview(wordId, rating);
   }
 }
 
@@ -85,6 +85,11 @@ async function saveManualCapture(word: string, sentence: string) {
   await fireEvent.input(screen.getByLabelText("Word or phrase"), { target: { value: word } });
   await fireEvent.input(screen.getByLabelText("Context"), { target: { value: sentence } });
   await fireEvent.click(screen.getByRole("button", { name: "Save capture" }));
+}
+
+async function revealAndRate(rating: "Forgot" | "Remembered") {
+  await fireEvent.click(screen.getByRole("button", { name: "Show answer" }));
+  await fireEvent.click(screen.getByRole("button", { name: rating }));
 }
 
 describe("Windows main presentation", () => {
@@ -220,7 +225,8 @@ describe("Windows main presentation", () => {
     expect(screen.getByRole("heading", { name: "serendipity" })).toBeVisible();
     expect(screen.getByText("1 of 3")).toBeVisible();
 
-    await fireEvent.click(screen.getByRole("button", { name: "Forgot" }));
+    await revealAndRate("Forgot");
+    await fireEvent.click(await screen.findByRole("button", { name: "Next" }));
     expect(await screen.findByRole("heading", { name: "nuance" })).toBeVisible();
     await fireEvent.click(screen.getByRole("button", { name: "Close review" }));
 
@@ -229,13 +235,30 @@ describe("Windows main presentation", () => {
     await fireEvent.click(screen.getByRole("button", { name: "Resume review" }));
     expect(screen.getByRole("heading", { name: "nuance" })).toBeVisible();
 
-    await fireEvent.click(screen.getByRole("button", { name: "Remembered" }));
-    await fireEvent.click(screen.getByRole("button", { name: "Remembered" }));
+    await revealAndRate("Remembered");
+    await fireEvent.click(await screen.findByRole("button", { name: "Next" }));
+    await revealAndRate("Remembered");
+    await fireEvent.click(await screen.findByRole("button", { name: "Next" }));
     expect(await screen.findByRole("heading", { name: "Review complete" })).toBeVisible();
     expect(api.ratings.map(({ rating }) => rating)).toEqual(["forgot", "remembered", "remembered"]);
 
     await fireEvent.click(screen.getByRole("button", { name: "Today" }));
     expect(await screen.findByText("Review queue is clear")).toBeVisible();
+  });
+
+  it("requires revealing the answer before a Review can be rated", async () => {
+    render(WindowsApp, { api: new DemoBackend(true) });
+
+    await fireEvent.click(await screen.findByRole("button", { name: "Start review (3)" }));
+    expect(screen.getByRole("heading", { name: "serendipity" })).toBeVisible();
+    expect(screen.queryByText("glücklicher Zufall")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Forgot" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Remembered" })).toBeNull();
+
+    await fireEvent.click(screen.getByRole("button", { name: "Show answer" }));
+    expect(screen.getByText("glücklicher Zufall")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Forgot" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Remembered" })).toBeVisible();
   });
 
   it("shows an empty Review state when nothing is due", async () => {
@@ -281,17 +304,17 @@ describe("Windows main presentation", () => {
     let attempts = 0;
     api.submitReview = async (wordId, rating) => {
       if (attempts++ === 0) throw new Error("Could not save review");
-      await submit(wordId, rating);
+      return submit(wordId, rating);
     };
     render(WindowsApp, { api });
 
     await fireEvent.click(await screen.findByRole("button", { name: "Start review (3)" }));
-    await fireEvent.click(screen.getByRole("button", { name: "Remembered" }));
+    await revealAndRate("Remembered");
     expect(screen.getByRole("alert")).toHaveTextContent("Could not save review");
     expect(screen.getByRole("heading", { name: "serendipity" })).toBeVisible();
 
     await fireEvent.click(screen.getByRole("button", { name: "Remembered" }));
-    expect(await screen.findByRole("heading", { name: "nuance" })).toBeVisible();
+    expect(await screen.findByRole("button", { name: "Next" })).toBeVisible();
   });
 
   it("blocks stale Resume until a failed close refresh succeeds", async () => {
@@ -299,7 +322,8 @@ describe("Windows main presentation", () => {
     render(WindowsApp, { api });
 
     await fireEvent.click(await screen.findByRole("button", { name: "Start review (3)" }));
-    await fireEvent.click(screen.getByRole("button", { name: "Forgot" }));
+    await revealAndRate("Forgot");
+    await fireEvent.click(await screen.findByRole("button", { name: "Next" }));
     await fireEvent.click(screen.getByRole("button", { name: "Close review" }));
 
     expect(await screen.findByRole("button", { name: "Retry Review refresh" })).toBeVisible();
@@ -313,15 +337,20 @@ describe("Windows main presentation", () => {
   it("does not allow Close while a rating submission is pending", async () => {
     const api = new TrackingReviewBackend(true);
     let release: (() => void) | undefined;
-    api.submitReview = () => new Promise<void>((resolve) => { release = resolve; });
+    const submit = api.submitReview.bind(api);
+    api.submitReview = async (wordId, rating) => {
+      await new Promise<void>((resolve) => { release = resolve; });
+      return submit(wordId, rating);
+    };
     render(WindowsApp, { api });
 
     await fireEvent.click(await screen.findByRole("button", { name: "Start review (3)" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Show answer" }));
     await fireEvent.click(screen.getByRole("button", { name: "Remembered" }));
     expect(screen.getByRole("button", { name: "Close review" })).toBeDisabled();
 
     release?.();
-    expect(await screen.findByRole("heading", { name: "nuance" })).toBeVisible();
+    expect(await screen.findByRole("button", { name: "Next" })).toBeVisible();
   });
 
   it("persists and reads back Windows settings before applying visual preferences", async () => {

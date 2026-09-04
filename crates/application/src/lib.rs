@@ -12,8 +12,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use vocab_domain::{
     CaptureCard, CaptureOrigin, EncounterRepository, RepositoryError, ReviewCard, ReviewLog,
-    ReviewRating, SettingsRepository, TodayView, UserSettings, WordDetail, WordListItem,
-    WordRepository, apply_review, build_review_queue,
+    ReviewRating, ReviewResult, SettingsRepository, TodayView, UserSettings, WordDetail,
+    WordListItem, WordRepository, apply_review, build_review_queue,
 };
 use vocab_storage::{CaptureRecord, SqliteStore};
 
@@ -177,14 +177,20 @@ impl AppService {
         word_id: Uuid,
         rating: ReviewRating,
         reviewed_at: DateTime<Utc>,
-    ) -> Result<(), ApplicationError> {
+    ) -> Result<ReviewResult, ApplicationError> {
         let mut word = WordRepository::get(self.store.as_ref(), word_id)?
             .ok_or(ApplicationError::WordNotFound)?;
-        word.review_state = Some(apply_review(
-            word.review_state.as_ref(),
-            rating,
-            reviewed_at,
-        ));
+        let prior = word
+            .review_state
+            .clone()
+            .unwrap_or(vocab_domain::ReviewState {
+                difficulty: 5.0,
+                stability: 1.0,
+                due_at: reviewed_at,
+                last_reviewed_at: None,
+                lapse_count: 0,
+            });
+        word.review_state = Some(apply_review(Some(&prior), rating, reviewed_at));
         word.updated_at = reviewed_at;
         let review = ReviewLog {
             id: Uuid::now_v7(),
@@ -195,7 +201,21 @@ impl AppService {
             device_id: self.device_id,
         };
         self.store.record_review(&word, &review)?;
-        Ok(())
+        let result = word
+            .review_state
+            .as_ref()
+            .expect("review state was assigned");
+        Ok(ReviewResult {
+            word_id,
+            rating,
+            reviewed_at,
+            previous_due_at: prior.due_at,
+            next_due_at: result.due_at,
+            previous_stability: prior.stability,
+            stability: result.stability,
+            difficulty: result.difficulty,
+            lapse_count: result.lapse_count,
+        })
     }
 
     pub fn get_settings(&self) -> Result<UserSettings, ApplicationError> {

@@ -2,7 +2,9 @@ use chrono::Utc;
 use tauri::State;
 use uuid::Uuid;
 use vocab_application::CaptureRequest;
-use vocab_domain::{CaptureCard, ReviewRating, TodayView, UserSettings, WordDetail, WordListItem};
+use vocab_domain::{
+    CaptureCard, ReviewRating, ReviewResult, TodayView, UserSettings, WordDetail, WordListItem,
+};
 
 use crate::bootstrap::AppState;
 
@@ -54,7 +56,7 @@ pub fn submit_review(
     state: State<'_, AppState>,
     word_id: Uuid,
     rating: ReviewRating,
-) -> Result<(), String> {
+) -> Result<ReviewResult, String> {
     state
         .application()
         .submit_review(word_id, rating, Utc::now())

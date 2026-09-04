@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type {
-  CaptureCard, CaptureInput, Encounter, PlatformCapabilities, ReviewRating, Settings,
+  CaptureCard, CaptureInput, Encounter, PlatformCapabilities, ReviewRating, ReviewResult, Settings,
   SettingsApplyResult, SystemSettingsStatus, TodayView,
   WordDetail, WordListItem,
 } from "./types";
@@ -12,7 +12,7 @@ export interface Backend {
   getToday(): Promise<TodayView>;
   listWords(): Promise<WordListItem[]>;
   getWord(wordId: string): Promise<WordDetail>;
-  submitReview(wordId: string, rating: ReviewRating): Promise<void>;
+  submitReview(wordId: string, rating: ReviewRating): Promise<ReviewResult>;
   getSettings(): Promise<Settings>;
   updateSettings(settings: Settings): Promise<void>;
   replaceShortcut(candidate: string): Promise<Settings>;
@@ -130,9 +130,17 @@ export class DemoBackend implements Backend {
     if (!word) throw new Error("word not found");
     return structuredClone(word) as WordDetail;
   }
-  async submitReview(wordId: string, _rating: ReviewRating) {
+  async submitReview(wordId: string, rating: ReviewRating): Promise<ReviewResult> {
     const word = this.words.find((candidate) => candidate.item.id === wordId);
-    if (word) { word.due = false; word.item.nextReviewAt = new Date(Date.now() + 86_400_000).toISOString(); }
+    if (!word) throw new Error("word not found");
+    const reviewedAt = new Date().toISOString();
+    const previousDueAt = word.item.nextReviewAt ?? reviewedAt;
+    const nextDueAt = new Date(Date.now() + (rating === "forgot" ? 86_400_000 : 259_200_000)).toISOString();
+    word.due = false;
+    word.item.nextReviewAt = nextDueAt;
+    return { wordId, rating, reviewedAt, previousDueAt, nextDueAt,
+      previousStability: 1, stability: rating === "forgot" ? 0.5 : 3,
+      difficulty: rating === "forgot" ? 5.5 : 4.85, lapseCount: rating === "forgot" ? 1 : 0 };
   }
   async getSettings() { return { ...this.settings }; }
   async updateSettings(settings: Settings) { this.settings = { ...settings }; }
@@ -159,7 +167,7 @@ class TauriBackend implements Backend {
   getToday() { return invoke<TodayView>("get_today"); }
   listWords() { return invoke<WordListItem[]>("list_words"); }
   getWord(wordId: string) { return invoke<WordDetail>("get_word", { wordId }); }
-  submitReview(wordId: string, rating: ReviewRating) { return invoke<void>("submit_review", { wordId, rating }); }
+  submitReview(wordId: string, rating: ReviewRating) { return invoke<ReviewResult>("submit_review", { wordId, rating }); }
   getSettings() { return invoke<Settings>("get_settings"); }
   updateSettings(settings: Settings) { return invoke<void>("update_settings", { settings }); }
   replaceShortcut(candidate: string) { return invoke<Settings>("replace_shortcut", { candidate }); }

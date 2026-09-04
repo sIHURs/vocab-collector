@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
   import { createBackend, type Backend } from "../lib/backend";
-  import type { CaptureCard, ReviewCard, ReviewRating, Settings, SystemSettingsStatus, TodayView, WordDetail, WordListItem } from "../lib/types";
+  import type { CaptureCard, ReviewCard, ReviewRating, ReviewResult, Settings, SystemSettingsStatus, TodayView, WordDetail, WordListItem } from "../lib/types";
   import WindowsWordRow from "./WindowsWordRow.svelte";
 
   type Route = "Today" | "Vocabulary" | "Review" | "Settings";
@@ -30,6 +30,8 @@
   let reviewCompleting = false;
   let reviewSubmitting = false;
   let reviewError = "";
+  let reviewRevealed = false;
+  let reviewResult: ReviewResult | null = null;
   let settingsDraft: Settings | null = null;
   let appliedSettings: Settings | null = null;
   let settingsSaving = false;
@@ -152,6 +154,8 @@
     reviewOpen = true;
     reviewComplete = false;
     reviewError = "";
+    reviewRevealed = false;
+    reviewResult = null;
   }
 
   async function closeReview() {
@@ -182,9 +186,19 @@
     reviewSubmitting = true;
     reviewError = "";
     try {
-      await api.submitReview(activeReview.wordId, rating);
-      if (reviewIndex + 1 < (today?.reviewQueue.length ?? 0)) reviewIndex += 1;
-      else {
+      reviewResult = await api.submitReview(activeReview.wordId, rating);
+    } catch (cause) { reviewError = cause instanceof Error ? cause.message : String(cause); }
+    finally { reviewSubmitting = false; }
+  }
+
+  async function nextReview() {
+    if (!reviewResult) return;
+    if (reviewIndex + 1 < (today?.reviewQueue.length ?? 0)) {
+      reviewIndex += 1;
+      reviewRevealed = false;
+      reviewResult = null;
+      reviewError = "";
+    } else {
         reviewOpen = false;
         reviewPaused = false;
         reviewCompleting = true;
@@ -193,9 +207,7 @@
           reviewCompleting = false;
           reviewComplete = true;
         } else reviewRefreshRequired = true;
-      }
-    } catch (cause) { reviewError = cause instanceof Error ? cause.message : String(cause); }
-    finally { reviewSubmitting = false; }
+    }
   }
 
   async function saveSettings() {
@@ -311,7 +323,7 @@
         {#if filteredWords.length}<nav class="pagination" aria-label="Vocabulary pages"><button class="secondary" disabled={vocabularyPage === 1} onclick={() => goToVocabularyPage(1)}>First</button><button class="secondary" disabled={vocabularyPage === 1} onclick={() => goToVocabularyPage(vocabularyPage - 1)}>Previous</button><form aria-label="Go to vocabulary page" onsubmit={(event) => { event.preventDefault(); goToVocabularyPage(vocabularyPageInput); }}><label><span>Page</span><input aria-label="Page number" type="number" min="1" max={vocabularyPageCount} bind:value={vocabularyPageInput} onblur={() => goToVocabularyPage(vocabularyPageInput)} /><span>of {vocabularyPageCount}</span></label></form><button class="secondary" disabled={vocabularyPage === vocabularyPageCount} onclick={() => goToVocabularyPage(vocabularyPage + 1)}>Next</button><button class="secondary" disabled={vocabularyPage === vocabularyPageCount} onclick={() => goToVocabularyPage(vocabularyPageCount)}>Last</button></nav>{/if}
       {:else if route === "Review"}
         {#if reviewOpen && activeReview}
-          <div class="review-card" aria-live="polite"><div class="review-progress"><span>{reviewIndex + 1} of {today?.reviewQueue.length}</span><button class="icon" aria-label="Close review" disabled={reviewSubmitting} onclick={closeReview}>×</button></div><span class="eyebrow">Do you remember this word?</span><h2>{activeReview.displayForm}</h2><p>{activeReview.context ?? "No saved context"}</p><div class="review-translation"><small>Translation</small><strong>{activeReview.translation ?? "Unavailable"}</strong></div>{#if reviewError}<div class="dialog-error" role="alert">{reviewError}</div>{/if}<div class="review-actions"><button class="secondary" disabled={reviewSubmitting} onclick={() => rateReview("forgot")}>Forgot</button><button class="primary" disabled={reviewSubmitting} onclick={() => rateReview("remembered")}>Remembered</button></div></div>
+          <div class="review-card" aria-live="polite"><div class="review-progress"><span>{reviewIndex + 1} of {today?.reviewQueue.length}</span><button class="icon" aria-label="Close review" disabled={reviewSubmitting} onclick={closeReview}>×</button></div><span class="eyebrow">Do you remember this word?</span><h2>{activeReview.displayForm}</h2><p>{activeReview.context ?? "No saved context"}</p>{#if reviewResult}<div class="review-translation" role="status"><small>{reviewResult.rating === "remembered" ? "Remembered" : "Forgot"}</small><strong>Next review {new Date(reviewResult.nextDueAt).toLocaleDateString()}</strong></div>{:else if reviewRevealed}<div class="review-translation" role="status"><small>Translation</small><strong>{activeReview.translation ?? "Unavailable"}</strong></div>{/if}{#if reviewError}<div class="dialog-error" role="alert">{reviewError}</div>{/if}<div class="review-actions">{#if reviewResult}<button class="primary" onclick={nextReview}>Next</button>{:else if reviewRevealed}<button class="secondary" disabled={reviewSubmitting} onclick={() => rateReview("forgot")}>Forgot</button><button class="primary" disabled={reviewSubmitting} onclick={() => rateReview("remembered")}>Remembered</button>{:else}<button class="primary" onclick={() => (reviewRevealed = true)}>Show answer</button>{/if}</div></div>
         {:else if reviewComplete}
           <div class="state"><h2>Review complete</h2><span>Today is refreshed. Your next due dates come from the shared review schedule.</span><button class="primary" onclick={() => (route = "Today")}>Back to Today</button></div>
         {:else if reviewRefreshRequired}

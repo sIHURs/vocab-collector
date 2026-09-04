@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{Encounter, UserSettings, WordStatus};
+use crate::{Encounter, ReviewRating, UserSettings, WordStatus};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -35,6 +35,20 @@ pub struct ReviewCard {
     pub display_form: String,
     pub translation: Option<String>,
     pub context: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewResult {
+    pub word_id: Uuid,
+    pub rating: ReviewRating,
+    pub reviewed_at: DateTime<Utc>,
+    pub previous_due_at: DateTime<Utc>,
+    pub next_due_at: DateTime<Utc>,
+    pub previous_stability: f32,
+    pub stability: f32,
+    pub difficulty: f32,
+    pub lapse_count: u32,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

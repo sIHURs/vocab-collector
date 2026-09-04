@@ -115,6 +115,18 @@ export interface ReviewCard {
   context?: string;
 }
 
+export interface ReviewResult {
+  wordId: string;
+  rating: ReviewRating;
+  reviewedAt: string;
+  previousDueAt: string;
+  nextDueAt: string;
+  previousStability: number;
+  stability: number;
+  difficulty: number;
+  lapseCount: number;
+}
+
 export interface TodayView {
   dueCount: number;
   estimatedMinutes: number;
