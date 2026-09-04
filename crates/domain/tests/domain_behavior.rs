@@ -95,11 +95,24 @@ fn settings_defaults_match_the_five_word_product_promise() {
     let settings = UserSettings::default();
 
     assert_eq!(settings.source_language, "en");
+    assert_eq!(settings.selection_capture_shortcut, "Alt+Shift+V");
+    assert_eq!(settings.region_ocr_capture_shortcut, "Alt+Shift+O");
     assert_eq!(settings.daily_limit, 5);
     assert_eq!(settings.recent_captures_limit, 20);
     assert_eq!(settings.review_time, "18:00");
     assert_eq!(settings.appearance, Appearance::System);
     assert!(!settings.reduced_motion);
+}
+
+#[test]
+fn legacy_capture_shortcut_migrates_to_selection_and_adds_region_ocr_default() {
+    let settings: UserSettings = serde_json::from_str(
+        r#"{"sourceLanguage":"en","targetLanguage":"de","captureShortcut":"Control+Shift+W","reviewTime":"18:00","dailyLimit":5,"launchAtLogin":false,"appearance":"system","reducedMotion":false}"#,
+    )
+    .unwrap();
+
+    assert_eq!(settings.selection_capture_shortcut, "Control+Shift+W");
+    assert_eq!(settings.region_ocr_capture_shortcut, "Alt+Shift+O");
 }
 
 #[test]

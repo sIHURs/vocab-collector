@@ -113,7 +113,7 @@ impl SettingsEffects for RecordingSettingsEffects {
 
     fn persist(&mut self, settings: &UserSettings) -> Result<(), String> {
         self.calls
-            .push(format!("persist:{}", settings.capture_shortcut));
+            .push(format!("persist:{}", settings.selection_capture_shortcut));
         if self.reject_persistence {
             Err("database unavailable".into())
         } else {
@@ -125,13 +125,15 @@ impl SettingsEffects for RecordingSettingsEffects {
 #[test]
 fn settings_status_keeps_errors_for_system_effects_that_were_not_attempted() {
     let existing = SystemSettingsStatus {
-        shortcut_error: None,
+        selection_shortcut_error: None,
+        region_ocr_shortcut_error: None,
         autostart_error: Some("startup registration is unresolved".into()),
         notification_error: None,
     };
     let result = vocab_desktop_lib::system_settings::SettingsApplyResult {
         settings: UserSettings::default(),
-        shortcut_error: None,
+        selection_shortcut_error: None,
+        region_ocr_shortcut_error: None,
         autostart_error: None,
         notification_error: None,
     };
@@ -146,7 +148,7 @@ fn settings_status_keeps_errors_for_system_effects_that_were_not_attempted() {
 fn shortcut_rollback_reports_when_the_staged_shortcut_cannot_be_removed() {
     let current = UserSettings::default();
     let mut requested = current.clone();
-    requested.capture_shortcut = "Control+Shift+W".into();
+    requested.selection_capture_shortcut = "Control+Shift+W".into();
     let mut effects = RecordingSettingsEffects {
         reject_unregister: vec!["Alt+Shift+V".into(), "Control+Shift+W".into()],
         ..Default::default()
@@ -154,12 +156,10 @@ fn shortcut_rollback_reports_when_the_staged_shortcut_cannot_be_removed() {
 
     let result = apply_settings_transaction(current, requested, &mut effects).unwrap();
 
-    assert_eq!(result.settings.capture_shortcut, "Alt+Shift+V");
+    assert_eq!(result.settings.selection_capture_shortcut, "Alt+Shift+V");
     assert_eq!(
-        result.shortcut_error.as_deref(),
-        Some(
-            "The previous shortcut could not be released, and the staged shortcut could not be removed. Restart the app to restore a single shortcut."
-        )
+        result.selection_shortcut_error.as_deref(),
+        Some("Shortcut unavailable. The previous shortcut is still active.")
     );
 }
 
@@ -167,7 +167,7 @@ fn shortcut_rollback_reports_when_the_staged_shortcut_cannot_be_removed() {
 fn settings_effects_commit_before_the_previous_shortcut_is_removed() {
     let current = UserSettings::default();
     let mut requested = current.clone();
-    requested.capture_shortcut = "Control+Shift+W".into();
+    requested.selection_capture_shortcut = "Control+Shift+W".into();
     requested.launch_at_login = true;
     requested.review_time = "08:30".into();
     let mut effects = RecordingSettingsEffects::default();
@@ -175,7 +175,7 @@ fn settings_effects_commit_before_the_previous_shortcut_is_removed() {
     let result = apply_settings_transaction(current, requested.clone(), &mut effects).unwrap();
 
     assert_eq!(result.settings, requested);
-    assert!(result.shortcut_error.is_none());
+    assert!(result.selection_shortcut_error.is_none());
     assert!(result.autostart_error.is_none());
     assert!(result.notification_error.is_none());
     assert_eq!(
@@ -191,10 +191,30 @@ fn settings_effects_commit_before_the_previous_shortcut_is_removed() {
 }
 
 #[test]
+fn duplicate_capture_shortcuts_preserve_region_ocr_and_report_only_its_error() {
+    let current = UserSettings::default();
+    let mut requested = current.clone();
+    requested.region_ocr_capture_shortcut = requested.selection_capture_shortcut.clone();
+    let mut effects = RecordingSettingsEffects::default();
+
+    let result = apply_settings_transaction(current.clone(), requested, &mut effects).unwrap();
+
+    assert_eq!(
+        result.settings.region_ocr_capture_shortcut,
+        current.region_ocr_capture_shortcut
+    );
+    assert_eq!(
+        result.region_ocr_shortcut_error.as_deref(),
+        Some("Capture shortcuts must be different.")
+    );
+    assert!(result.selection_shortcut_error.is_none());
+}
+
+#[test]
 fn settings_persistence_failure_rolls_back_every_staged_system_effect() {
     let current = UserSettings::default();
     let mut requested = current.clone();
-    requested.capture_shortcut = "Control+Shift+W".into();
+    requested.selection_capture_shortcut = "Control+Shift+W".into();
     requested.launch_at_login = true;
     requested.review_time = "08:30".into();
     let mut effects = RecordingSettingsEffects {
@@ -223,7 +243,7 @@ fn settings_persistence_failure_rolls_back_every_staged_system_effect() {
 #[test]
 fn startup_shortcut_conflict_falls_back_without_blocking_application_start() {
     let mut settings = UserSettings {
-        capture_shortcut: "Control+Shift+W".into(),
+        selection_capture_shortcut: "Control+Shift+W".into(),
         ..UserSettings::default()
     };
     let calls = Arc::new(Mutex::new(Vec::new()));
@@ -247,12 +267,12 @@ fn startup_shortcut_conflict_falls_back_without_blocking_application_start() {
             persist_calls
                 .lock()
                 .unwrap()
-                .push(format!("persist:{}", settings.capture_shortcut));
+                .push(format!("persist:{}", settings.selection_capture_shortcut));
             Ok(())
         },
     );
 
-    assert_eq!(settings.capture_shortcut, "Alt+Shift+V");
+    assert_eq!(settings.selection_capture_shortcut, "Alt+Shift+V");
     assert_eq!(
         error.as_deref(),
         Some("The saved shortcut was unavailable. Alt+Shift+V is active instead.")
@@ -343,7 +363,8 @@ fn changing_review_time_keeps_a_successful_delivery_suppressed_for_that_date() {
 #[test]
 fn changing_review_time_does_not_clear_an_unresolved_delivery_failure() {
     let existing = SystemSettingsStatus {
-        shortcut_error: None,
+        selection_shortcut_error: None,
+        region_ocr_shortcut_error: None,
         autostart_error: None,
         notification_error: Some(
             vocab_desktop_lib::system_settings::NOTIFICATION_DELIVERY_ERROR.into(),
@@ -351,7 +372,8 @@ fn changing_review_time_does_not_clear_an_unresolved_delivery_failure() {
     };
     let result = vocab_desktop_lib::system_settings::SettingsApplyResult {
         settings: UserSettings::default(),
-        shortcut_error: None,
+        selection_shortcut_error: None,
+        region_ocr_shortcut_error: None,
         autostart_error: None,
         notification_error: None,
     };

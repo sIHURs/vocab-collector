@@ -27,7 +27,8 @@ export interface PlatformCapabilities {
 export interface Settings {
   sourceLanguage: string;
   targetLanguage: string;
-  captureShortcut: string;
+  selectionCaptureShortcut: string;
+  regionOcrCaptureShortcut: string;
   reviewTime: string;
   dailyLimit: number;
   recentCapturesLimit: number;
@@ -43,7 +44,8 @@ export interface TranslationResult {
 }
 
 export interface SystemSettingsStatus {
-  shortcutError?: string;
+  selectionShortcutError?: string;
+  regionOcrShortcutError?: string;
   autostartError?: string;
   notificationError?: string;
 }

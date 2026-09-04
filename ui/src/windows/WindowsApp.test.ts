@@ -56,14 +56,15 @@ class PartiallyFailingSystemSettingsBackend extends TrackingSettingsBackend {
     const current = await this.getSettings();
     const persisted = {
       ...settings,
-      captureShortcut: current.captureShortcut,
+      selectionCaptureShortcut: current.selectionCaptureShortcut,
+      regionOcrCaptureShortcut: current.regionOcrCaptureShortcut,
       launchAtLogin: current.launchAtLogin,
       reviewTime: current.reviewTime,
     };
     await this.updateSettings(persisted);
     return {
       settings: persisted,
-      shortcutError: "Shortcut unavailable",
+      selectionShortcutError: "Shortcut unavailable",
       autostartError: "Startup registration failed",
       notificationError: "Notification schedule failed",
     };
@@ -333,7 +334,8 @@ describe("Windows main presentation", () => {
     await fireEvent.change(screen.getByLabelText("Translate into"), { target: { value: "es" } });
     await fireEvent.input(screen.getByLabelText("Daily limit"), { target: { value: "4" } });
     await fireEvent.input(screen.getByLabelText("Recent captures"), { target: { value: "12" } });
-    await fireEvent.input(screen.getByLabelText("Capture shortcut"), { target: { value: "Control+Shift+W" } });
+    await fireEvent.input(screen.getByLabelText("Selection Capture shortcut"), { target: { value: "Control+Shift+W" } });
+    await fireEvent.input(screen.getByLabelText("Region OCR Capture shortcut"), { target: { value: "Control+Shift+O" } });
     await fireEvent.change(screen.getByLabelText("Theme"), { target: { value: "light" } });
     await fireEvent.click(screen.getByLabelText("Reduce motion"));
     await fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
@@ -342,10 +344,11 @@ describe("Windows main presentation", () => {
     expect(api.updates).toEqual([{
       sourceLanguage: "fr", targetLanguage: "es", reviewTime: "18:00", dailyLimit: 4,
       recentCapturesLimit: 12,
-      captureShortcut: "Control+Shift+W", launchAtLogin: false, appearance: "light",
+      selectionCaptureShortcut: "Control+Shift+W", regionOcrCaptureShortcut: "Control+Shift+O", launchAtLogin: false, appearance: "light",
       reducedMotion: true,
     }]);
-    expect(screen.getByLabelText("Capture shortcut")).toHaveValue("Control+Shift+W");
+    expect(screen.getByLabelText("Selection Capture shortcut")).toHaveValue("Control+Shift+W");
+    expect(screen.getByLabelText("Region OCR Capture shortcut")).toHaveValue("Control+Shift+O");
     expect(container.querySelector(".windows-shell")).toHaveAttribute("data-appearance", "light");
     expect(container.querySelector(".windows-shell")).toHaveAttribute("data-reduced-motion", "true");
   });
@@ -407,7 +410,7 @@ describe("Windows main presentation", () => {
 
     await fireEvent.click(screen.getByRole("button", { name: "Settings" }));
     await fireEvent.input(screen.getByLabelText("Review time"), { target: { value: "08:30" } });
-    await fireEvent.input(screen.getByLabelText("Capture shortcut"), { target: { value: "Control+Shift+W" } });
+    await fireEvent.input(screen.getByLabelText("Selection Capture shortcut"), { target: { value: "Control+Shift+W" } });
     await fireEvent.click(screen.getByLabelText("Launch at login"));
     await fireEvent.change(screen.getByLabelText("Theme"), { target: { value: "light" } });
     await fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
@@ -416,7 +419,7 @@ describe("Windows main presentation", () => {
     expect(screen.getByText("Startup registration failed")).toBeVisible();
     expect(screen.getByText("Notification schedule failed")).toBeVisible();
     expect(screen.getByLabelText("Review time")).toHaveValue("18:00");
-    expect(screen.getByLabelText("Capture shortcut")).toHaveValue("Alt+Shift+V");
+    expect(screen.getByLabelText("Selection Capture shortcut")).toHaveValue("Alt+Shift+V");
     expect(screen.getByLabelText("Launch at login")).not.toBeChecked();
     expect(container.querySelector(".windows-shell")).toHaveAttribute("data-appearance", "light");
     expect(screen.getByRole("status")).toHaveTextContent("Settings saved");

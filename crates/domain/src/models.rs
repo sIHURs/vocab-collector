@@ -139,7 +139,13 @@ pub enum Appearance {
 pub struct UserSettings {
     pub source_language: String,
     pub target_language: String,
-    pub capture_shortcut: String,
+    #[serde(
+        default = "default_selection_capture_shortcut",
+        alias = "captureShortcut"
+    )]
+    pub selection_capture_shortcut: String,
+    #[serde(default = "default_region_ocr_capture_shortcut")]
+    pub region_ocr_capture_shortcut: String,
     pub review_time: String,
     pub daily_limit: usize,
     #[serde(default = "default_recent_captures_limit")]
@@ -154,7 +160,8 @@ impl Default for UserSettings {
         Self {
             source_language: "en".into(),
             target_language: "de".into(),
-            capture_shortcut: "Alt+Shift+V".into(),
+            selection_capture_shortcut: default_selection_capture_shortcut(),
+            region_ocr_capture_shortcut: default_region_ocr_capture_shortcut(),
             review_time: "18:00".into(),
             daily_limit: 5,
             recent_captures_limit: default_recent_captures_limit(),
@@ -163,6 +170,14 @@ impl Default for UserSettings {
             reduced_motion: false,
         }
     }
+}
+
+fn default_selection_capture_shortcut() -> String {
+    "Alt+Shift+V".into()
+}
+
+fn default_region_ocr_capture_shortcut() -> String {
+    "Alt+Shift+O".into()
 }
 
 impl UserSettings {

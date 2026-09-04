@@ -40,21 +40,21 @@ pub fn replace_shortcut(
         .application()
         .get_settings()
         .map_err(|error| error.to_string())?;
-    let previous = settings.capture_shortcut.clone();
+    let previous = settings.selection_capture_shortcut.clone();
     if previous == parsed.canonical() {
         return Ok(settings);
     }
     app.global_shortcut()
         .register(parsed.canonical())
         .map_err(|_| "Shortcut unavailable. Try another combination.".to_string())?;
-    settings.capture_shortcut = parsed.canonical().to_string();
+    settings.selection_capture_shortcut = parsed.canonical().to_string();
     if let Err(error) = state.application().update_settings(settings.clone()) {
         let _ = app.global_shortcut().unregister(parsed.canonical());
         return Err(error.to_string());
     }
     if let Err(error) = app.global_shortcut().unregister(previous.as_str()) {
         let _ = app.global_shortcut().unregister(parsed.canonical());
-        settings.capture_shortcut = previous;
+        settings.selection_capture_shortcut = previous;
         let _ = state.application().update_settings(settings.clone());
         return Err(error.to_string());
     }

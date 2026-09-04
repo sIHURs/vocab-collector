@@ -182,8 +182,10 @@ pub fn run() {
             let platform = bootstrap::selected_platform()?;
             let state = build_app_state(store, platform);
             let mut settings = state.application().get_settings()?;
-            if vocab_capture::parse_shortcut(&settings.capture_shortcut).is_err() {
-                settings.capture_shortcut = "Alt+Shift+V".into();
+            if !settings.selection_capture_shortcut.is_empty()
+                && vocab_capture::parse_shortcut(&settings.selection_capture_shortcut).is_err()
+            {
+                settings.selection_capture_shortcut = "Alt+Shift+V".into();
                 state.application().update_settings(settings.clone())?;
             }
             state.configure_capture_window()?;
@@ -216,7 +218,18 @@ pub fn run() {
                 );
                 if shortcut_error.is_some() {
                     let mut status = runtime.status();
-                    status.shortcut_error = shortcut_error;
+                    status.selection_shortcut_error = shortcut_error;
+                    runtime.replace(status);
+                }
+                let region_ocr_shortcut_error =
+                    system_settings::restore_startup_region_ocr_shortcut(&settings, |shortcut| {
+                        app.global_shortcut()
+                            .register(shortcut)
+                            .map_err(|error| error.to_string())
+                    });
+                if region_ocr_shortcut_error.is_some() {
+                    let mut status = runtime.status();
+                    status.region_ocr_shortcut_error = region_ocr_shortcut_error;
                     runtime.replace(status);
                 }
                 let (scheduler, review_time_error) =
@@ -268,8 +281,14 @@ pub fn run() {
             }
             #[cfg(not(target_os = "windows"))]
             {
-                app.global_shortcut()
-                    .register(settings.capture_shortcut.as_str())?;
+                if !settings.selection_capture_shortcut.is_empty() {
+                    app.global_shortcut()
+                        .register(settings.selection_capture_shortcut.as_str())?;
+                }
+                if !settings.region_ocr_capture_shortcut.is_empty() {
+                    app.global_shortcut()
+                        .register(settings.region_ocr_capture_shortcut.as_str())?;
+                }
                 app.manage(state);
             }
             Ok(())

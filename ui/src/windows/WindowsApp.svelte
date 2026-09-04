@@ -216,7 +216,8 @@
         const result = await api.applyWindowsSettings(candidate);
         persisted = result.settings;
         systemStatus = {
-          shortcutError: result.shortcutError,
+          selectionShortcutError: result.selectionShortcutError,
+          regionOcrShortcutError: result.regionOcrShortcutError,
           autostartError: result.autostartError,
           notificationError: result.notificationError,
         };
@@ -326,9 +327,11 @@
               <label>Daily limit<input type="number" min="1" max="50" bind:value={settingsDraft.dailyLimit} /></label>
               <label>Recent captures<input type="number" min="1" max="100" bind:value={settingsDraft.recentCapturesLimit} /></label>
             </fieldset>
-            <fieldset><legend>Capture</legend><p>Choose your preferred capture shortcut.</p>
-              <label>Capture shortcut<input bind:value={settingsDraft.captureShortcut} /></label>
-              {#if systemStatus.shortcutError}<small class="field-error" role="alert">{systemStatus.shortcutError}</small>{/if}
+            <fieldset><legend>Capture shortcuts</legend><p>Selection Capture is recommended. Leave a shortcut blank to disable it.</p>
+              <label>Selection Capture · Recommended<input aria-label="Selection Capture shortcut" bind:value={settingsDraft.selectionCaptureShortcut} /></label>
+              {#if systemStatus.selectionShortcutError}<small class="field-error" role="alert">{systemStatus.selectionShortcutError}</small>{/if}
+              <label>Region OCR Capture<input aria-label="Region OCR Capture shortcut" bind:value={settingsDraft.regionOcrCaptureShortcut} /></label>
+              {#if systemStatus.regionOcrShortcutError}<small class="field-error" role="alert">{systemStatus.regionOcrShortcutError}</small>{/if}
               <label class="toggle-row"><span><strong>Launch at login</strong><small>Start hidden and remain available in the system tray</small></span><input aria-label="Launch at login" type="checkbox" bind:checked={settingsDraft.launchAtLogin} /></label>
               {#if systemStatus.autostartError}<small class="field-error" role="alert">{systemStatus.autostartError}</small>{/if}
             </fieldset>

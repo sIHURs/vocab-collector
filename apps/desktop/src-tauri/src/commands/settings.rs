@@ -73,7 +73,9 @@ pub fn apply_windows_settings(
         .application()
         .get_settings()
         .map_err(|error| error.to_string())?;
-    let shortcut_attempted = settings.capture_shortcut != current.capture_shortcut;
+    let shortcut_attempted = settings.selection_capture_shortcut
+        != current.selection_capture_shortcut
+        || settings.region_ocr_capture_shortcut != current.region_ocr_capture_shortcut;
     let autostart_attempted = settings.launch_at_login != current.launch_at_login;
     let review_time_attempted = settings.review_time != current.review_time;
     let mut effects = TauriSettingsEffects {
@@ -90,7 +92,8 @@ pub fn apply_windows_settings(
         review_time_attempted,
     );
     runtime.replace(SystemSettingsStatus {
-        shortcut_error: result.shortcut_error.clone(),
+        selection_shortcut_error: result.selection_shortcut_error.clone(),
+        region_ocr_shortcut_error: result.region_ocr_shortcut_error.clone(),
         autostart_error: result.autostart_error.clone(),
         notification_error: result.notification_error.clone(),
     });

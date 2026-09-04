@@ -4,9 +4,9 @@
 
 **Blocked by:** 01: Solidify explicit Native Capture modes.
 
-**Status:** ready-for-agent
+**Status:** complete
 
-- [ ] Legacy settings retain their shortcut as the Selection Capture shortcut.
-- [ ] Both shortcuts have independent validation, registration, conflicts, rollback, and visible status.
-- [ ] The two enabled shortcuts cannot be equal.
-- [ ] Settings marks Selection Capture as recommended.
+- [x] Legacy settings retain their shortcut as the Selection Capture shortcut.
+- [x] Both shortcuts have independent validation, registration, conflicts, rollback, and visible status.
+- [x] The two enabled shortcuts cannot be equal.
+- [x] Settings marks Selection Capture as recommended.

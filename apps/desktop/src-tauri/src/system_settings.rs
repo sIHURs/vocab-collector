@@ -20,7 +20,8 @@ pub trait SettingsEffects {
 #[serde(rename_all = "camelCase")]
 pub struct SettingsApplyResult {
     pub settings: UserSettings,
-    pub shortcut_error: Option<String>,
+    pub selection_shortcut_error: Option<String>,
+    pub region_ocr_shortcut_error: Option<String>,
     pub autostart_error: Option<String>,
     pub notification_error: Option<String>,
 }
@@ -30,12 +31,14 @@ pub fn restore_startup_shortcut(
     mut register: impl FnMut(&str) -> Result<(), String>,
     persist: impl FnOnce(&UserSettings) -> Result<(), String>,
 ) -> Option<String> {
-    if register(&settings.capture_shortcut).is_ok() {
+    if settings.selection_capture_shortcut.is_empty()
+        || register(&settings.selection_capture_shortcut).is_ok()
+    {
         return None;
     }
     const FALLBACK: &str = "Alt+Shift+V";
-    if settings.capture_shortcut != FALLBACK && register(FALLBACK).is_ok() {
-        settings.capture_shortcut = FALLBACK.into();
+    if settings.selection_capture_shortcut != FALLBACK && register(FALLBACK).is_ok() {
+        settings.selection_capture_shortcut = FALLBACK.into();
         return Some(match persist(settings) {
             Ok(()) => {
                 "The saved shortcut was unavailable. Alt+Shift+V is active instead.".into()
@@ -44,6 +47,19 @@ pub fn restore_startup_shortcut(
         });
     }
     Some("Global shortcut unavailable. Choose another combination in Settings.".into())
+}
+
+pub fn restore_startup_region_ocr_shortcut(
+    settings: &UserSettings,
+    mut register: impl FnMut(&str) -> Result<(), String>,
+) -> Option<String> {
+    if settings.region_ocr_capture_shortcut.is_empty()
+        || register(&settings.region_ocr_capture_shortcut).is_ok()
+    {
+        None
+    } else {
+        Some("Region OCR shortcut unavailable. Choose another combination in Settings.".into())
+    }
 }
 
 pub fn restore_startup_review_schedule(
@@ -71,29 +87,30 @@ pub fn apply_settings_transaction(
     mut requested: UserSettings,
     effects: &mut impl SettingsEffects,
 ) -> Result<SettingsApplyResult, String> {
-    let mut shortcut_error = None;
-    let mut shortcut_staged = false;
     let mut autostart_changed = false;
     let mut review_time_changed = false;
-
-    if requested.capture_shortcut != current.capture_shortcut {
-        match vocab_capture::parse_shortcut(&requested.capture_shortcut) {
-            Ok(shortcut) => {
-                requested.capture_shortcut = shortcut.canonical().to_string();
-                match effects.register_shortcut(shortcut.canonical()) {
-                    Ok(()) => shortcut_staged = true,
-                    Err(error) => {
-                        shortcut_error = Some(error);
-                        requested.capture_shortcut = current.capture_shortcut.clone();
-                    }
-                }
-            }
-            Err(error) => {
-                shortcut_error = Some(error.to_string());
-                requested.capture_shortcut = current.capture_shortcut.clone();
-            }
-        }
-    }
+    let duplicate = !requested.selection_capture_shortcut.trim().is_empty()
+        && requested.selection_capture_shortcut == requested.region_ocr_capture_shortcut;
+    let (selection, selection_staged, mut selection_shortcut_error) = stage_shortcut(
+        &current.selection_capture_shortcut,
+        &requested.selection_capture_shortcut,
+        effects,
+    );
+    requested.selection_capture_shortcut = selection;
+    let (region, region_staged, mut region_ocr_shortcut_error) = if duplicate {
+        (
+            current.region_ocr_capture_shortcut.clone(),
+            false,
+            Some("Capture shortcuts must be different.".into()),
+        )
+    } else {
+        stage_shortcut(
+            &current.region_ocr_capture_shortcut,
+            &requested.region_ocr_capture_shortcut,
+            effects,
+        )
+    };
+    requested.region_ocr_capture_shortcut = region;
 
     let autostart_error = if requested.launch_at_login != current.launch_at_login {
         match effects.set_autostart(requested.launch_at_login) {
@@ -134,10 +151,16 @@ pub fn apply_settings_transaction(
         if autostart_changed && let Err(rollback) = effects.set_autostart(current.launch_at_login) {
             rollback_errors.push(rollback);
         }
-        if shortcut_staged
-            && let Err(rollback) = effects.unregister_shortcut(&requested.capture_shortcut)
-        {
-            rollback_errors.push(rollback);
+        for (staged, shortcut) in [
+            (selection_staged, &requested.selection_capture_shortcut),
+            (region_staged, &requested.region_ocr_capture_shortcut),
+        ] {
+            if staged
+                && !shortcut.is_empty()
+                && let Err(rollback) = effects.unregister_shortcut(shortcut)
+            {
+                rollback_errors.push(rollback);
+            }
         }
         if rollback_errors.is_empty() {
             return Err(error);
@@ -148,29 +171,62 @@ pub fn apply_settings_transaction(
         ));
     }
 
-    if shortcut_staged
+    if selection_staged
+        && !current.selection_capture_shortcut.is_empty()
         && effects
-            .unregister_shortcut(&current.capture_shortcut)
+            .unregister_shortcut(&current.selection_capture_shortcut)
             .is_err()
     {
-        let staged_cleanup_failed = effects
-            .unregister_shortcut(&requested.capture_shortcut)
-            .is_err();
-        requested.capture_shortcut = current.capture_shortcut;
+        if !requested.selection_capture_shortcut.is_empty() {
+            let _ = effects.unregister_shortcut(&requested.selection_capture_shortcut);
+        }
+        requested.selection_capture_shortcut = current.selection_capture_shortcut.clone();
+        selection_shortcut_error =
+            Some("Shortcut unavailable. The previous shortcut is still active.".into());
         effects.persist(&requested)?;
-        shortcut_error = Some(if staged_cleanup_failed {
-            "The previous shortcut could not be released, and the staged shortcut could not be removed. Restart the app to restore a single shortcut."
-        } else {
-            "Shortcut unavailable. The previous shortcut is still active."
-        }.into());
+    }
+    if region_staged
+        && !current.region_ocr_capture_shortcut.is_empty()
+        && effects
+            .unregister_shortcut(&current.region_ocr_capture_shortcut)
+            .is_err()
+    {
+        if !requested.region_ocr_capture_shortcut.is_empty() {
+            let _ = effects.unregister_shortcut(&requested.region_ocr_capture_shortcut);
+        }
+        requested.region_ocr_capture_shortcut = current.region_ocr_capture_shortcut.clone();
+        region_ocr_shortcut_error =
+            Some("Shortcut unavailable. The previous shortcut is still active.".into());
+        effects.persist(&requested)?;
     }
 
     Ok(SettingsApplyResult {
         settings: requested,
-        shortcut_error,
+        selection_shortcut_error,
+        region_ocr_shortcut_error,
         autostart_error,
         notification_error,
     })
+}
+
+fn stage_shortcut(
+    current: &str,
+    requested: &str,
+    effects: &mut impl SettingsEffects,
+) -> (String, bool, Option<String>) {
+    if requested == current {
+        return (current.into(), false, None);
+    }
+    if requested.trim().is_empty() {
+        return (String::new(), true, None);
+    }
+    match vocab_capture::parse_shortcut(requested) {
+        Ok(shortcut) => match effects.register_shortcut(shortcut.canonical()) {
+            Ok(()) => (shortcut.canonical().into(), true, None),
+            Err(error) => (current.into(), false, Some(error)),
+        },
+        Err(error) => (current.into(), false, Some(error.to_string())),
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -250,7 +306,8 @@ impl ReviewScheduler {
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SystemSettingsStatus {
-    pub shortcut_error: Option<String>,
+    pub selection_shortcut_error: Option<String>,
+    pub region_ocr_shortcut_error: Option<String>,
     pub autostart_error: Option<String>,
     pub notification_error: Option<String>,
 }
@@ -292,7 +349,8 @@ pub fn merge_attempted_status(
 ) -> SettingsApplyResult {
     let mut merged = result.clone();
     if !shortcut_attempted {
-        merged.shortcut_error = existing.shortcut_error;
+        merged.selection_shortcut_error = existing.selection_shortcut_error;
+        merged.region_ocr_shortcut_error = existing.region_ocr_shortcut_error;
     }
     if !autostart_attempted {
         merged.autostart_error = existing.autostart_error;

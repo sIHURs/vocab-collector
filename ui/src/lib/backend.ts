@@ -25,7 +25,8 @@ export interface Backend {
 type DemoWord = WordDetail & { due: boolean };
 
 const defaultSettings: Settings = {
-  sourceLanguage: "en", targetLanguage: "de", captureShortcut: "Alt+Shift+V",
+  sourceLanguage: "en", targetLanguage: "de", selectionCaptureShortcut: "Alt+Shift+V",
+  regionOcrCaptureShortcut: "Alt+Shift+O",
   reviewTime: "18:00", dailyLimit: 5, launchAtLogin: false, appearance: "system",
   reducedMotion: false, recentCapturesLimit: 20,
 };
@@ -134,7 +135,7 @@ export class DemoBackend implements Backend {
   }
   async getSettings() { return { ...this.settings }; }
   async updateSettings(settings: Settings) { this.settings = { ...settings }; }
-  async replaceShortcut(candidate: string) { this.settings.captureShortcut = candidate; return { ...this.settings }; }
+  async replaceShortcut(candidate: string) { this.settings.selectionCaptureShortcut = candidate; return { ...this.settings }; }
   async applyWindowsSettings(settings: Settings): Promise<SettingsApplyResult> {
     await this.updateSettings(settings);
     return { settings: await this.getSettings() };
