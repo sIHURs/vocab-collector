@@ -3,7 +3,7 @@
 use std::{fs, sync::Arc};
 
 use tauri::{Emitter, Manager};
-use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 use vocab_storage::SqliteStore;
 
 pub mod bootstrap;
@@ -17,6 +17,12 @@ pub mod system_settings;
 use bootstrap::build_app_state;
 use commands::{capture, library, presentation, settings};
 use events::NativeCaptureErrorEvent;
+
+pub fn shortcut_matches(triggered: &Shortcut, configured: &str) -> bool {
+    configured
+        .parse::<Shortcut>()
+        .is_ok_and(|saved| saved == *triggered)
+}
 
 #[cfg(target_os = "windows")]
 fn show_main_window(app: &tauri::AppHandle) -> Result<(), String> {
@@ -144,7 +150,7 @@ pub fn run() {
                 };
                 if shortcut_gate.accept(state) {
                     let app = app.clone();
-                    let shortcut = shortcut.to_string();
+                    let shortcut = *shortcut;
                     tauri::async_runtime::spawn(async move {
                         let is_region_ocr = app
                             .state::<bootstrap::AppState>()
@@ -152,7 +158,10 @@ pub fn run() {
                             .get_settings()
                             .is_ok_and(|settings| {
                                 !settings.region_ocr_capture_shortcut.is_empty()
-                                    && shortcut == settings.region_ocr_capture_shortcut
+                                    && shortcut_matches(
+                                        &shortcut,
+                                        &settings.region_ocr_capture_shortcut,
+                                    )
                             });
                         if is_region_ocr {
                             let _ = capture::present_region_ocr_capture(&app);

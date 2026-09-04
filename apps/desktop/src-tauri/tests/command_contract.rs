@@ -9,6 +9,8 @@ use std::{
 };
 
 use async_trait::async_trait;
+use std::str::FromStr;
+use tauri_plugin_global_shortcut::Shortcut;
 use vocab_application::PlatformCaptureError;
 use vocab_capture::CoordinatorError;
 use vocab_desktop_lib::{
@@ -26,6 +28,7 @@ use vocab_desktop_lib::{
         OcrCandidatesEvent,
     },
     lifecycle::{open_main_window, terminate_session},
+    shortcut_matches,
     system_settings::{
         ReviewSchedule, SettingsEffects, SystemSettingsStatus, apply_settings_transaction,
         merge_attempted_status, restore_startup_review_schedule, restore_startup_shortcut,
@@ -70,6 +73,14 @@ fn capture_command_names_are_available_on_the_platform_neutral_surface() {
     let _ = close_capture_window;
     let _ = hide_capture_window;
     let _ = get_platform_capabilities;
+}
+
+#[test]
+fn registered_region_ocr_shortcut_matches_its_saved_setting() {
+    let triggered = Shortcut::from_str("Alt+Shift+O").unwrap();
+    assert_ne!(triggered.to_string(), "Alt+Shift+O");
+    assert!(shortcut_matches(&triggered, "Alt+Shift+O"));
+    assert!(!shortcut_matches(&triggered, "Alt+Shift+V"));
 }
 
 #[test]
