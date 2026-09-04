@@ -80,3 +80,11 @@ main { min-width: 0; background: radial-gradient(circle at 85% 0%, rgba(102,119,
   button { transition: color 120ms ease, background 120ms ease, transform 120ms ease; }
   button:active { transform: scale(.98); }
 }
+
+:root[data-window="ocr-overlay"],
+:root[data-window="ocr-overlay"] body,
+:root[data-window="ocr-overlay"] #app {
+  min-width: 0;
+  min-height: 0;
+  background: transparent;
+}
