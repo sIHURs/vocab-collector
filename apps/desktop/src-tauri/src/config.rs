@@ -12,11 +12,12 @@ const AZURE_TIMEOUT: &str = "VOCAB_AZURE_TRANSLATOR_TIMEOUT_MS";
 const DEEPL_KEY: &str = "VOCAB_DEEPL_API_KEY";
 const DEEPL_ENDPOINT: &str = "VOCAB_DEEPL_ENDPOINT";
 const DEEPL_TIMEOUT: &str = "VOCAB_DEEPL_TIMEOUT_MS";
+const WINDOWS_OCR: &str = "VOCAB_ENABLE_WINDOWS_OCR";
 const DEFAULT_AZURE_ENDPOINT: &str = "https://api.cognitive.microsofttranslator.com";
 const DEFAULT_DEEPL_ENDPOINT: &str = "https://api-free.deepl.com";
 const DEFAULT_TIMEOUT_MS: u64 = 10_000;
 const MAX_TIMEOUT_MS: u64 = 60_000;
-const CONFIG_NAMES: [&str; 8] = [
+const CONFIG_NAMES: [&str; 9] = [
     PROVIDER,
     AZURE_KEY,
     AZURE_ENDPOINT,
@@ -25,6 +26,7 @@ const CONFIG_NAMES: [&str; 8] = [
     DEEPL_KEY,
     DEEPL_ENDPOINT,
     DEEPL_TIMEOUT,
+    WINDOWS_OCR,
 ];
 
 pub enum TranslationProviderConfig {
@@ -43,6 +45,33 @@ pub fn translation_provider_config() -> Result<Option<TranslationProviderConfig>
         }
     }
     translation_provider_config_from_values(&values)
+}
+
+pub fn windows_ocr_enabled() -> Result<bool, PlatformError> {
+    #[cfg(debug_assertions)]
+    {
+        let mut values = load_debug_env_file()?;
+        if let Ok(value) = std::env::var(WINDOWS_OCR) {
+            values.insert(WINDOWS_OCR.to_string(), value);
+        }
+        windows_ocr_enabled_from_values(&values)
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        Ok(false)
+    }
+}
+
+fn windows_ocr_enabled_from_values(
+    values: &HashMap<String, String>,
+) -> Result<bool, PlatformError> {
+    match non_empty(values, WINDOWS_OCR) {
+        None | Some("false") => Ok(false),
+        Some("true") => Ok(true),
+        Some(_) => Err(PlatformError::Operation(
+            "windows OCR developer flag is invalid".into(),
+        )),
+    }
 }
 
 fn translation_provider_config_from_values(
@@ -143,7 +172,10 @@ fn load_debug_env_file() -> Result<HashMap<String, String>, PlatformError> {
 
 #[cfg(test)]
 mod tests {
-    use super::{TranslationProviderConfig, translation_provider_config_from_values};
+    use super::{
+        TranslationProviderConfig, translation_provider_config_from_values,
+        windows_ocr_enabled_from_values,
+    };
     use std::collections::HashMap;
 
     #[test]
@@ -213,5 +245,25 @@ mod tests {
                 .contains("deepl translation key is missing")
         );
         assert!(!error.to_string().contains("unused-secret"));
+    }
+
+    #[test]
+    fn windows_ocr_requires_an_explicit_valid_developer_flag() {
+        assert!(!windows_ocr_enabled_from_values(&HashMap::new()).unwrap());
+        assert!(
+            windows_ocr_enabled_from_values(&HashMap::from([(
+                "VOCAB_ENABLE_WINDOWS_OCR".into(),
+                "true".into(),
+            )]))
+            .unwrap()
+        );
+        let invalid = windows_ocr_enabled_from_values(&HashMap::from([(
+            "VOCAB_ENABLE_WINDOWS_OCR".into(),
+            "private-invalid-value".into(),
+        )]))
+        .unwrap_err()
+        .to_string();
+        assert!(invalid.contains("windows OCR developer flag is invalid"));
+        assert!(!invalid.contains("private-invalid-value"));
     }
 }

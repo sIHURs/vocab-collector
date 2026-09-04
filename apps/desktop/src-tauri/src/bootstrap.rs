@@ -59,19 +59,19 @@ pub fn selected_platform() -> Result<PlatformServices, PlatformError> {
 
 #[cfg(target_os = "windows")]
 pub fn selected_platform() -> Result<PlatformServices, PlatformError> {
-    let Some(config) = crate::config::translation_provider_config()? else {
-        return Ok(vocab_platform_windows::WindowsPlatform::new());
-    };
-    let provider: Arc<dyn TranslationProvider> = match config {
-        crate::config::TranslationProviderConfig::Azure(config) => Arc::new(
-            vocab_translation_azure::AzureTranslationProvider::new(config)?,
-        ),
-        crate::config::TranslationProviderConfig::DeepL(config) => Arc::new(
-            vocab_translation_deepl::DeepLTranslationProvider::new(config)?,
-        ),
-    };
-    Ok(vocab_platform_windows::WindowsPlatform::with_translation(
+    let provider: Option<Arc<dyn TranslationProvider>> =
+        match crate::config::translation_provider_config()? {
+            Some(crate::config::TranslationProviderConfig::Azure(config)) => Some(Arc::new(
+                vocab_translation_azure::AzureTranslationProvider::new(config)?,
+            )),
+            Some(crate::config::TranslationProviderConfig::DeepL(config)) => Some(Arc::new(
+                vocab_translation_deepl::DeepLTranslationProvider::new(config)?,
+            )),
+            None => None,
+        };
+    Ok(vocab_platform_windows::WindowsPlatform::configured(
         provider,
+        crate::config::windows_ocr_enabled()?,
     ))
 }
 

@@ -24,8 +24,13 @@ The browser backend and Rust application service implement the same frontend-fac
 
 ## Development-only network translation
 
-Windows builds may use a developer-owned Azure Translator or DeepL resource.
-Copy the empty `.env.example` to an untracked workspace-root `.env.local`, set
+Windows Debug builds may enable the experimental Region OCR capability by setting
+`VOCAB_ENABLE_WINDOWS_OCR=true` in the untracked workspace-root `.env.local`.
+The default is `false`, invalid values fail startup with a content-safe error, and
+Release builds ignore this developer flag.
+
+Windows builds may also use a developer-owned Azure Translator or DeepL resource.
+Copy `.env.example` to `.env.local`, set
 `VOCAB_TRANSLATION_PROVIDER` to `azure` or `deepl`, and configure the matching
 key. The app never guesses a provider from available keys and parses only the
 selected provider. Existing process environment variables take precedence.
