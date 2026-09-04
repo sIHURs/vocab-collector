@@ -182,6 +182,7 @@ describe("Windows main presentation", () => {
       getToday: async () => { throw new Error("Database is temporarily unavailable"); },
       listWords: demo.listWords.bind(demo), getWord: demo.getWord.bind(demo),
       submitReview: demo.submitReview.bind(demo), getSettings: demo.getSettings.bind(demo),
+      getReviewSessionInsight: demo.getReviewSessionInsight.bind(demo),
       updateSettings: demo.updateSettings.bind(demo), replaceShortcut: demo.replaceShortcut.bind(demo),
       getPlatformCapabilities: demo.getPlatformCapabilities.bind(demo),
     };
@@ -202,6 +203,7 @@ describe("Windows main presentation", () => {
       undoCapture: demo.undoCapture.bind(demo), getToday: demo.getToday.bind(demo),
       listWords: demo.listWords.bind(demo), getWord: demo.getWord.bind(demo),
       submitReview: demo.submitReview.bind(demo), getSettings: demo.getSettings.bind(demo),
+      getReviewSessionInsight: demo.getReviewSessionInsight.bind(demo),
       updateSettings: demo.updateSettings.bind(demo), replaceShortcut: demo.replaceShortcut.bind(demo),
       getPlatformCapabilities: demo.getPlatformCapabilities.bind(demo),
     };
@@ -240,6 +242,9 @@ describe("Windows main presentation", () => {
     await revealAndRate("Remembered");
     await fireEvent.click(await screen.findByRole("button", { name: "Next" }));
     expect(await screen.findByRole("heading", { name: "Review complete" })).toBeVisible();
+    expect(screen.getByText("3 reviewed")).toBeVisible();
+    expect(screen.getByText("2 remembered · 1 forgot")).toBeVisible();
+    expect(screen.getByText(/Estimated due by the end of tomorrow: 1/)).toBeVisible();
     expect(api.ratings.map(({ rating }) => rating)).toEqual(["forgot", "remembered", "remembered"]);
 
     await fireEvent.click(screen.getByRole("button", { name: "Today" }));

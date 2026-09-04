@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type {
-  CaptureCard, CaptureInput, Encounter, PlatformCapabilities, ReviewRating, ReviewResult, Settings,
+  CaptureCard, CaptureInput, Encounter, PlatformCapabilities, ReviewRating, ReviewResult, ReviewSessionInsight, Settings,
   SettingsApplyResult, SystemSettingsStatus, TodayView,
   WordDetail, WordListItem,
 } from "./types";
@@ -13,6 +13,7 @@ export interface Backend {
   listWords(): Promise<WordListItem[]>;
   getWord(wordId: string): Promise<WordDetail>;
   submitReview(wordId: string, rating: ReviewRating, submissionId?: string): Promise<ReviewResult>;
+  getReviewSessionInsight(results: ReviewResult[], nextDayEnd: string): Promise<ReviewSessionInsight>;
   getSettings(): Promise<Settings>;
   updateSettings(settings: Settings): Promise<void>;
   replaceShortcut(candidate: string): Promise<Settings>;
@@ -153,6 +154,17 @@ export class DemoBackend implements Backend {
     this.reviewSubmissions.set(submissionId, result);
     return { ...result };
   }
+  async getReviewSessionInsight(results: ReviewResult[], nextDayEnd: string): Promise<ReviewSessionInsight> {
+    return {
+      reviewedCount: results.length,
+      rememberedCount: results.filter((result) => result.rating === "remembered").length,
+      forgottenCount: results.filter((result) => result.rating === "forgot").length,
+      attentionWordIds: results.filter((result) => result.repeatedForgetting).map((result) => result.wordId),
+      nextDayDueCount: this.words.filter((word) =>
+        word.item.status === "learning" && Boolean(word.item.nextReviewAt) &&
+        new Date(word.item.nextReviewAt!).getTime() <= new Date(nextDayEnd).getTime()).length,
+    };
+  }
   async getSettings() { return { ...this.settings }; }
   async updateSettings(settings: Settings) { this.settings = { ...settings }; }
   async replaceShortcut(candidate: string) { this.settings.selectionCaptureShortcut = candidate; return { ...this.settings }; }
@@ -180,6 +192,9 @@ class TauriBackend implements Backend {
   getWord(wordId: string) { return invoke<WordDetail>("get_word", { wordId }); }
   submitReview(wordId: string, rating: ReviewRating, submissionId = id()) {
     return invoke<ReviewResult>("submit_review", { submissionId, wordId, rating });
+  }
+  getReviewSessionInsight(results: ReviewResult[], nextDayEnd: string) {
+    return invoke<ReviewSessionInsight>("get_review_session_insight", { results, nextDayEnd });
   }
   getSettings() { return invoke<Settings>("get_settings"); }
   updateSettings(settings: Settings) { return invoke<void>("update_settings", { settings }); }

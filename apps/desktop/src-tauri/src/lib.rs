@@ -331,6 +331,7 @@ pub fn run() {
             library::list_words,
             library::get_word,
             library::submit_review,
+            library::get_review_session_insight,
             library::get_settings,
             library::update_settings,
             settings::apply_windows_settings,

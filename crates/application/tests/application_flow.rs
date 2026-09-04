@@ -3,7 +3,9 @@ use std::sync::Arc;
 use chrono::{TimeZone, Utc};
 use uuid::Uuid;
 use vocab_application::{AppService, CaptureRequest};
-use vocab_domain::{CaptureOrigin, ReviewRating, ReviewRepository, SettingsRepository, WordRepository};
+use vocab_domain::{
+    CaptureOrigin, ReviewRating, ReviewRepository, SettingsRepository, WordRepository,
+};
 use vocab_storage::SqliteStore;
 
 fn request(word: &str, translation: &str) -> CaptureRequest {
@@ -112,18 +114,66 @@ fn retrying_one_logical_review_submission_is_idempotent() {
     let submission_id = Uuid::now_v7();
 
     let first = service
-        .submit_review_once(submission_id, card.word_id, ReviewRating::Remembered, reviewed_at)
+        .submit_review_once(
+            submission_id,
+            card.word_id,
+            ReviewRating::Remembered,
+            reviewed_at,
+        )
         .unwrap();
-    let word_after_first = WordRepository::get(store.as_ref(), card.word_id).unwrap().unwrap();
+    let word_after_first = WordRepository::get(store.as_ref(), card.word_id)
+        .unwrap()
+        .unwrap();
     let retry = service
-        .submit_review_once(submission_id, card.word_id, ReviewRating::Remembered, reviewed_at)
+        .submit_review_once(
+            submission_id,
+            card.word_id,
+            ReviewRating::Remembered,
+            reviewed_at,
+        )
         .unwrap();
-    let word_after_retry = WordRepository::get(store.as_ref(), card.word_id).unwrap().unwrap();
+    let word_after_retry = WordRepository::get(store.as_ref(), card.word_id)
+        .unwrap()
+        .unwrap();
 
     assert_eq!(retry.word_id, first.word_id);
     assert_eq!(retry.rating, first.rating);
     assert_eq!(word_after_retry.review_state, word_after_first.review_state);
-    assert_eq!(ReviewRepository::list_for_word(store.as_ref(), card.word_id).unwrap().len(), 1);
+    assert_eq!(
+        ReviewRepository::list_for_word(store.as_ref(), card.word_id)
+            .unwrap()
+            .len(),
+        1
+    );
+}
+
+#[test]
+fn session_insight_counts_successful_results_and_next_day_workload() {
+    let store = Arc::new(SqliteStore::open_in_memory().unwrap());
+    let service = AppService::new(store, Uuid::now_v7());
+    let first = service.capture(request("Lucid", "klar")).unwrap();
+    let second = service.capture(request("Nuance", "Feinheit")).unwrap();
+    let reviewed_at = Utc.with_ymd_and_hms(2026, 8, 25, 12, 5, 0).unwrap();
+    let remembered = service
+        .submit_review(first.word_id, ReviewRating::Remembered, reviewed_at)
+        .unwrap();
+    let mut forgot = service
+        .submit_review(second.word_id, ReviewRating::Forgot, reviewed_at)
+        .unwrap();
+    forgot.repeated_forgetting = true;
+
+    let insight = service
+        .get_review_session_insight(
+            &[remembered, forgot],
+            Utc.with_ymd_and_hms(2026, 8, 27, 0, 0, 0).unwrap(),
+        )
+        .unwrap();
+
+    assert_eq!(insight.reviewed_count, 2);
+    assert_eq!(insight.remembered_count, 1);
+    assert_eq!(insight.forgotten_count, 1);
+    assert_eq!(insight.attention_word_ids, vec![second.word_id]);
+    assert_eq!(insight.next_day_due_count, 1);
 }
 
 #[test]

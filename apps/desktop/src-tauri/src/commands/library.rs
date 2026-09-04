@@ -3,7 +3,8 @@ use tauri::State;
 use uuid::Uuid;
 use vocab_application::CaptureRequest;
 use vocab_domain::{
-    CaptureCard, ReviewRating, ReviewResult, TodayView, UserSettings, WordDetail, WordListItem,
+    CaptureCard, ReviewRating, ReviewResult, ReviewSessionInsight, TodayView, UserSettings,
+    WordDetail, WordListItem,
 };
 
 use crate::bootstrap::AppState;
@@ -61,6 +62,18 @@ pub fn submit_review(
     state
         .application()
         .submit_review_once(submission_id, word_id, rating, Utc::now())
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn get_review_session_insight(
+    state: State<'_, AppState>,
+    results: Vec<ReviewResult>,
+    next_day_end: chrono::DateTime<Utc>,
+) -> Result<ReviewSessionInsight, String> {
+    state
+        .application()
+        .get_review_session_insight(&results, next_day_end)
         .map_err(|error| error.to_string())
 }
 

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
   import { createBackend, type Backend } from "../lib/backend";
-  import type { CaptureCard, ReviewCard, ReviewRating, ReviewResult, Settings, SystemSettingsStatus, TodayView, WordDetail, WordListItem } from "../lib/types";
+  import type { CaptureCard, ReviewCard, ReviewRating, ReviewResult, ReviewSessionInsight, Settings, SystemSettingsStatus, TodayView, WordDetail, WordListItem } from "../lib/types";
   import WindowsWordRow from "./WindowsWordRow.svelte";
 
   type Route = "Today" | "Vocabulary" | "Review" | "Settings";
@@ -35,6 +35,9 @@
   let reviewSubmissionId: string | null = null;
   let reviewSubmissionRating: ReviewRating | null = null;
   let reviewRequestVersion = 0;
+  let reviewSessionResults: ReviewResult[] = [];
+  let reviewSessionCards: ReviewCard[] = [];
+  let reviewSessionInsight: ReviewSessionInsight | null = null;
   let settingsDraft: Settings | null = null;
   let appliedSettings: Settings | null = null;
   let settingsSaving = false;
@@ -49,6 +52,7 @@
   let detailTrigger: HTMLElement | null = null;
   let detailCloseButton: HTMLButtonElement;
   let reviewCardElement: HTMLElement;
+  let reviewCompleteHeading: HTMLHeadingElement;
 
   $: filteredWords = words.filter((word) => `${word.displayForm} ${word.translation ?? ""}`.toLowerCase().includes(search.trim().toLowerCase()));
   $: vocabularyPageCount = Math.max(1, Math.ceil(filteredWords.length / vocabularyPageSize));
@@ -162,6 +166,11 @@
     reviewResult = null;
     reviewSubmissionId = null;
     reviewSubmissionRating = null;
+    if (!reviewPaused) {
+      reviewSessionResults = [];
+      reviewSessionCards = [...(today?.reviewQueue ?? [])];
+      reviewSessionInsight = null;
+    }
     await tick();
     reviewCardElement?.querySelector<HTMLButtonElement>(".review-actions button")?.focus();
   }
@@ -192,6 +201,8 @@
     if (reviewCompleting) {
       reviewCompleting = false;
       reviewComplete = true;
+      await tick();
+      reviewCompleteHeading?.focus();
     }
   }
 
@@ -213,6 +224,9 @@
       const result = await api.submitReview(wordId, rating, reviewSubmissionId);
       if (requestVersion === reviewRequestVersion && activeReview?.wordId === wordId) {
         reviewResult = result;
+        if (!reviewSessionResults.some((item) => item.wordId === result.wordId)) {
+          reviewSessionResults = [...reviewSessionResults, result];
+        }
         await tick();
         reviewCardElement?.querySelector<HTMLButtonElement>(".review-actions button:last-child")?.focus();
       }
@@ -247,6 +261,15 @@
       await tick();
       reviewCardElement?.querySelector<HTMLButtonElement>(".review-actions button")?.focus();
     } else {
+        const nextDayEnd = new Date();
+        nextDayEnd.setDate(nextDayEnd.getDate() + 2);
+        nextDayEnd.setHours(0, 0, 0, 0);
+        try {
+          reviewSessionInsight = await api.getReviewSessionInsight(reviewSessionResults, nextDayEnd.toISOString());
+        } catch (cause) {
+          reviewError = cause instanceof Error ? cause.message : String(cause);
+          return;
+        }
         reviewOpen = false;
         reviewPaused = false;
         reviewCompleting = true;
@@ -254,9 +277,19 @@
           reviewIndex = 0;
           reviewCompleting = false;
           reviewComplete = true;
+          await tick();
+          reviewCompleteHeading?.focus();
         } else reviewRefreshRequired = true;
     }
   }
+
+  async function returnToToday() {
+    await refresh();
+    route = "Today";
+  }
+
+  const attentionLabel = (wordId: string) =>
+    reviewSessionCards.find((card) => card.wordId === wordId)?.displayForm ?? "Vocabulary Item";
 
   async function saveSettings() {
     if (!settingsDraft || settingsSaving) return;
@@ -372,8 +405,8 @@
       {:else if route === "Review"}
         {#if reviewOpen && activeReview}
           <div class="review-card" aria-live="polite" bind:this={reviewCardElement}><div class="review-progress"><span>{reviewIndex + 1} of {today?.reviewQueue.length}</span><button class="icon" aria-label="Close review" disabled={reviewSubmitting} onclick={closeReview}>×</button></div><span class="eyebrow">Do you remember this word?</span><h2>{activeReview.displayForm}</h2><p>{activeReview.context ?? "No saved context"}</p>{#if reviewResult}<div class="review-translation" role="status"><small>{reviewResult.rating === "remembered" ? "Remembered" : "Forgot"}</small><strong>Next review {new Date(reviewResult.nextDueAt).toLocaleDateString()}</strong><span>{`Encountered ${reviewResult.encounterCount} time${reviewResult.encounterCount === 1 ? "" : "s"}`}</span>{#if reviewResult.repeatedForgetting}<p>This Vocabulary Item has been repeatedly forgotten. Another context or a translation check may help.</p>{/if}</div>{:else if reviewRevealed}<div class="review-translation" role="status"><small>Translation</small><strong>{activeReview.translation ?? "Unavailable"}</strong></div>{/if}{#if reviewError}<div class="dialog-error" role="alert">{reviewError}</div>{/if}<div class="review-actions">{#if reviewResult}{#if reviewResult.repeatedForgetting}<button class="secondary" onclick={(event) => showDetail(activeReview.wordId, event.currentTarget)}>Review contexts</button>{/if}<button class="primary" onclick={nextReview}>Next</button>{:else if reviewRevealed}{#if reviewError && reviewSubmissionRating}<button class="primary" disabled={reviewSubmitting} onclick={retryReviewSubmission}>Retry {reviewSubmissionRating === "remembered" ? "Remembered" : "Forgot"}</button>{:else}<button class="secondary" disabled={reviewSubmitting} onclick={() => rateReview("forgot")}>Forgot</button><button class="primary" disabled={reviewSubmitting} onclick={() => rateReview("remembered")}>Remembered</button>{/if}{:else}<button class="primary" onclick={revealReview}>Show answer</button>{/if}</div></div>
-        {:else if reviewComplete}
-          <div class="state"><h2>Review complete</h2><span>Today is refreshed. Your next due dates come from the shared review schedule.</span><button class="primary" onclick={() => (route = "Today")}>Back to Today</button></div>
+        {:else if reviewComplete && reviewSessionInsight}
+          <div class="state" aria-live="polite"><h2 tabindex="-1" bind:this={reviewCompleteHeading}>Review complete</h2><strong>{reviewSessionInsight.reviewedCount} reviewed</strong><span>{reviewSessionInsight.rememberedCount} remembered · {reviewSessionInsight.forgottenCount} forgot</span><span>Estimated due by the end of tomorrow: {reviewSessionInsight.nextDayDueCount}</span>{#if reviewSessionInsight.attentionWordIds.length}<div><strong>Worth another context</strong>{#each reviewSessionInsight.attentionWordIds as wordId}<span>{attentionLabel(wordId)} may benefit from another context or a translation check.</span>{/each}</div>{/if}<button class="primary" onclick={returnToToday}>Back to Today</button></div>
         {:else if reviewRefreshRequired}
           <div class="state"><strong>{reviewCompleting ? "Review saved" : "Review paused"}</strong><span>Refresh Today before continuing so the due queue stays current.</span><button class="primary" onclick={retryReviewRefresh}>Retry Review refresh</button></div>
         {:else if today?.reviewQueue.length}

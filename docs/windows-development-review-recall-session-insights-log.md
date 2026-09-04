@@ -201,3 +201,64 @@ duplicate durable Review events.
 Ticket 05 can accumulate each successful Review result once, summarize the
 session in shared application logic, calculate the next local calendar day's
 expected workload, and render the resulting Insight in the Windows Review page.
+
+## Ticket 05 — Complete Review with a Session Insight
+
+### Implemented
+
+- Added a portable Review Session Insight with reviewed, remembered, forgotten,
+  repeated-forgetting attention IDs, and next-day due counts.
+- Added shared application aggregation over successfully persisted Review
+  results and the persisted vocabulary schedule.
+- Accumulated each successful Windows session result once across pause/resume
+  and ambiguous-response retries.
+- Replaced the generic completion message with totals, a clearly labelled
+  next-day estimate, and neutral attention guidance.
+- Refreshed persisted Today state both when completing and when returning to
+  Today, with a focused completion heading for keyboard and assistive use.
+
+### Key design decisions
+
+- Windows supplies the end of the next local calendar day as a UTC instant;
+  shared application logic evaluates the portable due schedule against it.
+- The estimate includes every Learning Vocabulary Item due by that boundary,
+  including any backlog remaining beyond today's configured plan.
+- Shared Rust returns IDs and counts; Windows maps attention IDs to session card
+  labels and owns all explanatory prose.
+- Only resolved Review results enter the session array, and word IDs are
+  de-duplicated before aggregation.
+
+### Main files changed
+
+- Portable Review Session Insight view model.
+- Shared application aggregation and tests.
+- Desktop command registration and command contract.
+- TypeScript backend contract, demo implementation, and frontend types.
+- Windows completion flow, focus behavior, and presentation tests.
+
+### Tests run
+
+- TDD red/green: `session_insight_counts_successful_results_and_next_day_workload` failed before the shared application method and then passed.
+- `cargo fmt --all -- --check`: passed after formatting.
+- `cargo clippy --workspace --exclude vocab-platform-macos --exclude vocab-platform-linux --exclude vocab-desktop -- -D warnings`: passed.
+- `cargo test --workspace --exclude vocab-platform-macos --exclude vocab-platform-linux --exclude vocab-desktop`: passed; live provider tests and the opt-in physical Windows UIA test remained ignored by design.
+- `cargo check -p vocab-platform-macos -p vocab-platform-linux`: passed on the Windows host as compile-only adapter checks.
+- `cargo check -p vocab-desktop --tests`: passed.
+- `pnpm test -- --run`: 76 passed.
+- `pnpm --dir ui check`: 0 errors and 0 warnings.
+- `pnpm --dir ui build`: passed.
+
+### Not yet verified
+
+- The Windows completion layout, native focus behavior, screen-reader output,
+  and local-midnight boundary have not been exercised manually in the physical
+  Windows desktop runtime.
+- macOS UI behavior and runtime remain intentionally out of scope and are not
+  marked as verified; only its Rust adapter compiled on this host.
+- Live Azure and DeepL provider tests remain opt-in and were not run.
+
+### Next ticket starting point
+
+All five tracer-bullet tickets are implemented. The next step is a final
+standards/spec review of the complete branch, followed by any review fixes and
+a physical Windows runtime acceptance pass by the developer.

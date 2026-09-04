@@ -12,8 +12,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use vocab_domain::{
     CaptureCard, CaptureOrigin, EncounterRepository, RepositoryError, ReviewCard, ReviewLog,
-    ReviewRating, ReviewResult, SettingsRepository, TodayView, UserSettings, WordDetail,
-    WordListItem, WordRepository, apply_review, build_review_queue,
+    ReviewRating, ReviewResult, ReviewSessionInsight, SettingsRepository, TodayView, UserSettings,
+    WordDetail, WordListItem, WordRepository, apply_review, build_review_queue,
 };
 use vocab_storage::{CaptureRecord, SqliteStore};
 
@@ -199,7 +199,10 @@ impl AppService {
     ) -> Result<ReviewResult, ApplicationError> {
         let review_history =
             vocab_domain::ReviewRepository::list_for_word(self.store.as_ref(), word_id)?;
-        if let Some(existing) = review_history.iter().find(|review| review.id == submission_id) {
+        if let Some(existing) = review_history
+            .iter()
+            .find(|review| review.id == submission_id)
+        {
             if existing.word_id != word_id || existing.rating != rating {
                 return Err(ApplicationError::ReviewSubmissionConflict);
             }
@@ -208,13 +211,22 @@ impl AppService {
             let current = word.review_state.ok_or(ApplicationError::WordNotFound)?;
             let encounter_count = self.store.list_for_word(word_id)?.len();
             let consecutive_forgotten = review_history
-                .iter().rev().take_while(|review| review.rating == ReviewRating::Forgot).count();
+                .iter()
+                .rev()
+                .take_while(|review| review.rating == ReviewRating::Forgot)
+                .count();
             return Ok(ReviewResult {
-                word_id, rating, reviewed_at: existing.reviewed_at,
-                previous_due_at: current.due_at, next_due_at: current.due_at,
-                previous_stability: current.stability, stability: current.stability,
-                difficulty: current.difficulty, lapse_count: current.lapse_count,
-                encounter_count, repeated_forgetting: consecutive_forgotten >= 3,
+                word_id,
+                rating,
+                reviewed_at: existing.reviewed_at,
+                previous_due_at: current.due_at,
+                next_due_at: current.due_at,
+                previous_stability: current.stability,
+                stability: current.stability,
+                difficulty: current.difficulty,
+                lapse_count: current.lapse_count,
+                encounter_count,
+                repeated_forgetting: consecutive_forgotten >= 3,
             });
         }
         let mut word = WordRepository::get(self.store.as_ref(), word_id)?
@@ -271,6 +283,33 @@ impl AppService {
         let mut settings = SettingsRepository::get(self.store.as_ref())?;
         settings.normalize_languages();
         Ok(settings)
+    }
+
+    pub fn get_review_session_insight(
+        &self,
+        results: &[ReviewResult],
+        next_day_end: DateTime<Utc>,
+    ) -> Result<ReviewSessionInsight, ApplicationError> {
+        let words = self.store.list()?;
+        let remembered_count = results
+            .iter()
+            .filter(|result| result.rating == ReviewRating::Remembered)
+            .count();
+        let forgotten_count = results
+            .iter()
+            .filter(|result| result.rating == ReviewRating::Forgot)
+            .count();
+        Ok(ReviewSessionInsight {
+            reviewed_count: results.len(),
+            remembered_count,
+            forgotten_count,
+            attention_word_ids: results
+                .iter()
+                .filter(|result| result.repeated_forgetting)
+                .map(|result| result.word_id)
+                .collect(),
+            next_day_due_count: build_review_queue(&words, next_day_end, usize::MAX).len(),
+        })
     }
 
     pub fn update_settings(&self, mut settings: UserSettings) -> Result<(), ApplicationError> {

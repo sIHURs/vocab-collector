@@ -129,6 +129,14 @@ export interface ReviewResult {
   repeatedForgetting: boolean;
 }
 
+export interface ReviewSessionInsight {
+  reviewedCount: number;
+  rememberedCount: number;
+  forgottenCount: number;
+  attentionWordIds: string[];
+  nextDayDueCount: number;
+}
+
 export interface TodayView {
   totalDueCount: number;
   plannedReviewCount: number;
