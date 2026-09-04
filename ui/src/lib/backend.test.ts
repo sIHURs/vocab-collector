@@ -33,4 +33,19 @@ describe("browser backend contract", () => {
 
     expect((await backend.getToday()).totalDueCount).toBe(today.totalDueCount - 1);
   });
+
+  it("summarizes each persisted review submission only once", async () => {
+    const backend = new DemoBackend(true);
+    const today = await backend.getToday();
+    const result = await backend.submitReview(today.reviewQueue[0].wordId, "remembered", "submission-1");
+    const nextDayEnd = new Date(Date.now() + 2 * 86_400_000).toISOString();
+
+    const insight = await backend.getReviewSessionInsight(
+      [result.submissionId, result.submissionId, "unknown"], nextDayEnd
+    );
+
+    expect(insight.reviewedCount).toBe(1);
+    expect(insight.rememberedCount).toBe(1);
+    expect(insight.forgottenCount).toBe(0);
+  });
 });

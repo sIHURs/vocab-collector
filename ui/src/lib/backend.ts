@@ -155,7 +155,7 @@ export class DemoBackend implements Backend {
     return { ...result };
   }
   async getReviewSessionInsight(submissionIds: string[], nextDayEnd: string): Promise<ReviewSessionInsight> {
-    const results = submissionIds
+    const results = [...new Set(submissionIds)]
       .map((submissionId) => this.reviewSubmissions.get(submissionId))
       .filter((result): result is ReviewResult => Boolean(result));
     return {
@@ -165,7 +165,7 @@ export class DemoBackend implements Backend {
       attentionWordIds: results.filter((result) => result.repeatedForgetting).map((result) => result.wordId),
       nextDayDueCount: this.words.filter((word) =>
         word.item.status === "learning" && Boolean(word.item.nextReviewAt) &&
-        new Date(word.item.nextReviewAt!).getTime() <= new Date(nextDayEnd).getTime()).length,
+        new Date(word.item.nextReviewAt!).getTime() < new Date(nextDayEnd).getTime()).length,
     };
   }
   async getSettings() { return { ...this.settings }; }

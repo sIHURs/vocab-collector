@@ -274,5 +274,8 @@ a physical Windows runtime acceptance pass by the developer.
   next-day cutoff an exclusive boundary.
 - Added SQLite schema version 3 with a nullable result payload so existing
   databases migrate without rewriting historical Review Logs.
+- Aligned the demo backend with the persisted contract by de-duplicating
+  submission IDs and using the same exclusive next-day cutoff.
 - Re-ran application (13 passed), storage migration/repository (8 passed),
-  desktop contract, Windows UI (24 passed), and Svelte checks after correction.
+  desktop contract, complete frontend suite (77 passed), Svelte checks, and the
+  production UI build after correction.
