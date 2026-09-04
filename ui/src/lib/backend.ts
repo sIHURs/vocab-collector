@@ -13,7 +13,7 @@ export interface Backend {
   listWords(): Promise<WordListItem[]>;
   getWord(wordId: string): Promise<WordDetail>;
   submitReview(wordId: string, rating: ReviewRating, submissionId?: string): Promise<ReviewResult>;
-  getReviewSessionInsight(results: ReviewResult[], nextDayEnd: string): Promise<ReviewSessionInsight>;
+  getReviewSessionInsight(submissionIds: string[], nextDayEnd: string): Promise<ReviewSessionInsight>;
   getSettings(): Promise<Settings>;
   updateSettings(settings: Settings): Promise<void>;
   replaceShortcut(candidate: string): Promise<Settings>;
@@ -147,14 +147,17 @@ export class DemoBackend implements Backend {
     const nextDueAt = new Date(Date.now() + (rating === "forgot" ? 86_400_000 : 259_200_000)).toISOString();
     word.due = false;
     word.item.nextReviewAt = nextDueAt;
-    const result = { wordId, rating, reviewedAt, previousDueAt, nextDueAt,
+    const result = { submissionId, wordId, rating, reviewedAt, previousDueAt, nextDueAt,
       previousStability: 1, stability: rating === "forgot" ? 0.5 : 3,
       difficulty: rating === "forgot" ? 5.5 : 4.85, lapseCount: rating === "forgot" ? 1 : 0,
       encounterCount: word.encounters.length, repeatedForgetting: false };
     this.reviewSubmissions.set(submissionId, result);
     return { ...result };
   }
-  async getReviewSessionInsight(results: ReviewResult[], nextDayEnd: string): Promise<ReviewSessionInsight> {
+  async getReviewSessionInsight(submissionIds: string[], nextDayEnd: string): Promise<ReviewSessionInsight> {
+    const results = submissionIds
+      .map((submissionId) => this.reviewSubmissions.get(submissionId))
+      .filter((result): result is ReviewResult => Boolean(result));
     return {
       reviewedCount: results.length,
       rememberedCount: results.filter((result) => result.rating === "remembered").length,
@@ -193,8 +196,8 @@ class TauriBackend implements Backend {
   submitReview(wordId: string, rating: ReviewRating, submissionId = id()) {
     return invoke<ReviewResult>("submit_review", { submissionId, wordId, rating });
   }
-  getReviewSessionInsight(results: ReviewResult[], nextDayEnd: string) {
-    return invoke<ReviewSessionInsight>("get_review_session_insight", { results, nextDayEnd });
+  getReviewSessionInsight(submissionIds: string[], nextDayEnd: string) {
+    return invoke<ReviewSessionInsight>("get_review_session_insight", { submissionIds, nextDayEnd });
   }
   getSettings() { return invoke<Settings>("get_settings"); }
   updateSettings(settings: Settings) { return invoke<void>("update_settings", { settings }); }

@@ -138,6 +138,7 @@ fn retrying_one_logical_review_submission_is_idempotent() {
 
     assert_eq!(retry.word_id, first.word_id);
     assert_eq!(retry.rating, first.rating);
+    assert_eq!(retry, first);
     assert_eq!(word_after_retry.review_state, word_after_first.review_state);
     assert_eq!(
         ReviewRepository::list_for_word(store.as_ref(), card.word_id)
@@ -157,14 +158,32 @@ fn session_insight_counts_successful_results_and_next_day_workload() {
     let remembered = service
         .submit_review(first.word_id, ReviewRating::Remembered, reviewed_at)
         .unwrap();
-    let mut forgot = service
+    service
+        .submit_review(
+            second.word_id,
+            ReviewRating::Forgot,
+            reviewed_at - chrono::Duration::days(2),
+        )
+        .unwrap();
+    service
+        .submit_review(
+            second.word_id,
+            ReviewRating::Forgot,
+            reviewed_at - chrono::Duration::days(1),
+        )
+        .unwrap();
+    let forgot = service
         .submit_review(second.word_id, ReviewRating::Forgot, reviewed_at)
         .unwrap();
-    forgot.repeated_forgetting = true;
 
     let insight = service
         .get_review_session_insight(
-            &[remembered, forgot],
+            &[
+                remembered.submission_id,
+                remembered.submission_id,
+                Uuid::now_v7(),
+                forgot.submission_id,
+            ],
             Utc.with_ymd_and_hms(2026, 8, 27, 0, 0, 0).unwrap(),
         )
         .unwrap();

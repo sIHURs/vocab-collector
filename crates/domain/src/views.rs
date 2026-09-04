@@ -40,6 +40,7 @@ pub struct ReviewCard {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReviewResult {
+    pub submission_id: Uuid,
     pub word_id: Uuid,
     pub rating: ReviewRating,
     pub reviewed_at: DateTime<Utc>,

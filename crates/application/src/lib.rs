@@ -5,7 +5,7 @@
 pub mod debug;
 mod platform_capture;
 
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -13,7 +13,8 @@ use uuid::Uuid;
 use vocab_domain::{
     CaptureCard, CaptureOrigin, EncounterRepository, RepositoryError, ReviewCard, ReviewLog,
     ReviewRating, ReviewResult, ReviewSessionInsight, SettingsRepository, TodayView, UserSettings,
-    WordDetail, WordListItem, WordRepository, apply_review, build_review_queue,
+    WordDetail, WordListItem, WordRepository, WordStatus, apply_review, build_review_queue,
+    summarize_review_session,
 };
 use vocab_storage::{CaptureRecord, SqliteStore};
 
@@ -206,28 +207,10 @@ impl AppService {
             if existing.word_id != word_id || existing.rating != rating {
                 return Err(ApplicationError::ReviewSubmissionConflict);
             }
-            let word = WordRepository::get(self.store.as_ref(), word_id)?
-                .ok_or(ApplicationError::WordNotFound)?;
-            let current = word.review_state.ok_or(ApplicationError::WordNotFound)?;
-            let encounter_count = self.store.list_for_word(word_id)?.len();
-            let consecutive_forgotten = review_history
-                .iter()
-                .rev()
-                .take_while(|review| review.rating == ReviewRating::Forgot)
-                .count();
-            return Ok(ReviewResult {
-                word_id,
-                rating,
-                reviewed_at: existing.reviewed_at,
-                previous_due_at: current.due_at,
-                next_due_at: current.due_at,
-                previous_stability: current.stability,
-                stability: current.stability,
-                difficulty: current.difficulty,
-                lapse_count: current.lapse_count,
-                encounter_count,
-                repeated_forgetting: consecutive_forgotten >= 3,
-            });
+            return existing
+                .result
+                .clone()
+                .ok_or(ApplicationError::ReviewSubmissionConflict);
         }
         let mut word = WordRepository::get(self.store.as_ref(), word_id)?
             .ok_or(ApplicationError::WordNotFound)?;
@@ -243,6 +226,35 @@ impl AppService {
             });
         word.review_state = Some(apply_review(Some(&prior), rating, reviewed_at));
         word.updated_at = reviewed_at;
+        let encounter_count = self.store.list_for_word(word_id)?.len();
+        let consecutive_forgotten = if rating == ReviewRating::Forgot {
+            review_history
+                .iter()
+                .rev()
+                .take_while(|review| review.rating == ReviewRating::Forgot)
+                .count()
+                + 1
+        } else {
+            0
+        };
+        let state = word
+            .review_state
+            .as_ref()
+            .expect("review state was assigned");
+        let result = ReviewResult {
+            submission_id,
+            word_id,
+            rating,
+            reviewed_at,
+            previous_due_at: prior.due_at,
+            next_due_at: state.due_at,
+            previous_stability: prior.stability,
+            stability: state.stability,
+            difficulty: state.difficulty,
+            lapse_count: state.lapse_count,
+            encounter_count,
+            repeated_forgetting: consecutive_forgotten >= 3,
+        };
         let review = ReviewLog {
             id: submission_id,
             word_id,
@@ -250,33 +262,10 @@ impl AppService {
             reviewed_at,
             received_at: reviewed_at,
             device_id: self.device_id,
+            result: Some(result.clone()),
         };
         self.store.record_review(&word, &review)?;
-        let encounter_count = self.store.list_for_word(word_id)?.len();
-        let review_history =
-            vocab_domain::ReviewRepository::list_for_word(self.store.as_ref(), word_id)?;
-        let consecutive_forgotten = review_history
-            .iter()
-            .rev()
-            .take_while(|review| review.rating == ReviewRating::Forgot)
-            .count();
-        let result = word
-            .review_state
-            .as_ref()
-            .expect("review state was assigned");
-        Ok(ReviewResult {
-            word_id,
-            rating,
-            reviewed_at,
-            previous_due_at: prior.due_at,
-            next_due_at: result.due_at,
-            previous_stability: prior.stability,
-            stability: result.stability,
-            difficulty: result.difficulty,
-            lapse_count: result.lapse_count,
-            encounter_count,
-            repeated_forgetting: consecutive_forgotten >= 3,
-        })
+        Ok(result)
     }
 
     pub fn get_settings(&self) -> Result<UserSettings, ApplicationError> {
@@ -287,29 +276,37 @@ impl AppService {
 
     pub fn get_review_session_insight(
         &self,
-        results: &[ReviewResult],
+        submission_ids: &[Uuid],
         next_day_end: DateTime<Utc>,
     ) -> Result<ReviewSessionInsight, ApplicationError> {
         let words = self.store.list()?;
-        let remembered_count = results
+        let requested: HashSet<_> = submission_ids.iter().copied().collect();
+        let mut results = Vec::new();
+        let mut seen = HashSet::new();
+        for word in &words {
+            for review in
+                vocab_domain::ReviewRepository::list_for_word(self.store.as_ref(), word.id)?
+            {
+                if requested.contains(&review.id)
+                    && seen.insert(review.id)
+                    && let Some(result) = review.result
+                {
+                    results.push(result);
+                }
+            }
+        }
+        let next_day_due_count = words
             .iter()
-            .filter(|result| result.rating == ReviewRating::Remembered)
+            .filter(|word| {
+                word.deleted_at.is_none()
+                    && word.status == WordStatus::Learning
+                    && word
+                        .review_state
+                        .as_ref()
+                        .is_some_and(|state| state.due_at < next_day_end)
+            })
             .count();
-        let forgotten_count = results
-            .iter()
-            .filter(|result| result.rating == ReviewRating::Forgot)
-            .count();
-        Ok(ReviewSessionInsight {
-            reviewed_count: results.len(),
-            remembered_count,
-            forgotten_count,
-            attention_word_ids: results
-                .iter()
-                .filter(|result| result.repeated_forgetting)
-                .map(|result| result.word_id)
-                .collect(),
-            next_day_due_count: build_review_queue(&words, next_day_end, usize::MAX).len(),
-        })
+        Ok(summarize_review_session(&results, next_day_due_count))
     }
 
     pub fn update_settings(&self, mut settings: UserSettings) -> Result<(), ApplicationError> {

@@ -262,3 +262,17 @@ expected workload, and render the resulting Insight in the Windows Review page.
 All five tracer-bullet tickets are implemented. The next step is a final
 standards/spec review of the complete branch, followed by any review fixes and
 a physical Windows runtime acceptance pass by the developer.
+
+### Post-review corrections
+
+- Persisted the complete Review result with its Review Log so an idempotent
+  replay returns exactly the original scheduling facts.
+- Changed Session Insight input from caller-supplied result objects to opaque
+  submission IDs; shared application logic now resolves, validates, and
+  de-duplicates only persisted Review Logs.
+- Moved result aggregation into a portable domain function and made the
+  next-day cutoff an exclusive boundary.
+- Added SQLite schema version 3 with a nullable result payload so existing
+  databases migrate without rewriting historical Review Logs.
+- Re-ran application (13 passed), storage migration/repository (8 passed),
+  desktop contract, Windows UI (24 passed), and Svelte checks after correction.

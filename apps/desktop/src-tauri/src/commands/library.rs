@@ -68,12 +68,12 @@ pub fn submit_review(
 #[tauri::command]
 pub fn get_review_session_insight(
     state: State<'_, AppState>,
-    results: Vec<ReviewResult>,
+    submission_ids: Vec<Uuid>,
     next_day_end: chrono::DateTime<Utc>,
 ) -> Result<ReviewSessionInsight, String> {
     state
         .application()
-        .get_review_session_insight(&results, next_day_end)
+        .get_review_session_insight(&submission_ids, next_day_end)
         .map_err(|error| error.to_string())
 }
 

@@ -265,7 +265,9 @@
         nextDayEnd.setDate(nextDayEnd.getDate() + 2);
         nextDayEnd.setHours(0, 0, 0, 0);
         try {
-          reviewSessionInsight = await api.getReviewSessionInsight(reviewSessionResults, nextDayEnd.toISOString());
+          reviewSessionInsight = await api.getReviewSessionInsight(
+            reviewSessionResults.map((result) => result.submissionId), nextDayEnd.toISOString()
+          );
         } catch (cause) {
           reviewError = cause instanceof Error ? cause.message : String(cause);
           return;

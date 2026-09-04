@@ -114,7 +114,7 @@ impl ReviewRating {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReviewLog {
     pub id: Uuid,
@@ -123,6 +123,8 @@ pub struct ReviewLog {
     pub reviewed_at: DateTime<Utc>,
     pub received_at: DateTime<Utc>,
     pub device_id: Uuid,
+    #[serde(default)]
+    pub result: Option<crate::ReviewResult>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]

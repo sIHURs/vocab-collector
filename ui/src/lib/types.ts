@@ -116,6 +116,7 @@ export interface ReviewCard {
 }
 
 export interface ReviewResult {
+  submissionId: string;
   wordId: string;
   rating: ReviewRating;
   reviewedAt: string;

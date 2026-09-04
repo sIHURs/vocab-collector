@@ -129,6 +129,26 @@ impl SqliteStore {
                 )
                 .map_err(repo_error)?;
         }
+        let has_review_result = {
+            let mut statement = connection
+                .prepare("PRAGMA table_info(review_logs)")
+                .map_err(repo_error)?;
+            statement
+                .query_map([], |row| row.get::<_, String>(1))
+                .map_err(repo_error)?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(repo_error)?
+                .iter()
+                .any(|column| column == "result_payload")
+        };
+        if !has_review_result {
+            connection
+                .execute_batch(
+                    "ALTER TABLE review_logs ADD COLUMN result_payload TEXT;
+                     PRAGMA user_version = 3;",
+                )
+                .map_err(repo_error)?;
+        }
         Ok(Self {
             connection: Mutex::new(connection),
         })
@@ -280,8 +300,8 @@ impl SqliteStore {
         let key = dedupe_key(&word.lemma, &word.source_language, &word.target_language);
         insert_word(&tx, &key, word)?;
         tx.execute(
-            "INSERT INTO review_logs(id, word_id, rating, reviewed_at, received_at, device_id)
-             VALUES(?1, ?2, ?3, ?4, ?5, ?6)",
+            "INSERT INTO review_logs(id, word_id, rating, reviewed_at, received_at, device_id, result_payload)
+             VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7)",
             params![
                 review.id.to_string(),
                 review.word_id.to_string(),
@@ -289,6 +309,7 @@ impl SqliteStore {
                 review.reviewed_at.to_rfc3339(),
                 review.received_at.to_rfc3339(),
                 review.device_id.to_string(),
+                review.result.as_ref().map(serde_json::to_string).transpose().map_err(repo_error)?,
             ],
         )
         .map_err(repo_error)?;
@@ -439,8 +460,8 @@ impl ReviewRepository for SqliteStore {
         let mut connection = self.lock()?;
         let tx = connection.transaction().map_err(repo_error)?;
         tx.execute(
-            "INSERT INTO review_logs(id, word_id, rating, reviewed_at, received_at, device_id)
-             VALUES(?1, ?2, ?3, ?4, ?5, ?6)",
+            "INSERT INTO review_logs(id, word_id, rating, reviewed_at, received_at, device_id, result_payload)
+             VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7)",
             params![
                 review.id.to_string(),
                 review.word_id.to_string(),
@@ -448,6 +469,7 @@ impl ReviewRepository for SqliteStore {
                 review.reviewed_at.to_rfc3339(),
                 review.received_at.to_rfc3339(),
                 review.device_id.to_string(),
+                review.result.as_ref().map(serde_json::to_string).transpose().map_err(repo_error)?,
             ],
         )
         .map_err(repo_error)?;
@@ -466,7 +488,7 @@ impl ReviewRepository for SqliteStore {
         let connection = self.lock()?;
         let mut statement = connection
             .prepare(
-                "SELECT id, word_id, rating, reviewed_at, received_at, device_id
+                "SELECT id, word_id, rating, reviewed_at, received_at, device_id, result_payload
                  FROM review_logs WHERE word_id = ?1 ORDER BY reviewed_at",
             )
             .map_err(repo_error)?;
@@ -479,6 +501,10 @@ impl ReviewRepository for SqliteStore {
                     reviewed_at: parse_time(row.get::<_, String>(3)?)?,
                     received_at: parse_time(row.get::<_, String>(4)?)?,
                     device_id: parse_uuid(row.get::<_, String>(5)?)?,
+                    result: row
+                        .get::<_, Option<String>>(6)?
+                        .map(|payload| parse_json(&payload))
+                        .transpose()?,
                 })
             })
             .map_err(repo_error)?
