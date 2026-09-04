@@ -30,7 +30,6 @@ const capabilities = (screenshotOcr: boolean) => ({
   translation: true,
   nonActivatingWindow: true,
 });
-
 const candidate = (selectedText: string) => ({
   selectedText,
   sentence: `Context for ${selectedText}.`,
@@ -244,7 +243,7 @@ describe("floating capture request freshness", () => {
     mocks.handlers.get("capture-error")?.({ payload: {
       requestId: "request-a", code: "empty_selection", message: "Nothing selected",
     } });
-    await fireEvent.click(await screen.findByRole("button", { name: "Use OCR near pointer" }));
+    await fireEvent.click(await screen.findByRole("button", { name: "Start Region OCR" }));
 
     mocks.handlers.get("capture-ready")?.({
       payload: { requestId: "request-b", candidate: candidate("current") },
@@ -252,7 +251,7 @@ describe("floating capture request freshness", () => {
     permission.resolve("granted");
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    expect(mocks.invoke).not.toHaveBeenCalledWith("capture_with_ocr", expect.anything());
+    expect(mocks.invoke).not.toHaveBeenCalledWith("start_region_ocr_capture", expect.anything());
     expect(screen.getByText("current")).toBeVisible();
   });
 
@@ -269,12 +268,12 @@ describe("floating capture request freshness", () => {
     mocks.handlers.get("capture-error")?.({ payload: {
       requestId: "request-a", code: "empty_selection", message: "Nothing selected",
     } });
-    await fireEvent.click(await screen.findByRole("button", { name: "Use OCR near pointer" }));
+    await fireEvent.click(await screen.findByRole("button", { name: "Start Region OCR" }));
     unmount();
     permission.resolve("granted");
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    expect(mocks.invoke.mock.calls.filter(([command]) => command === "capture_with_ocr")).toHaveLength(0);
+    expect(mocks.invoke.mock.calls.filter(([command]) => command === "start_region_ocr_capture")).toHaveLength(0);
   });
 
   it("does not publish a late OCR failure over a newer capture", async () => {
@@ -283,7 +282,7 @@ describe("floating capture request freshness", () => {
     const currentSettings = deferred<{ sourceLanguage: string; targetLanguage: string }>();
     mocks.invoke.mockImplementation((command: string) => {
       if (command === "request_screen_recording_permission") return Promise.resolve("granted");
-      if (command === "capture_with_ocr") return ocr.promise;
+      if (command === "start_region_ocr_capture") return ocr.promise;
       if (command === "get_settings") return currentSettings.promise;
       return Promise.resolve();
     });
@@ -293,10 +292,8 @@ describe("floating capture request freshness", () => {
     mocks.handlers.get("capture-error")?.({ payload: {
       requestId: "request-a", code: "empty_selection", message: "Nothing selected",
     } });
-    await fireEvent.click(await screen.findByRole("button", { name: "Use OCR near pointer" }));
-    await waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith(
-      "capture_with_ocr", { requestId: "request-a" },
-    ));
+    await fireEvent.click(await screen.findByRole("button", { name: "Start Region OCR" }));
+    await waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith("start_region_ocr_capture"));
 
     mocks.handlers.get("capture-ready")?.({
       payload: { requestId: "request-b", candidate: candidate("current") },
@@ -412,7 +409,7 @@ describe("floating capture request freshness", () => {
     } });
 
     expect(await screen.findByRole("button", { name: "Allow Accessibility" })).toBeVisible();
-    expect(screen.queryByRole("button", { name: "Use OCR near pointer" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Start Region OCR" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Save without translation" })).not.toBeInTheDocument();
   });
 
@@ -428,7 +425,7 @@ describe("floating capture request freshness", () => {
     } });
 
     expect(await screen.findByText("noSelection")).toBeVisible();
-    expect(screen.queryByRole("button", { name: "Use OCR near pointer" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Start Region OCR" })).not.toBeInTheDocument();
   });
 
   it("offers OCR for empty_selection when the reported capability allows it", async () => {
@@ -443,7 +440,7 @@ describe("floating capture request freshness", () => {
       message: "Nothing selected",
     } });
 
-    expect(await screen.findByRole("button", { name: "Use OCR near pointer" })).toBeVisible();
+    expect(await screen.findByRole("button", { name: "Start Region OCR" })).toBeVisible();
   });
 
   it("keeps the screen-recording permission action typed by the OCR command path", async () => {
@@ -461,7 +458,7 @@ describe("floating capture request freshness", () => {
       message: "Nothing selected",
     } });
 
-    await fireEvent.click(await screen.findByRole("button", { name: "Use OCR near pointer" }));
+    await fireEvent.click(await screen.findByRole("button", { name: "Start Region OCR" }));
 
     expect(await screen.findByRole("button", { name: "Allow Screen Recording" })).toBeVisible();
     expect(screen.queryByRole("button", { name: "Allow Accessibility" })).not.toBeInTheDocument();
@@ -557,7 +554,8 @@ describe("floating capture request freshness", () => {
 
     expect(await screen.findByText(/accessibilityPermissionRequired/)).toBeVisible();
     expect(screen.queryByRole("button", { name: "Allow Accessibility" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Use OCR near pointer" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Start Region OCR" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Save without translation" })).not.toBeInTheDocument();
   });
 });
+

@@ -4,6 +4,7 @@ import type { CaptureCandidate, CaptureCard, CaptureFailure, PlatformCapabilitie
 
 export type CaptureReady = { requestId: string; candidate: CaptureCandidate };
 export type CaptureError = { requestId: string; failure: CaptureFailure };
+type CaptureErrorWire = { requestId: string; code: CaptureFailure["code"]; message: string };
 export type OcrCandidate = { text: string; bounds: { x: number; y: number; width: number; height: number }; confidence: number };
 export type OcrCandidatesReady = { requestId: string; candidates: OcrCandidate[]; ambiguous: boolean };
 export type RegionOcrStart = { requestId: string };
@@ -22,6 +23,7 @@ export interface WindowsCaptureBackend {
   undo(requestId: string, encounterId: string): Promise<void>;
   recognizeRegion(requestId: string, region: { x: number; y: number; width: number; height: number }): Promise<void>;
   startRegionOcr(): Promise<string>;
+  openManualCapture(): Promise<void>;
   confirmOcr(requestId: string, selectedText: string, sentence: string): Promise<void>;
   getCapabilities(): Promise<PlatformCapabilities>;
   getSettings(): Promise<Settings>;
@@ -30,7 +32,7 @@ export interface WindowsCaptureBackend {
 
 export const tauriWindowsCaptureBackend: WindowsCaptureBackend = {
   listenReady: (handler) => listen<CaptureReady>("capture-ready", ({ payload }) => handler(payload)),
-  listenError: (handler) => listen<CaptureError>("capture-error", ({ payload }) => handler(payload)),
+  listenError: (handler) => listen<CaptureErrorWire>("capture-error", ({ payload }) => handler({ requestId: payload.requestId, failure: { code: payload.code, message: payload.message } })),
   listenOcrCandidate: (handler) => listen<OcrCandidatesReady>("ocr-candidate", ({ payload }) => handler(payload)),
   listenRegionOcrStart: (handler) => listen<RegionOcrStart>("region-ocr-start", ({ payload }) => handler(payload)),
   focus: () => invoke("focus_capture_window"),
@@ -42,6 +44,7 @@ export const tauriWindowsCaptureBackend: WindowsCaptureBackend = {
   undo: (requestId, encounterId) => invoke("undo_native_capture", { requestId, encounterId }),
   recognizeRegion: (requestId, region) => invoke("capture_ocr_region", { requestId, region }),
   startRegionOcr: () => invoke<string>("start_region_ocr_capture"),
+  openManualCapture: () => invoke("open_manual_capture"),
   confirmOcr: (requestId, selectedText, sentence) => invoke("confirm_ocr", { requestId, selectedText, sentence }),
   getCapabilities: () => invoke("get_platform_capabilities"),
   getSettings: () => invoke("get_settings"),

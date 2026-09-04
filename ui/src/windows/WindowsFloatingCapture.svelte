@@ -18,6 +18,8 @@
   let translationTarget = "";
   let translationAvailable = false;
   let translationFailed = false;
+  let translationStale = false;
+  let lastTranslatedText = "";
   let saved: CaptureCard | null = null;
   let busy = false;
   let error = "";
@@ -76,6 +78,7 @@
     try {
       await captureBackend.apply(requestId, correction());
       if (!mounted || requestId !== activeRequest) return;
+      translationStale = Boolean(translation.trim()) && selectedText.trim() !== lastTranslatedText;
       editing = false;
     } catch (cause) {
       if (!mounted || requestId !== activeRequest) return;
@@ -120,6 +123,8 @@
       const result = await captureBackend.translate(requestId, text, currentSettings.sourceLanguage, currentSettings.targetLanguage);
       if (!mounted || requestId !== activeRequest) return;
       translation = result.translatedText;
+      lastTranslatedText = text;
+      translationStale = false;
       translationSource = result.sourceLanguage;
       translationTarget = result.targetLanguage;
       await captureBackend.apply(requestId, correction());
@@ -210,6 +215,11 @@
     }
   }
 
+  async function useManualCapture() {
+    await captureBackend.openManualCapture();
+    await cancel();
+  }
+
   function handleKeydown(event: KeyboardEvent) {
     if (event.key === "Escape") void cancel();
   }
@@ -227,6 +237,8 @@
       translationSource = "";
       translationTarget = "";
       translationFailed = false;
+      translationStale = false;
+      lastTranslatedText = "";
       saved = null;
       error = "";
       editing = false;
@@ -245,11 +257,10 @@
       saved = null;
       error = event.failure.message;
       ocrEligibleFailure = event.failure.code === "empty_selection" || event.failure.code === "unsupported_element";
-      ocrOffer = ocrAvailable && ocrEligibleFailure;
+      ocrOffer = ocrAvailable && (ocrEligibleFailure || ocrAttempted);
       ocrNeedsConfirmation = false;
       ocrCandidates = [];
       ocrBusy = false;
-      ocrAttempted = false;
     });
     const ocr = captureBackend.listenOcrCandidate((event) => {
       if (event.requestId !== activeRequest) return;
@@ -318,12 +329,14 @@
           <p class="notice">Automatic translation is unavailable. You can add a translation manually.</p>
         {/if}
         {#if translationFailed}<button class="secondary" disabled={busy} onclick={() => translateCandidate(activeRequest, selectedText.trim())}>Retry translation</button>{/if}
+        {#if translationStale}<p class="notice" role="status">Vocabulary changed. The translation may no longer match.</p><button class="secondary" disabled={busy} onclick={() => translateCandidate(activeRequest, selectedText.trim())}>Translate again</button>{/if}
         <button class="primary" disabled={busy} onclick={beginEditing}>Edit capture</button>
         <button class="secondary" disabled={busy} onclick={save}>Save capture</button>
       {/if}
     {:else if ocrOffer}
       <p role="alert">{error}</p>
-      <button class="primary" disabled={ocrBusy} onclick={startOcr}>{ocrBusy ? "Starting OCR..." : ocrAttempted ? "Retry OCR near pointer" : "Use OCR near pointer"}</button>
+      <button class="primary" disabled={ocrBusy} onclick={startOcr}>{ocrBusy ? "Starting OCR..." : ocrAttempted ? "Try Again" : "Start OCR"}</button>
+      <button class="secondary" onclick={useManualCapture}>Manual Capture</button>
       <button class="secondary" onclick={cancel}>Cancel</button>
     {:else}
       <p>{error || "Ready to capture selected text."}</p>

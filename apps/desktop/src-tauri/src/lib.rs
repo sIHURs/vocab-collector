@@ -333,6 +333,8 @@ pub fn run() {
             capture::request_screen_recording_permission,
             capture::capture_ocr_region,
             capture::cancel_region_ocr_capture,
+            capture::show_region_ocr_failure,
+            capture::open_manual_capture,
             capture::start_region_ocr_capture,
             capture::translate_text,
             capture::confirm_ocr,

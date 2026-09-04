@@ -263,7 +263,14 @@
   onMount(() => {
     let mounted = true;
     let unlisten: (() => void) | undefined;
+    let unlistenManualCapture: (() => void) | undefined;
     void refresh();
+    if (api.listenOpenManualCapture) {
+      void api.listenOpenManualCapture(() => { void openCapture(); }).then((nextUnlisten) => {
+        if (mounted) unlistenManualCapture = nextUnlisten;
+        else nextUnlisten();
+      });
+    }
     if (api.listenLibraryChanged) {
       void api.listenLibraryChanged(() => { void refresh(); }).then((nextUnlisten) => {
         if (mounted) unlisten = nextUnlisten;
@@ -274,6 +281,7 @@
       mounted = false;
       clearTimeout(settingsSavedTimer);
       unlisten?.();
+      unlistenManualCapture?.();
     };
   });
 </script>

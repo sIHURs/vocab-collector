@@ -4,10 +4,12 @@
 
 **Blocked by:** 05: Deliver editable OCR Confirmation.
 
-**Status:** ready-for-agent
+**Status:** complete
 
-- [ ] Confirmed Vocabulary can be translated, edited, retried, or saved without translation.
-- [ ] Editing Vocabulary never silently retranslates and exposes Translate Again.
-- [ ] Recognition failure offers Try Again and Manual Capture.
-- [ ] Save Capture persists once and existing Undo behavior remains available.
-- [ ] The pointer-centred OCR product path is removed.
+- [x] Confirmed Vocabulary can be translated, edited, retried, or saved without translation.
+- [x] Editing Vocabulary never silently retranslates and exposes Translate Again.
+- [x] Recognition failure offers Try Again and Manual Capture.
+- [x] Save Capture persists once and existing Undo behavior remains available.
+- [x] The pointer-centred OCR product path is removed.
+
+**Verification:** `pnpm --dir ui check`; 62 focused shared/Windows capture tests; `cargo test -p vocab-desktop` (38 tests).

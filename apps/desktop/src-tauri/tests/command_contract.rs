@@ -16,9 +16,9 @@ use vocab_desktop_lib::{
     commands::capture::{
         capture_ocr_region, capture_selected_text, close_capture_window, close_capture_window_for,
         confirm_ocr, correct_native_capture, get_permission_status, get_platform_capabilities,
-        hide_capture_window, hide_capture_window_for, hide_then_restore_focus,
+        hide_capture_window, hide_capture_window_for, hide_then_restore_focus, open_manual_capture,
         request_accessibility_permission, request_screen_recording_permission, save_native_capture,
-        start_region_ocr_capture, translate_text, undo_native_capture,
+        show_region_ocr_failure, start_region_ocr_capture, translate_text, undo_native_capture,
     },
     commands::presentation::get_presentation_family,
     events::{
@@ -60,6 +60,8 @@ fn capture_command_names_are_available_on_the_platform_neutral_surface() {
     let _ = request_screen_recording_permission;
     let _ = capture_ocr_region;
     let _ = start_region_ocr_capture;
+    let _ = show_region_ocr_failure;
+    let _ = open_manual_capture;
     let _ = translate_text;
     let _ = confirm_ocr;
     let _ = save_native_capture;

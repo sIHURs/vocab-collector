@@ -182,7 +182,7 @@
         failure = { code: "permission_required", message: "Screen Recording permission was requested. Enable it in System Settings, then try OCR again." };
         return;
       }
-      await invoke("capture_with_ocr", { requestId });
+      await invoke("start_region_ocr_capture");
     } catch (cause) {
       if (isActiveRequest(requestId)) failure = asCaptureFailure(cause);
     }
@@ -206,7 +206,7 @@
     <section class="capture-message"><strong>Capture needs attention</strong><p>{failure.message}</p>
       {#if failure.code === "permission_required" && permissionAction === "accessibility"}<button class="primary" onclick={grantAccessibility}>Allow Accessibility</button>{/if}
       {#if failure.code === "permission_required" && permissionAction === "screen_recording"}<button class="primary" onclick={useOcr}>Allow Screen Recording</button>{/if}
-      {#if failure.code === "empty_selection" && platformCapabilities.screenshotOcr}<button class="primary" onclick={useOcr}>Use OCR near pointer</button>{/if}
+      {#if failure.code === "empty_selection" && platformCapabilities.screenshotOcr}<button class="primary" onclick={useOcr}>Start Region OCR</button>{/if}
     </section>
   {:else if saved}
     <section class="capture-result"><span class="check">✓</span><div><small>Saved</small><h1>{saved.displayForm}</h1><strong>{saved.translation ?? "Translation pending"}</strong><p>“{saved.context}”</p><small>{saved.isExistingWord ? `Seen ${saved.encounterCount} times · New context saved` : "Added to your review queue"}</small></div></section>

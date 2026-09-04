@@ -14,8 +14,8 @@ use vocab_platform_api::{
 use crate::{
     bootstrap::AppState,
     events::{
-        CaptureFailure, LIBRARY_CHANGED_EVENT, NativeCaptureError, NativeCaptureEvent,
-        OcrCandidatesEvent, RegionOcrStartEvent,
+        CaptureFailure, CaptureFailureCode, LIBRARY_CHANGED_EVENT, NativeCaptureError,
+        NativeCaptureErrorEvent, NativeCaptureEvent, OcrCandidatesEvent, RegionOcrStartEvent,
     },
 };
 
@@ -475,6 +475,12 @@ pub(crate) fn present_region_ocr_capture(app: &tauri::AppHandle) -> Result<Uuid,
         .map_err(|error| CaptureFailure::operation(error.to_string()))?;
     state
         .publish_if_current(request_id, || {
+            app.emit_to(
+                "capture",
+                "region-ocr-start",
+                RegionOcrStartEvent { request_id },
+            )
+            .map_err(|error| error.to_string())?;
             overlay
                 .emit("region-ocr-start", RegionOcrStartEvent { request_id })
                 .map_err(|error| error.to_string())
@@ -482,6 +488,45 @@ pub(crate) fn present_region_ocr_capture(app: &tauri::AppHandle) -> Result<Uuid,
         .map_err(CaptureFailure::from)?
         .map_err(CaptureFailure::operation)?;
     Ok(request_id)
+}
+
+#[tauri::command]
+pub fn show_region_ocr_failure(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    request_id: Uuid,
+) -> Result<(), CaptureFailure> {
+    state
+        .publish_if_current(request_id, || {
+            let window = app
+                .get_webview_window("capture")
+                .ok_or_else(|| "capture window is unavailable".to_string())?;
+            window.show().map_err(|error| error.to_string())?;
+            window
+                .emit(
+                    "capture-error",
+                    NativeCaptureErrorEvent {
+                        request_id,
+                        code: CaptureFailureCode::Operation,
+                        message: "OCR did not find readable text".into(),
+                    },
+                )
+                .map_err(|error| error.to_string())
+        })
+        .map_err(CaptureFailure::from)?
+        .map_err(CaptureFailure::operation)
+}
+
+#[tauri::command]
+pub fn open_manual_capture(app: tauri::AppHandle) -> Result<(), CaptureFailure> {
+    let main = app
+        .get_webview_window("main")
+        .ok_or_else(|| CaptureFailure::operation("main window is unavailable"))?;
+    main.show()
+        .and_then(|()| main.set_focus())
+        .map_err(|error| CaptureFailure::operation(error.to_string()))?;
+    main.emit("open-manual-capture", ())
+        .map_err(|error| CaptureFailure::operation(error.to_string()))
 }
 
 #[tauri::command]

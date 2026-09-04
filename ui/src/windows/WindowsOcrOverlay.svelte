@@ -40,12 +40,16 @@
     }
     const window = getCurrentWindow();
     const [position, scale] = await Promise.all([window.outerPosition(), window.scaleFactor()]);
-    await invoke("capture_ocr_region", { requestId, region: {
-      x: position.x / scale + selected.x,
-      y: position.y / scale + selected.y,
-      width: selected.width,
-      height: selected.height,
-    }});
+    try {
+      await invoke("capture_ocr_region", { requestId, region: {
+        x: position.x / scale + selected.x,
+        y: position.y / scale + selected.y,
+        width: selected.width,
+        height: selected.height,
+      }});
+    } catch {
+      await invoke("show_region_ocr_failure", { requestId });
+    }
   }
 
   async function cancel() {

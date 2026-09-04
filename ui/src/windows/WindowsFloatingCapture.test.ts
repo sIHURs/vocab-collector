@@ -13,6 +13,7 @@ const mocks = {
   undo: vi.fn(async (_requestId: string, _encounterId: string) => {}),
   recognizeRegion: vi.fn(async () => {}),
   startRegionOcr: vi.fn(async () => "region-request"),
+  openManualCapture: vi.fn(async () => {}),
   confirmOcr: vi.fn(async (_requestId: string, _selectedText: string, _sentence: string) => {}),
   getCapabilities: vi.fn(async () => ({ selectionCapture: false, selectionBounds: false, screenshotOcr: true, translation: false, nonActivatingWindow: false })),
   getSettings: vi.fn(async () => ({ sourceLanguage: "auto", targetLanguage: "de", selectionCaptureShortcut: "Alt+Shift+V", regionOcrCaptureShortcut: "Alt+Shift+O", reviewTime: "18:00", dailyLimit: 20, recentCapturesLimit: 10, launchAtLogin: false, appearance: "system" as const, reducedMotion: false })),
@@ -34,6 +35,7 @@ const captureBackend: WindowsCaptureBackend = {
   undo: mocks.undo,
   recognizeRegion: mocks.recognizeRegion,
   startRegionOcr: mocks.startRegionOcr,
+  openManualCapture: mocks.openManualCapture,
   confirmOcr: mocks.confirmOcr,
   getCapabilities: mocks.getCapabilities,
   getSettings: mocks.getSettings,
@@ -55,6 +57,7 @@ describe("Windows floating capture presentation", () => {
     mocks.undo.mockClear();
     mocks.recognizeRegion.mockClear();
     mocks.startRegionOcr.mockClear();
+    mocks.openManualCapture.mockClear();
     mocks.confirmOcr.mockReset();
     mocks.confirmOcr.mockResolvedValue(undefined);
     mocks.getCapabilities.mockReset();
@@ -112,7 +115,7 @@ describe("Windows floating capture presentation", () => {
     await waitFor(() => expect(mocks.getCapabilities).toHaveBeenCalled());
     mocks.error?.({ requestId: "ocr-request", failure: { code: "empty_selection", message: "No selection" } });
 
-    await fireEvent.click(await screen.findByRole("button", { name: "Use OCR near pointer" }));
+    await fireEvent.click(await screen.findByRole("button", { name: "Start OCR" }));
     expect(mocks.startRegionOcr).toHaveBeenCalledTimes(1);
     const suggestion = { text: "serendipity", bounds: { x: 1, y: 2, width: 30, height: 12 }, confidence: 0.91 };
     mocks.ocr?.({ requestId: "ocr-request", candidates: [suggestion], ambiguous: false });
@@ -168,6 +171,35 @@ describe("Windows floating capture presentation", () => {
     expect(mocks.save).toHaveBeenCalledTimes(1);
   });
 
+  it("marks translation stale after Vocabulary changes and retranslates only on request", async () => {
+    mocks.getCapabilities.mockResolvedValue({ selectionCapture: false, selectionBounds: false, screenshotOcr: true, translation: true, nonActivatingWindow: false });
+    render(WindowsFloatingCapture, { captureBackend });
+    await waitFor(() => expect(mocks.ready).toBeTypeOf("function"));
+    mocks.ready?.({ requestId: "stale-translation", candidate: { selectedText: "nuance", sentence: "A nuance.", origin: "accessibility" } });
+    expect(await screen.findByText("Feinheit")).toBeVisible();
+
+    await fireEvent.click(screen.getByRole("button", { name: "Edit capture" }));
+    await fireEvent.input(screen.getByLabelText("Selected text"), { target: { value: "subtlety" } });
+    await fireEvent.click(screen.getByRole("button", { name: "Apply changes" }));
+
+    expect(await screen.findByText("Vocabulary changed. The translation may no longer match.")).toBeVisible();
+    expect(mocks.translate).toHaveBeenCalledTimes(1);
+    await fireEvent.click(screen.getByRole("button", { name: "Translate again" }));
+    await waitFor(() => expect(mocks.translate).toHaveBeenLastCalledWith("stale-translation", "subtlety", "auto", "de"));
+  });
+
+  it("recovers a Region OCR recognition failure with retry or Manual Capture", async () => {
+    render(WindowsFloatingCapture, { captureBackend });
+    await waitFor(() => expect(mocks.regionOcr).toBeTypeOf("function"));
+    mocks.regionOcr?.({ requestId: "ocr-failed" });
+    mocks.error?.({ requestId: "ocr-failed", failure: { code: "operation", message: "OCR did not find readable text" } });
+
+    expect(await screen.findByRole("button", { name: "Try Again" })).toBeEnabled();
+    await fireEvent.click(screen.getByRole("button", { name: "Manual Capture" }));
+    expect(mocks.openManualCapture).toHaveBeenCalledTimes(1);
+    expect(mocks.close).toHaveBeenCalledWith("ocr-failed");
+  });
+
   it("cancels OCR confirmation without saving", async () => {
     render(WindowsFloatingCapture, { captureBackend });
     await waitFor(() => expect(mocks.ocr).toBeTypeOf("function"));
@@ -209,10 +241,10 @@ describe("Windows floating capture presentation", () => {
     await waitFor(() => expect(mocks.error).toBeTypeOf("function"));
 
     mocks.error?.({ requestId: "capability-race", failure: { code: "empty_selection", message: "No selection" } });
-    expect(screen.queryByRole("button", { name: "Use OCR near pointer" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Start OCR" })).not.toBeInTheDocument();
     resolveCapabilities?.({ selectionCapture: false, selectionBounds: false, screenshotOcr: true, translation: false, nonActivatingWindow: false });
 
-    expect(await screen.findByRole("button", { name: "Use OCR near pointer" })).toBeVisible();
+    expect(await screen.findByRole("button", { name: "Start OCR" })).toBeVisible();
   });
 
   it("announces OCR progress and keeps the fallback recoverable when OCR fails", async () => {
@@ -221,10 +253,10 @@ describe("Windows floating capture presentation", () => {
     await waitFor(() => expect(mocks.error).toBeTypeOf("function"));
     mocks.error?.({ requestId: "ocr-retry", failure: { code: "empty_selection", message: "No selection" } });
 
-    await fireEvent.click(await screen.findByRole("button", { name: "Use OCR near pointer" }));
+    await fireEvent.click(await screen.findByRole("button", { name: "Start OCR" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("OCR could not start");
-    expect(screen.getByRole("button", { name: "Retry OCR near pointer" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Try Again" })).toBeEnabled();
   });
 
   it("corrects text and context, adds an optional translation, saves once, and undoes by request", async () => {
