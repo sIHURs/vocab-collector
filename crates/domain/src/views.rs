@@ -56,7 +56,8 @@ pub struct ReviewResult {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TodayView {
-    pub due_count: usize,
+    pub total_due_count: usize,
+    pub planned_review_count: usize,
     pub estimated_minutes: usize,
     pub review_queue: Vec<ReviewCard>,
     pub recent_captures: Vec<WordListItem>,

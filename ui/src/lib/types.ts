@@ -130,7 +130,8 @@ export interface ReviewResult {
 }
 
 export interface TodayView {
-  dueCount: number;
+  totalDueCount: number;
+  plannedReviewCount: number;
   estimatedMinutes: number;
   reviewQueue: ReviewCard[];
   recentCaptures: WordListItem[];

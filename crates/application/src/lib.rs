@@ -93,8 +93,13 @@ impl AppService {
         let mut settings = SettingsRepository::get(self.store.as_ref())?;
         settings.normalize_languages();
         let words = self.store.list()?;
-        let queue = build_review_queue(words.iter(), now, settings.daily_limit);
-        let review_queue = queue
+        let due = build_review_queue(words.iter(), now, usize::MAX);
+        let total_due_count = due.len();
+        let planned = due
+            .into_iter()
+            .take(settings.daily_limit)
+            .collect::<Vec<_>>();
+        let review_queue = planned
             .iter()
             .map(|word| {
                 let context = self
@@ -116,10 +121,12 @@ impl AppService {
             .into_iter()
             .take(settings.recent_captures_limit)
             .collect();
-        let due_count = review_queue.len();
+        let planned_review_count = review_queue.len();
         Ok(TodayView {
-            due_count,
-            estimated_minutes: usize::from(due_count > 0).max(due_count.div_ceil(3)),
+            total_due_count,
+            planned_review_count,
+            estimated_minutes: usize::from(planned_review_count > 0)
+                .max(planned_review_count.div_ceil(3)),
             review_queue,
             recent_captures,
             settings,

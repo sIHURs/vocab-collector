@@ -100,9 +100,9 @@
       {#if error}<div class="error-banner">{error}</div>{/if}
       {#if route === "Today"}
         <div class="review-hero panel">
-          <div><span class="eyebrow">Daily review</span><h2>{today?.dueCount ?? 0} words ready</h2>
-            <p>{today?.dueCount ? `About ${today.estimatedMinutes} minute${today.estimatedMinutes === 1 ? "" : "s"} · a small session, then you're done.` : "You’re caught up for today."}</p></div>
-          <button class="primary" disabled={!today?.dueCount} onclick={() => { reviewOpen = true; reviewIndex = 0; }}>Review {today?.dueCount ?? 0} words</button>
+          <div><span class="eyebrow">Daily review</span><h2>{today?.plannedReviewCount ?? 0} words ready</h2>
+            <p>{today?.plannedReviewCount ? `About ${today.estimatedMinutes} minute${today.estimatedMinutes === 1 ? "" : "s"} · ${today.totalDueCount} total due.` : "You’re caught up for today."}</p></div>
+          <button class="primary" disabled={!today?.plannedReviewCount} onclick={() => { reviewOpen = true; reviewIndex = 0; }}>Review {today?.plannedReviewCount ?? 0} words</button>
         </div>
         <div class="section-heading"><div><h2>Recent captures</h2><p>Words saved while you read</p></div><button class="text-button" onclick={() => (route = "Vocabulary")}>View all</button></div>
         <div class="word-list panel">
@@ -118,7 +118,7 @@
           {#each filteredWords as word}<button class="table-row" onclick={() => showDetail(word.id)}><strong>{word.displayForm}</strong><span>{word.translation ?? "—"}</span><span class="status-pill">{word.status}</span><span>{word.encounterCount}</span><span>{relative(word.lastSeenAt)}</span></button>{/each}
         </div>
       {:else if route === "Progress"}
-        <div class="metrics"><div class="panel metric"><span>Captured</span><strong>{words.length}</strong><small>This week</small></div><div class="panel metric"><span>Due today</span><strong>{today?.dueCount ?? 0}</strong><small>Five-word maximum</small></div><div class="panel metric"><span>Habit</span><strong>Quiet</strong><small>No streak pressure</small></div></div>
+        <div class="metrics"><div class="panel metric"><span>Captured</span><strong>{words.length}</strong><small>This week</small></div><div class="panel metric"><span>Total due</span><strong>{today?.totalDueCount ?? 0}</strong><small>{today?.plannedReviewCount ?? 0} planned today</small></div><div class="panel metric"><span>Habit</span><strong>Quiet</strong><small>No streak pressure</small></div></div>
         <div class="panel chart-card"><div class="section-heading"><div><h2>Weekly rhythm</h2><p>Captured and reviewed</p></div></div><div class="bars">{#each [38,62,48,78,54,88,66] as height}<span style={`height:${height}%`}></span>{/each}</div></div>
       {:else if settings}
         <div class="settings-grid"><div class="panel setting-card"><span class="eyebrow">Languages</span><h2>Translation</h2><label>Source language<input value="English" disabled /></label><label>Translate into<select bind:value={settings.targetLanguage}><option value="de">German</option><option value="fr">French</option><option value="es">Spanish</option><option value="zh">Chinese</option></select></label></div>

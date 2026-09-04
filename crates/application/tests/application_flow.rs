@@ -36,7 +36,8 @@ fn capture_today_review_and_vocabulary_flow_share_one_source_of_truth() {
 
     let now = Utc.with_ymd_and_hms(2026, 8, 25, 12, 5, 0).unwrap();
     let today = service.get_today(now).unwrap();
-    assert_eq!(today.due_count, 1);
+    assert_eq!(today.total_due_count, 1);
+    assert_eq!(today.planned_review_count, 1);
     assert_eq!(today.review_queue[0].word_id, card.word_id);
     assert_eq!(today.recent_captures.len(), 1);
 
@@ -52,7 +53,7 @@ fn capture_today_review_and_vocabulary_flow_share_one_source_of_truth() {
         result.next_due_at,
         Utc.with_ymd_and_hms(2026, 8, 28, 12, 5, 0).unwrap()
     );
-    assert_eq!(service.get_today(now).unwrap().due_count, 0);
+    assert_eq!(service.get_today(now).unwrap().total_due_count, 0);
     assert_eq!(service.list_words().unwrap()[0].encounter_count, 1);
 }
 
@@ -175,6 +176,28 @@ fn recent_captures_use_the_configured_limit() {
     settings.recent_captures_limit = 7;
     service.update_settings(settings).unwrap();
     assert_eq!(service.get_today(now).unwrap().recent_captures.len(), 7);
+}
+
+#[test]
+fn today_separates_the_complete_due_backlog_from_the_daily_plan() {
+    let store = Arc::new(SqliteStore::open_in_memory().unwrap());
+    let service = AppService::new(store.clone(), Uuid::now_v7());
+    for index in 0..7 {
+        service
+            .capture(request(&format!("due-{index}"), "translation"))
+            .unwrap();
+    }
+    let mut settings = SettingsRepository::get(store.as_ref()).unwrap();
+    settings.daily_limit = 5;
+    service.update_settings(settings).unwrap();
+
+    let today = service
+        .get_today(Utc.with_ymd_and_hms(2026, 8, 25, 12, 5, 0).unwrap())
+        .unwrap();
+
+    assert_eq!(today.total_due_count, 7);
+    assert_eq!(today.planned_review_count, 5);
+    assert_eq!(today.review_queue.len(), 5);
 }
 
 #[test]

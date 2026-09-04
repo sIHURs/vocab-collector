@@ -105,7 +105,7 @@ fn start_review_scheduler(
                 .state::<bootstrap::AppState>()
                 .application()
                 .get_today(chrono::Utc::now())
-                .map(|today| today.due_count);
+                .map(|today| today.planned_review_count);
             let due_count = match due_count {
                 Ok(due_count) => due_count,
                 Err(_) => {

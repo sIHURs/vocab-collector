@@ -285,6 +285,17 @@ describe("Windows main presentation", () => {
     expect(screen.getByText("Nothing due")).toBeVisible();
   });
 
+  it("distinguishes the complete due backlog from today's planned Review", async () => {
+    const api = new DemoBackend(false);
+    for (let index = 1; index <= 7; index += 1) {
+      await api.capture({ selectedText: `due-${index}`, sentence: `Context ${index}` });
+    }
+    render(WindowsApp, { api });
+
+    expect(await screen.findByText(/7 total due/)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Start review (5)" })).toBeVisible();
+  });
+
   it("scrolls configured recent captures and paginates the full vocabulary", async () => {
     const api = new DemoBackend(false);
     for (let index = 1; index <= 21; index += 1) {

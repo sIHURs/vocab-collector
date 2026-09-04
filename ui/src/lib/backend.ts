@@ -113,9 +113,11 @@ export class DemoBackend implements Backend {
   }
 
   async getToday(): Promise<TodayView> {
-    const due = this.words.filter((word) => word.due).slice(0, this.settings.dailyLimit);
+    const allDue = this.words.filter((word) => word.due);
+    const due = allDue.slice(0, this.settings.dailyLimit);
     return {
-      dueCount: due.length, estimatedMinutes: due.length ? Math.max(1, Math.ceil(due.length / 3)) : 0,
+      totalDueCount: allDue.length, plannedReviewCount: due.length,
+      estimatedMinutes: due.length ? Math.max(1, Math.ceil(due.length / 3)) : 0,
       reviewQueue: due.map((word) => ({ wordId: word.item.id,
         displayForm: word.item.displayForm, translation: word.item.translation,
         context: word.encounters[0]?.sentence })),

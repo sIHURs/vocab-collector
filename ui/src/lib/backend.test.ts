@@ -31,6 +31,6 @@ describe("browser backend contract", () => {
 
     await backend.submitReview(today.reviewQueue[0].wordId, "remembered");
 
-    expect((await backend.getToday()).dueCount).toBe(today.dueCount - 1);
+    expect((await backend.getToday()).totalDueCount).toBe(today.totalDueCount - 1);
   });
 });

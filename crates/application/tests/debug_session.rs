@@ -101,7 +101,7 @@ fn session_exposes_settings_today_and_read_only_database_diagnostics() {
     let today = session
         .today(Utc.with_ymd_and_hms(2026, 8, 29, 12, 1, 0).unwrap())
         .unwrap();
-    assert_eq!(today.due_count, 1);
+    assert_eq!(today.total_due_count, 1);
     assert_eq!(today.review_queue[0].word_id, trace.result.word_id);
 
     let summary = session.database_summary().unwrap();

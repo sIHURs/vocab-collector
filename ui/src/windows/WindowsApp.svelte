@@ -314,7 +314,7 @@
       {#if loading}
         <div class="state" role="status">Loading your vocabulary...</div>
       {:else if route === "Today"}
-        <div class="summary"><div><span>Due today</span><strong>{today?.dueCount ?? 0}</strong><small>{today?.dueCount ? `About ${today?.estimatedMinutes ?? 0} minute${today?.estimatedMinutes === 1 ? "" : "s"}` : "Review queue is clear"}</small>{#if today?.dueCount}<button class="primary" onclick={startReview}>Start review ({today.dueCount})</button>{/if}</div><div><span>Recent captures</span><strong>{today?.recentCaptures.length ?? 0}</strong><small>Stored locally</small></div></div>
+        <div class="summary"><div><span>Today's plan</span><strong>{today?.plannedReviewCount ?? 0}</strong><small>{today?.plannedReviewCount ? `${today.totalDueCount} total due · About ${today?.estimatedMinutes ?? 0} minute${today?.estimatedMinutes === 1 ? "" : "s"}` : "Review queue is clear"}</small>{#if today?.plannedReviewCount}<button class="primary" onclick={startReview}>Start review ({today.plannedReviewCount})</button>{/if}</div><div><span>Recent captures</span><strong>{today?.recentCaptures.length ?? 0}</strong><small>Stored locally</small></div></div>
         <div class="section-heading"><h2>Recent captures</h2><p>New contexts appear here immediately after saving.</p></div>
         <div class="list recent-captures-list">{#each today?.recentCaptures ?? [] as word}<WindowsWordRow {word} onSelect={showDetail} />{:else}<div class="state"><strong>No captures yet</strong><span>Use Manual capture to save your first reading context.</span><button class="primary" onclick={openCapture}>Manual capture</button></div>{/each}</div>
       {:else if route === "Vocabulary"}
@@ -329,7 +329,7 @@
         {:else if reviewRefreshRequired}
           <div class="state"><strong>{reviewCompleting ? "Review saved" : "Review paused"}</strong><span>Refresh Today before continuing so the due queue stays current.</span><button class="primary" onclick={retryReviewRefresh}>Retry Review refresh</button></div>
         {:else if today?.reviewQueue.length}
-          <div class="state"><strong>{reviewPaused ? "Review paused" : `${today.dueCount} words ready`}</strong><span>{reviewPaused ? `${today.reviewQueue.length} words remaining.` : `About ${today.estimatedMinutes} minute${today.estimatedMinutes === 1 ? "" : "s"}.`}</span><button class="primary" onclick={startReview}>{reviewPaused ? "Resume review" : "Start review"}</button></div>
+          <div class="state"><strong>{reviewPaused ? "Review paused" : `${today.plannedReviewCount} planned · ${today.totalDueCount} total due`}</strong><span>{reviewPaused ? `${today.reviewQueue.length} words remaining.` : `About ${today.estimatedMinutes} minute${today.estimatedMinutes === 1 ? "" : "s"}.`}</span><button class="primary" onclick={startReview}>{reviewPaused ? "Resume review" : "Start review"}</button></div>
         {:else}
           <div class="state"><strong>Nothing due</strong><span>Your review queue is clear for today.</span></div>
         {/if}
