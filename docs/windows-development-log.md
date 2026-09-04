@@ -1461,3 +1461,11 @@ Supply the developer credential outside Git, then resume Ticket 08 at the ignore
 ### Next ticket starting point
 
 After the credential-free complete gate passes, supply a developer-owned credential outside Git and run only the matching ignored provider smoke test before any physical Windows claim.
+
+## 2026-09-04 - Explicit Region OCR integration gate
+
+- Replaced the pointer-centred fallback product flow with independent Selection Capture and Region OCR Capture shortcuts. Region OCR now accepts a user-drawn rectangle and presents editable Vocabulary, optional Context, confirmation, translation review, explicit save, retry, and Manual Capture recovery.
+- Automated verification passed on Windows: frontend type/content checks, 70 frontend tests, production frontend build, the Windows-linkable Rust workspace tests, strict Clippy, Rust formatting, and diff whitespace checks. The unfiltered Rust workspace remains non-linkable on Windows because the macOS adapter contract binary requires Swift FFI symbols.
+- Upgrade migration, independent shortcut conflict behavior, request cancellation, explicit-region coordinate conversion, stale request rejection, save-once, Undo, and content-free OCR diagnostics have automated coverage.
+- **Not run:** live mixed-DPI and multi-display overlay behavior; Windows Graphics Capture/OCR success and failure on a physical desktop; native resource monitoring; filesystem and log artifact audit.
+- `screenshot_ocr` remains false. It may be enabled only after the physical checks above are recorded against the tested build.
