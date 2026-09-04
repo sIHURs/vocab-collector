@@ -6,11 +6,13 @@ export type CaptureReady = { requestId: string; candidate: CaptureCandidate };
 export type CaptureError = { requestId: string; failure: CaptureFailure };
 export type OcrCandidate = { text: string; bounds: { x: number; y: number; width: number; height: number }; confidence: number };
 export type OcrCandidatesReady = { requestId: string; candidates: OcrCandidate[]; ambiguous: boolean };
+export type RegionOcrStart = { requestId: string };
 
 export interface WindowsCaptureBackend {
   listenReady(handler: (event: CaptureReady) => void): Promise<() => void>;
   listenError(handler: (event: CaptureError) => void): Promise<() => void>;
   listenOcrCandidate(handler: (event: OcrCandidatesReady) => void): Promise<() => void>;
+  listenRegionOcrStart(handler: (event: RegionOcrStart) => void): Promise<() => void>;
   focus(): Promise<void>;
   releaseFocus(): Promise<void>;
   close(requestId: string): Promise<void>;
@@ -19,6 +21,7 @@ export interface WindowsCaptureBackend {
   save(requestId: string, withoutTranslation: boolean): Promise<CaptureCard>;
   undo(requestId: string, encounterId: string): Promise<void>;
   startOcr(requestId: string): Promise<void>;
+  startRegionOcr(): Promise<string>;
   confirmOcr(requestId: string, candidateIndex: number): Promise<void>;
   getCapabilities(): Promise<PlatformCapabilities>;
   getSettings(): Promise<Settings>;
@@ -29,6 +32,7 @@ export const tauriWindowsCaptureBackend: WindowsCaptureBackend = {
   listenReady: (handler) => listen<CaptureReady>("capture-ready", ({ payload }) => handler(payload)),
   listenError: (handler) => listen<CaptureError>("capture-error", ({ payload }) => handler(payload)),
   listenOcrCandidate: (handler) => listen<OcrCandidatesReady>("ocr-candidate", ({ payload }) => handler(payload)),
+  listenRegionOcrStart: (handler) => listen<RegionOcrStart>("region-ocr-start", ({ payload }) => handler(payload)),
   focus: () => invoke("focus_capture_window"),
   releaseFocus: () => invoke("release_capture_window_focus"),
   close: (requestId) => invoke("close_capture_window", { requestId }),
@@ -37,6 +41,7 @@ export const tauriWindowsCaptureBackend: WindowsCaptureBackend = {
   save: (requestId, withoutTranslation) => invoke<CaptureCard>("save_native_capture", { requestId, withoutTranslation }),
   undo: (requestId, encounterId) => invoke("undo_native_capture", { requestId, encounterId }),
   startOcr: (requestId) => invoke("capture_with_ocr", { requestId }),
+  startRegionOcr: () => invoke<string>("start_region_ocr_capture"),
   confirmOcr: (requestId, candidateIndex) => invoke("confirm_ocr", { requestId, candidateIndex }),
   getCapabilities: () => invoke("get_platform_capabilities"),
   getSettings: () => invoke("get_settings"),

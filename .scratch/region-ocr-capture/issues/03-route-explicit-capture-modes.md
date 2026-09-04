@@ -4,9 +4,9 @@
 
 **Blocked by:** 02: Deliver dual Capture shortcut settings.
 
-**Status:** ready-for-agent
+**Status:** complete
 
-- [ ] Each shortcut starts only its configured Capture mode.
-- [ ] Selection failure offers the OCR shortcut and Start OCR when OCR is available.
-- [ ] Start OCR remains usable when its shortcut is disabled or conflicted.
-- [ ] Request identity protects both modes from stale work.
+- [x] Each shortcut starts only its configured Capture mode.
+- [x] Selection failure offers the OCR shortcut and Start OCR when OCR is available.
+- [x] Start OCR remains usable when its shortcut is disabled or conflicted.
+- [x] Request identity protects both modes from stale work.

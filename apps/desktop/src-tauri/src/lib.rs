@@ -137,14 +137,27 @@ pub fn run() {
     let shortcut_gate = Arc::new(vocab_capture::PressGate::default());
     let builder = tauri::Builder::default().plugin(
         tauri_plugin_global_shortcut::Builder::new()
-            .with_handler(move |app, _shortcut, event| {
+            .with_handler(move |app, shortcut, event| {
                 let state = match event.state() {
                     ShortcutState::Pressed => vocab_capture::ShortcutState::Pressed,
                     ShortcutState::Released => vocab_capture::ShortcutState::Released,
                 };
                 if shortcut_gate.accept(state) {
                     let app = app.clone();
+                    let shortcut = shortcut.to_string();
                     tauri::async_runtime::spawn(async move {
+                        let is_region_ocr = app
+                            .state::<bootstrap::AppState>()
+                            .application()
+                            .get_settings()
+                            .is_ok_and(|settings| {
+                                !settings.region_ocr_capture_shortcut.is_empty()
+                                    && shortcut == settings.region_ocr_capture_shortcut
+                            });
+                        if is_region_ocr {
+                            let _ = capture::present_region_ocr_capture(&app);
+                            return;
+                        }
                         if let Err(error) = capture::present_native_capture(&app).await {
                             let request_id = error.request_id;
                             let state = app.state::<bootstrap::AppState>();
@@ -319,6 +332,7 @@ pub fn run() {
             capture::capture_selected_text,
             capture::request_screen_recording_permission,
             capture::capture_with_ocr,
+            capture::start_region_ocr_capture,
             capture::translate_text,
             capture::confirm_ocr,
             capture::save_native_capture,

@@ -15,7 +15,7 @@ use crate::{
     bootstrap::AppState,
     events::{
         CaptureFailure, LIBRARY_CHANGED_EVENT, NativeCaptureError, NativeCaptureEvent,
-        OcrCandidatesEvent,
+        OcrCandidatesEvent, RegionOcrStartEvent,
     },
 };
 
@@ -168,6 +168,11 @@ pub async fn capture_with_ocr(
         })
         .map_err(CaptureFailure::from)?
         .map_err(CaptureFailure::operation)
+}
+
+#[tauri::command]
+pub fn start_region_ocr_capture(app: tauri::AppHandle) -> Result<Uuid, CaptureFailure> {
+    present_region_ocr_capture(&app)
 }
 
 #[tauri::command]
@@ -440,6 +445,30 @@ pub(crate) async fn present_native_capture(
             request_id: prepared.request_id,
             failure: CaptureFailure::operation(message),
         })
+}
+
+pub(crate) fn present_region_ocr_capture(app: &tauri::AppHandle) -> Result<Uuid, CaptureFailure> {
+    let state = app.state::<AppState>();
+    if !state.platform_capabilities().screenshot_ocr {
+        return Err(vocab_platform_api::PlatformError::Unsupported(
+            vocab_platform_api::Capability::ScreenshotOcr,
+        )
+        .into());
+    }
+    let request_id = state.start_capture_request();
+    let window = app
+        .get_webview_window("capture")
+        .ok_or_else(|| CaptureFailure::operation("capture window is unavailable"))?;
+    state
+        .publish_if_current(request_id, || {
+            window.show().map_err(|error| error.to_string())?;
+            window
+                .emit("region-ocr-start", RegionOcrStartEvent { request_id })
+                .map_err(|error| error.to_string())
+        })
+        .map_err(CaptureFailure::from)?
+        .map_err(CaptureFailure::operation)?;
+    Ok(request_id)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]

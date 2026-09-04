@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/svelte";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import WindowsFloatingCapture from "./WindowsFloatingCapture.svelte";
-import type { CaptureReady, OcrCandidatesReady, WindowsCaptureBackend } from "./captureBackend";
+import type { CaptureReady, OcrCandidatesReady, RegionOcrStart, WindowsCaptureBackend } from "./captureBackend";
 
 const mocks = {
   focus: vi.fn(async () => {}),
@@ -12,6 +12,7 @@ const mocks = {
   save: vi.fn(async () => ({ wordId: "word-1", encounterId: "encounter-1", displayForm: "nuance", context: "A useful nuance.", encounterCount: 1, isExistingWord: false })),
   undo: vi.fn(async (_requestId: string, _encounterId: string) => {}),
   startOcr: vi.fn(async (_requestId: string) => {}),
+  startRegionOcr: vi.fn(async () => "region-request"),
   confirmOcr: vi.fn(async (_requestId: string, _candidateIndex: number) => {}),
   getCapabilities: vi.fn(async () => ({ selectionCapture: false, selectionBounds: false, screenshotOcr: true, translation: false, nonActivatingWindow: false })),
   getSettings: vi.fn(async () => ({ sourceLanguage: "auto", targetLanguage: "de", selectionCaptureShortcut: "Alt+Shift+V", regionOcrCaptureShortcut: "Alt+Shift+O", reviewTime: "18:00", dailyLimit: 20, recentCapturesLimit: 10, launchAtLogin: false, appearance: "system" as const, reducedMotion: false })),
@@ -19,6 +20,7 @@ const mocks = {
   ready: undefined as ((event: CaptureReady) => void) | undefined,
   error: undefined as ((event: { requestId: string; failure: { code: "empty_selection" | "unsupported_element" | "operation"; message: string } }) => void) | undefined,
   ocr: undefined as ((event: OcrCandidatesReady) => void) | undefined,
+  regionOcr: undefined as ((event: RegionOcrStart) => void) | undefined,
 };
 
 const captureBackend: WindowsCaptureBackend = {
@@ -31,12 +33,14 @@ const captureBackend: WindowsCaptureBackend = {
   save: mocks.save,
   undo: mocks.undo,
   startOcr: mocks.startOcr,
+  startRegionOcr: mocks.startRegionOcr,
   confirmOcr: mocks.confirmOcr,
   getCapabilities: mocks.getCapabilities,
   getSettings: mocks.getSettings,
   translate: mocks.translate,
   listenError: async (handler) => { mocks.error = handler; return () => { mocks.error = undefined; }; },
   listenOcrCandidate: async (handler) => { mocks.ocr = handler; return () => { mocks.ocr = undefined; }; },
+  listenRegionOcrStart: async (handler) => { mocks.regionOcr = handler; return () => { mocks.regionOcr = undefined; }; },
 };
 
 describe("Windows floating capture presentation", () => {
@@ -50,6 +54,7 @@ describe("Windows floating capture presentation", () => {
     mocks.save.mockResolvedValue({ wordId: "word-1", encounterId: "encounter-1", displayForm: "nuance", context: "A useful nuance.", encounterCount: 1, isExistingWord: false });
     mocks.undo.mockClear();
     mocks.startOcr.mockClear();
+    mocks.startRegionOcr.mockClear();
     mocks.confirmOcr.mockReset();
     mocks.confirmOcr.mockResolvedValue(undefined);
     mocks.getCapabilities.mockReset();
@@ -60,6 +65,7 @@ describe("Windows floating capture presentation", () => {
     mocks.ready = undefined;
     mocks.error = undefined;
     mocks.ocr = undefined;
+    mocks.regionOcr = undefined;
   });
 
   it("automatically previews a native translation, applies independent edits, and saves only on confirmation", async () => {
@@ -107,7 +113,7 @@ describe("Windows floating capture presentation", () => {
     mocks.error?.({ requestId: "ocr-request", failure: { code: "empty_selection", message: "No selection" } });
 
     await fireEvent.click(await screen.findByRole("button", { name: "Use OCR near pointer" }));
-    expect(mocks.startOcr).toHaveBeenCalledWith("ocr-request");
+    expect(mocks.startRegionOcr).toHaveBeenCalledTimes(1);
     const suggestion = { text: "serendipity", bounds: { x: 1, y: 2, width: 30, height: 12 }, confidence: 0.91 };
     mocks.ocr?.({ requestId: "ocr-request", candidates: [suggestion], ambiguous: false });
     expect(screen.queryByRole("button", { name: "Save capture" })).not.toBeInTheDocument();
@@ -212,7 +218,7 @@ describe("Windows floating capture presentation", () => {
   });
 
   it("announces OCR progress and keeps the fallback recoverable when OCR fails", async () => {
-    mocks.startOcr.mockRejectedValueOnce(new Error("OCR could not start"));
+    mocks.startRegionOcr.mockRejectedValueOnce(new Error("OCR could not start"));
     render(WindowsFloatingCapture, { captureBackend });
     await waitFor(() => expect(mocks.error).toBeTypeOf("function"));
     mocks.error?.({ requestId: "ocr-retry", failure: { code: "empty_selection", message: "No selection" } });

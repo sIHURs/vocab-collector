@@ -6,6 +6,12 @@ use vocab_platform_api::{Capability, CaptureCandidate, OcrCandidate, PlatformErr
 
 pub const LIBRARY_CHANGED_EVENT: &str = "library-changed";
 
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RegionOcrStartEvent {
+    pub request_id: Uuid,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CaptureFailureCode {

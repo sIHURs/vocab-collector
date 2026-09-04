@@ -179,7 +179,7 @@
     ocrAttempted = true;
     error = "";
     try {
-      await captureBackend.startOcr(requestId);
+      await captureBackend.startRegionOcr();
     } catch (cause) {
       if (!mounted || requestId !== activeRequest) return;
       error = cause instanceof Error ? cause.message : String(cause);
@@ -273,6 +273,14 @@
       ocrNeedsConfirmation = true;
       if (event.ambiguous) void captureBackend.focus();
     });
+    const regionOcr = captureBackend.listenRegionOcrStart((event) => {
+      activeRequest = event.requestId;
+      candidate = null;
+      saved = null;
+      error = "请框取词汇";
+      ocrOffer = false;
+      ocrAttempted = true;
+    });
     return () => {
       mounted = false;
       clearDismissTimer();
@@ -280,6 +288,7 @@
       ready.then((unlisten) => unlisten());
       failed.then((unlisten) => unlisten());
       ocr.then((unlisten) => unlisten());
+      regionOcr.then((unlisten) => unlisten());
     };
   });
 </script>
