@@ -51,3 +51,7 @@ _Avoid_: Windows translator, translation engine
 **Review**:
 A scheduled recall decision for a vocabulary item, recorded as either forgotten or remembered.
 _Avoid_: Quiz, test
+
+**Review Insight**:
+A short explanation or actionable suggestion derived from completed reviews and encounter history. It appears only after an answer is revealed and never substitutes for a review rating.
+_Avoid_: Hint, score, AI explanation
