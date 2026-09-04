@@ -20,7 +20,7 @@ export interface WindowsCaptureBackend {
   apply(requestId: string, correction: { selectedText: string; sentence: string; translation?: string }): Promise<void>;
   save(requestId: string, withoutTranslation: boolean): Promise<CaptureCard>;
   undo(requestId: string, encounterId: string): Promise<void>;
-  startOcr(requestId: string): Promise<void>;
+  recognizeRegion(requestId: string, region: { x: number; y: number; width: number; height: number }): Promise<void>;
   startRegionOcr(): Promise<string>;
   confirmOcr(requestId: string, candidateIndex: number): Promise<void>;
   getCapabilities(): Promise<PlatformCapabilities>;
@@ -40,7 +40,7 @@ export const tauriWindowsCaptureBackend: WindowsCaptureBackend = {
   apply: (requestId, correction) => invoke("correct_native_capture", { requestId, selectedText: correction.selectedText, sentence: correction.sentence, manualTranslation: correction.translation }),
   save: (requestId, withoutTranslation) => invoke<CaptureCard>("save_native_capture", { requestId, withoutTranslation }),
   undo: (requestId, encounterId) => invoke("undo_native_capture", { requestId, encounterId }),
-  startOcr: (requestId) => invoke("capture_with_ocr", { requestId }),
+  recognizeRegion: (requestId, region) => invoke("capture_ocr_region", { requestId, region }),
   startRegionOcr: () => invoke<string>("start_region_ocr_capture"),
   confirmOcr: (requestId, candidateIndex) => invoke("confirm_ocr", { requestId, candidateIndex }),
   getCapabilities: () => invoke("get_platform_capabilities"),

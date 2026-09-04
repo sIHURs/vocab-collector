@@ -7,8 +7,8 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use vocab_platform_api::{
     Capability, CaptureCandidate, OcrCandidate, OcrProvider, PermissionKind, PermissionProvider,
-    PermissionStatus, PlatformCapabilities, PlatformError, PlatformServices, ScreenPoint,
-    SelectionProvider, TranslationProvider, TranslationResult, WindowProvider,
+    PermissionStatus, PlatformCapabilities, PlatformError, PlatformServices, SelectionProvider,
+    TranslationProvider, TranslationResult, WindowProvider,
 };
 
 /// Builds the Linux provider bundle. Native providers are intentionally deferred to Plan B.
@@ -42,9 +42,9 @@ struct UnsupportedOcrProvider;
 
 #[async_trait]
 impl OcrProvider for UnsupportedOcrProvider {
-    async fn recognize_near(
+    async fn recognize_region(
         &self,
-        _pointer: ScreenPoint,
+        _region: vocab_platform_api::ScreenRect,
     ) -> Result<Vec<OcrCandidate>, PlatformError> {
         Err(PlatformError::Unsupported(Capability::ScreenshotOcr))
     }

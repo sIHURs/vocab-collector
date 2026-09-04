@@ -1,7 +1,7 @@
 use std::{fmt, sync::mpsc, time::Duration};
 
 use async_trait::async_trait;
-use vocab_platform_api::{OcrCandidate, OcrProvider, PlatformError, ScreenPoint, ScreenRect};
+use vocab_platform_api::{OcrCandidate, OcrProvider, PlatformError, ScreenRect};
 use windows::{
     Foundation::TypedEventHandler,
     Graphics::{
@@ -34,9 +34,6 @@ use windows::{
     },
     core::{Interface, factory},
 };
-
-const REGION_WIDTH: f64 = 640.0;
-const REGION_HEIGHT: f64 = 360.0;
 
 #[derive(Clone, Debug)]
 struct RecognizedWord {
@@ -81,8 +78,16 @@ impl CaptureGeometry {
         })
     }
 
-    fn crop_near(self, pointer: ScreenPoint) -> CaptureCrop {
-        let desktop_bounds = bounded_capture_region(pointer, self.desktop_bounds);
+    fn crop_region(self, region: ScreenRect) -> CaptureCrop {
+        let left = region.x.max(self.desktop_bounds.x);
+        let top = region.y.max(self.desktop_bounds.y);
+        let right = (region.x + region.width)
+            .min(self.desktop_bounds.x + self.desktop_bounds.width)
+            .max(left + f64::EPSILON);
+        let bottom = (region.y + region.height)
+            .min(self.desktop_bounds.y + self.desktop_bounds.height)
+            .max(top + f64::EPSILON);
+        let desktop_bounds = ScreenRect::new(left, top, right - left, bottom - top);
         let pixel_x = ((desktop_bounds.x - self.desktop_bounds.x) * self.pixels_per_logical_x)
             .round()
             .clamp(0.0, f64::from(self.frame_width - 1)) as u32;
@@ -115,12 +120,12 @@ pub(crate) struct WindowsOcrProvider;
 
 #[async_trait]
 impl OcrProvider for WindowsOcrProvider {
-    async fn recognize_near(
+    async fn recognize_region(
         &self,
-        pointer: ScreenPoint,
+        region: ScreenRect,
     ) -> Result<Vec<OcrCandidate>, PlatformError> {
         let window = crate::window::ocr_source_window()?;
-        tokio::task::spawn_blocking(move || capture_and_recognize(window, pointer))
+        tokio::task::spawn_blocking(move || capture_and_recognize(window, region))
             .await
             .map_err(|_| operation("Windows OCR worker failed"))?
     }
@@ -128,7 +133,7 @@ impl OcrProvider for WindowsOcrProvider {
 
 fn capture_and_recognize(
     window: crate::window::NativeWindowHandle,
-    pointer: ScreenPoint,
+    region: ScreenRect,
 ) -> Result<Vec<OcrCandidate>, PlatformError> {
     let _apartment = ComApartment::enter()?;
     let window = crate::window::native_handle(window);
@@ -177,7 +182,7 @@ fn capture_and_recognize(
         .ContentSize()
         .map_err(|_| operation("OCR frame content size is unavailable"))?;
     let geometry = CaptureGeometry::new(logical_visible_frame_bounds(window)?, frame_size)?;
-    let crop = geometry.crop_near(pointer);
+    let crop = geometry.crop_region(region);
     let surface = cropped_surface(
         &device,
         &context,
@@ -456,14 +461,6 @@ impl Drop for ComApartment {
     }
 }
 
-fn bounded_capture_region(pointer: ScreenPoint, item: ScreenRect) -> ScreenRect {
-    let width = REGION_WIDTH.min(item.width);
-    let height = REGION_HEIGHT.min(item.height);
-    let x = (pointer.x - width / 2.0).clamp(item.x, item.x + item.width - width);
-    let y = (pointer.y - height / 2.0).clamp(item.y, item.y + item.height - height);
-    ScreenRect::new(x, y, width, height)
-}
-
 fn normalize_words(words: &[RecognizedWord], crop: CaptureCrop) -> Vec<OcrCandidate> {
     words
         .iter()
@@ -483,31 +480,10 @@ fn normalize_words(words: &[RecognizedWord], crop: CaptureCrop) -> Vec<OcrCandid
 
 #[cfg(test)]
 mod tests {
-    use vocab_platform_api::{ScreenPoint, ScreenRect};
+    use vocab_platform_api::ScreenRect;
     use windows::Graphics::SizeInt32;
 
-    use super::{
-        CaptureCrop, CaptureGeometry, OcrDiagnostics, RecognizedWord, bounded_capture_region,
-        normalize_words,
-    };
-
-    #[test]
-    fn bounded_region_centers_on_pointer_and_clamps_to_the_capture_item() {
-        assert_eq!(
-            bounded_capture_region(
-                ScreenPoint::new(1_900.0, 1_050.0),
-                ScreenRect::new(0.0, 0.0, 1_920.0, 1_080.0),
-            ),
-            ScreenRect::new(1_280.0, 720.0, 640.0, 360.0),
-        );
-        assert_eq!(
-            bounded_capture_region(
-                ScreenPoint::new(-900.0, 100.0),
-                ScreenRect::new(-1_280.0, -200.0, 1_280.0, 800.0),
-            ),
-            ScreenRect::new(-1_220.0, -80.0, 640.0, 360.0),
-        );
-    }
+    use super::{CaptureCrop, CaptureGeometry, OcrDiagnostics, RecognizedWord, normalize_words};
 
     #[test]
     fn recognized_words_become_portable_candidates_without_content_diagnostics() {
@@ -553,7 +529,7 @@ mod tests {
         )
         .unwrap();
 
-        let crop = geometry.crop_near(ScreenPoint::new(500.0, 400.0));
+        let crop = geometry.crop_region(ScreenRect::new(180.0, 220.0, 640.0, 360.0));
 
         assert_eq!(
             crop.desktop_bounds,
@@ -564,7 +540,7 @@ mod tests {
         assert_eq!(crop.pixels_per_logical_x, 1.25);
         assert_eq!(crop.pixels_per_logical_y, 1.25);
 
-        let edge_crop = geometry.crop_near(ScreenPoint::new(1_088.0, 788.0));
+        let edge_crop = geometry.crop_region(ScreenRect::new(448.0, 428.0, 640.0, 360.0));
         assert!(edge_crop.pixel_x + edge_crop.pixel_width <= 1_225);
         assert!(edge_crop.pixel_y + edge_crop.pixel_height <= 850);
     }

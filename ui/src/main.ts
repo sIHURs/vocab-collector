@@ -4,6 +4,7 @@ import App from "./App.svelte";
 import FloatingCapture from "./FloatingCapture.svelte";
 import WindowsApp from "./windows/WindowsApp.svelte";
 import WindowsFloatingCapture from "./windows/WindowsFloatingCapture.svelte";
+import WindowsOcrOverlay from "./windows/WindowsOcrOverlay.svelte";
 import {
   selectPresentation,
   type DesktopWindow,
@@ -25,6 +26,10 @@ async function presentationFamily(): Promise<PresentationFamily> {
 }
 
 async function start() {
+  if (new URLSearchParams(location.search).get("window") === "ocr-overlay") {
+    mount(WindowsOcrOverlay, { target: document.getElementById("app")! });
+    return;
+  }
   const presentation = selectPresentation(desktopWindow(), await presentationFamily());
   const target = document.getElementById("app")!;
 

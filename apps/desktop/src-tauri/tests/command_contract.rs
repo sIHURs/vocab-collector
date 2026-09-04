@@ -14,7 +14,7 @@ use vocab_capture::CoordinatorError;
 use vocab_desktop_lib::{
     bootstrap::build_app_state,
     commands::capture::{
-        capture_selected_text, capture_with_ocr, close_capture_window, close_capture_window_for,
+        capture_ocr_region, capture_selected_text, close_capture_window, close_capture_window_for,
         confirm_ocr, correct_native_capture, get_permission_status, get_platform_capabilities,
         hide_capture_window, hide_capture_window_for, hide_then_restore_focus,
         request_accessibility_permission, request_screen_recording_permission, save_native_capture,
@@ -34,8 +34,8 @@ use vocab_desktop_lib::{
 use vocab_domain::{CaptureOrigin, UserSettings};
 use vocab_platform_api::{
     CaptureCandidate, OcrCandidate, OcrProvider, PermissionKind, PermissionProvider,
-    PermissionStatus, PlatformCapabilities, PlatformError, PlatformServices, ScreenPoint,
-    ScreenRect, SelectionProvider, TranslationProvider, TranslationResult, WindowProvider,
+    PermissionStatus, PlatformCapabilities, PlatformError, PlatformServices, ScreenRect,
+    SelectionProvider, TranslationProvider, TranslationResult, WindowProvider,
 };
 use vocab_storage::SqliteStore;
 
@@ -58,7 +58,7 @@ fn capture_command_names_are_available_on_the_platform_neutral_surface() {
     let _ = request_accessibility_permission;
     let _ = capture_selected_text;
     let _ = request_screen_recording_permission;
-    let _ = capture_with_ocr;
+    let _ = capture_ocr_region;
     let _ = start_region_ocr_capture;
     let _ = translate_text;
     let _ = confirm_ocr;
@@ -619,7 +619,7 @@ fn app_state_routes_capture_operations_through_injected_platform_services() {
         "portable selection"
     );
     assert_eq!(
-        block_on(state.recognize_near(ScreenPoint::new(25.0, 75.0))).unwrap()[0].text,
+        block_on(state.recognize_region(ScreenRect::new(25.0, 75.0, 80.0, 24.0))).unwrap()[0].text,
         "portable OCR"
     );
     assert_eq!(
@@ -819,14 +819,14 @@ struct FakeOcr {
 
 #[async_trait]
 impl OcrProvider for FakeOcr {
-    async fn recognize_near(
+    async fn recognize_region(
         &self,
-        pointer: ScreenPoint,
+        region: ScreenRect,
     ) -> Result<Vec<OcrCandidate>, PlatformError> {
         self.calls
             .lock()
             .unwrap()
-            .push(format!("ocr:{},{}", pointer.x, pointer.y));
+            .push(format!("ocr:{},{}", region.x, region.y));
         Ok(vec![OcrCandidate {
             text: "portable OCR".into(),
             bounds: ScreenRect::new(20.0, 70.0, 50.0, 18.0),

@@ -11,7 +11,7 @@ const mocks = {
   apply: vi.fn(async () => {}),
   save: vi.fn(async () => ({ wordId: "word-1", encounterId: "encounter-1", displayForm: "nuance", context: "A useful nuance.", encounterCount: 1, isExistingWord: false })),
   undo: vi.fn(async (_requestId: string, _encounterId: string) => {}),
-  startOcr: vi.fn(async (_requestId: string) => {}),
+  recognizeRegion: vi.fn(async () => {}),
   startRegionOcr: vi.fn(async () => "region-request"),
   confirmOcr: vi.fn(async (_requestId: string, _candidateIndex: number) => {}),
   getCapabilities: vi.fn(async () => ({ selectionCapture: false, selectionBounds: false, screenshotOcr: true, translation: false, nonActivatingWindow: false })),
@@ -32,7 +32,7 @@ const captureBackend: WindowsCaptureBackend = {
   apply: mocks.apply,
   save: mocks.save,
   undo: mocks.undo,
-  startOcr: mocks.startOcr,
+  recognizeRegion: mocks.recognizeRegion,
   startRegionOcr: mocks.startRegionOcr,
   confirmOcr: mocks.confirmOcr,
   getCapabilities: mocks.getCapabilities,
@@ -53,7 +53,7 @@ describe("Windows floating capture presentation", () => {
     mocks.save.mockReset();
     mocks.save.mockResolvedValue({ wordId: "word-1", encounterId: "encounter-1", displayForm: "nuance", context: "A useful nuance.", encounterCount: 1, isExistingWord: false });
     mocks.undo.mockClear();
-    mocks.startOcr.mockClear();
+    mocks.recognizeRegion.mockClear();
     mocks.startRegionOcr.mockClear();
     mocks.confirmOcr.mockReset();
     mocks.confirmOcr.mockResolvedValue(undefined);

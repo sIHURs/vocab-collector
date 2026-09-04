@@ -4,7 +4,7 @@ use async_trait::async_trait;
 
 use crate::{
     CaptureCandidate, EnrichmentResult, OcrCandidate, PermissionKind, PermissionStatus,
-    PlatformCapabilities, PlatformError, ScreenPoint, TranslationResult,
+    PlatformCapabilities, PlatformError, ScreenRect, TranslationResult,
 };
 
 #[async_trait]
@@ -14,9 +14,9 @@ pub trait SelectionProvider: Send + Sync {
 
 #[async_trait]
 pub trait OcrProvider: Send + Sync {
-    async fn recognize_near(
+    async fn recognize_region(
         &self,
-        pointer: ScreenPoint,
+        region: ScreenRect,
     ) -> Result<Vec<OcrCandidate>, PlatformError>;
 }
 

@@ -4,8 +4,8 @@ use uuid::Uuid;
 use vocab_application::{AppService, PlatformCaptureWorkflow, PreparedCapture};
 use vocab_platform_api::{
     CaptureCandidate, OcrCandidate, OcrProvider, PermissionKind, PermissionProvider,
-    PermissionStatus, PlatformCapabilities, PlatformError, PlatformServices, ScreenPoint,
-    SelectionProvider, TranslationProvider, TranslationResult, WindowProvider,
+    PermissionStatus, PlatformCapabilities, PlatformError, PlatformServices, SelectionProvider,
+    TranslationProvider, TranslationResult, WindowProvider,
 };
 use vocab_storage::SqliteStore;
 
@@ -107,11 +107,11 @@ impl AppState {
         self.selection.capture_selection().await
     }
 
-    pub async fn recognize_near(
+    pub async fn recognize_region(
         &self,
-        pointer: ScreenPoint,
+        region: vocab_platform_api::ScreenRect,
     ) -> Result<Vec<OcrCandidate>, PlatformError> {
-        self.ocr.recognize_near(pointer).await
+        self.ocr.recognize_region(region).await
     }
 
     pub async fn translate(

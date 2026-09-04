@@ -6,7 +6,7 @@ use std::{
 };
 
 use vocab_platform_api::{
-    Capability, PermissionKind, PlatformCapabilities, PlatformError, ScreenPoint,
+    Capability, PermissionKind, PlatformCapabilities, PlatformError, ScreenRect,
 };
 use vocab_platform_linux::LinuxPlatform;
 
@@ -46,7 +46,11 @@ fn skeleton_providers_return_capability_specific_unsupported_errors() {
         Err(PlatformError::Unsupported(Capability::Selection))
     );
     assert_eq!(
-        block_on(services.ocr.recognize_near(ScreenPoint::new(12.0, 34.0))),
+        block_on(
+            services
+                .ocr
+                .recognize_region(ScreenRect::new(12.0, 34.0, 80.0, 24.0))
+        ),
         Err(PlatformError::Unsupported(Capability::ScreenshotOcr))
     );
     assert_eq!(

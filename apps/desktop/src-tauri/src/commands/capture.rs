@@ -103,10 +103,11 @@ pub async fn request_screen_recording_permission(
 }
 
 #[tauri::command]
-pub async fn capture_with_ocr(
+pub async fn capture_ocr_region(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
     request_id: Uuid,
+    region: vocab_platform_api::ScreenRect,
 ) -> Result<(), CaptureFailure> {
     if !state.is_current_capture_request(request_id) {
         return Err(vocab_capture::CoordinatorError::StaleRequest.into());
@@ -114,18 +115,24 @@ pub async fn capture_with_ocr(
     let window = app
         .get_webview_window("capture")
         .ok_or_else(|| CaptureFailure::operation("capture window is unavailable"))?;
-    let (portable_pointer, primary_bounds) =
-        pointer_and_primary_bounds(&app).map_err(CaptureFailure::operation)?;
-    // Tauri reports a logical top-left desktop point. AppKit's OCR entry point consumes
-    // Cocoa global coordinates, whose Y axis starts at the primary display's bottom edge.
-    let ocr_pointer = ocr_pointer_for_target(portable_pointer, primary_bounds);
+    if let Some(overlay) = app.get_webview_window("ocr-overlay") {
+        overlay
+            .hide()
+            .map_err(|error| CaptureFailure::operation(error.to_string()))?;
+    }
+    if region.width < 4.0 || region.height < 4.0 {
+        return Err(CaptureFailure::operation("OCR region is too small"));
+    }
     state
         .publish_if_current(request_id, || {
             window.hide().map_err(|error| error.to_string())
         })
         .map_err(CaptureFailure::from)?
         .map_err(CaptureFailure::operation)?;
-    let candidates = state.recognize_near(ocr_pointer).await;
+    let (_, primary_bounds) =
+        pointer_and_primary_bounds(&app).map_err(CaptureFailure::operation)?;
+    let region = ocr_region_for_target(region, primary_bounds);
+    let candidates = state.recognize_region(region).await;
     let candidates = match candidates {
         Ok(candidates) => candidates,
         Err(error) => {
@@ -138,7 +145,7 @@ pub async fn capture_with_ocr(
             return Err(error.into());
         }
     };
-    let Some(resolution) = vocab_capture::rank_ocr_candidates(&candidates, portable_pointer) else {
+    if candidates.is_empty() {
         state
             .publish_if_current(request_id, || {
                 window.show().map_err(|error| error.to_string())
@@ -146,12 +153,8 @@ pub async fn capture_with_ocr(
             .map_err(CaptureFailure::from)?
             .map_err(CaptureFailure::operation)?;
         return Err(CaptureFailure::operation("OCR did not find readable text"));
-    };
-    let ambiguous = matches!(
-        resolution,
-        vocab_capture::OcrCandidateResolution::Ambiguous(_)
-    );
-    let candidates = resolution.candidates().to_vec();
+    }
+    let ambiguous = candidates.len() > 1;
     state
         .publish_ocr_candidates(request_id, candidates.clone(), || {
             window.show().map_err(|error| error.to_string())?;
@@ -459,16 +462,42 @@ pub(crate) fn present_region_ocr_capture(app: &tauri::AppHandle) -> Result<Uuid,
     let window = app
         .get_webview_window("capture")
         .ok_or_else(|| CaptureFailure::operation("capture window is unavailable"))?;
+    let overlay = app
+        .get_webview_window("ocr-overlay")
+        .ok_or_else(|| CaptureFailure::operation("OCR overlay is unavailable"))?;
+    window
+        .hide()
+        .map_err(|error| CaptureFailure::operation(error.to_string()))?;
+    overlay
+        .show()
+        .and_then(|()| overlay.set_focus())
+        .map_err(|error| CaptureFailure::operation(error.to_string()))?;
     state
         .publish_if_current(request_id, || {
-            window.show().map_err(|error| error.to_string())?;
-            window
+            overlay
                 .emit("region-ocr-start", RegionOcrStartEvent { request_id })
                 .map_err(|error| error.to_string())
         })
         .map_err(CaptureFailure::from)?
         .map_err(CaptureFailure::operation)?;
     Ok(request_id)
+}
+
+#[tauri::command]
+pub fn cancel_region_ocr_capture(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    request_id: Uuid,
+) -> Result<(), CaptureFailure> {
+    state
+        .dismiss_and_publish(request_id, || {
+            if let Some(overlay) = app.get_webview_window("ocr-overlay") {
+                overlay.hide().map_err(|error| error.to_string())?;
+            }
+            Ok::<_, String>(())
+        })
+        .map_err(CaptureFailure::from)?
+        .map_err(CaptureFailure::operation)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -682,13 +711,24 @@ pub(crate) fn portable_top_left_to_cocoa(
 }
 
 #[cfg(target_os = "windows")]
-fn ocr_pointer_for_target(pointer: ScreenPoint, _primary: MonitorWorkArea) -> ScreenPoint {
-    pointer
+fn ocr_region_for_target(
+    region: vocab_platform_api::ScreenRect,
+    _primary: MonitorWorkArea,
+) -> vocab_platform_api::ScreenRect {
+    region
 }
 
 #[cfg(not(target_os = "windows"))]
-fn ocr_pointer_for_target(pointer: ScreenPoint, primary: MonitorWorkArea) -> ScreenPoint {
-    portable_top_left_to_cocoa(pointer, primary)
+fn ocr_region_for_target(
+    region: vocab_platform_api::ScreenRect,
+    primary: MonitorWorkArea,
+) -> vocab_platform_api::ScreenRect {
+    vocab_platform_api::ScreenRect::new(
+        region.x,
+        primary.y + primary.height - region.y - region.height,
+        region.width,
+        region.height,
+    )
 }
 
 #[cfg(test)]
@@ -776,10 +816,10 @@ mod tests {
 
     #[cfg(target_os = "windows")]
     #[test]
-    fn windows_ocr_keeps_the_portable_top_left_pointer() {
-        let pointer = ScreenPoint::new(-400.0, 75.0);
+    fn windows_ocr_keeps_the_portable_top_left_region() {
+        let region = vocab_platform_api::ScreenRect::new(-400.0, 75.0, 80.0, 24.0);
         let primary = MonitorWorkArea::new(0.0, 0.0, 1440.0, 900.0, 2.0);
 
-        assert_eq!(super::ocr_pointer_for_target(pointer, primary), pointer);
+        assert_eq!(super::ocr_region_for_target(region, primary), region);
     }
 }

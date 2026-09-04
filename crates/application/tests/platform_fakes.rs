@@ -15,7 +15,7 @@ use vocab_capture::CoordinatorError;
 use vocab_platform_api::{
     Capability, CaptureCandidate, CaptureOrigin, OcrCandidate, OcrProvider, PermissionKind,
     PermissionProvider, PermissionStatus, PlatformCapabilities, PlatformError, PlatformServices,
-    ScreenPoint, SelectionProvider, TranslationProvider, TranslationResult, WindowProvider,
+    ScreenRect, SelectionProvider, TranslationProvider, TranslationResult, WindowProvider,
 };
 use vocab_platform_contract_tests::{FakeSelectionProvider, UnavailableTranslationProvider};
 use vocab_storage::SqliteStore;
@@ -82,9 +82,9 @@ struct UnusedOcrProvider;
 
 #[async_trait::async_trait]
 impl OcrProvider for UnusedOcrProvider {
-    async fn recognize_near(
+    async fn recognize_region(
         &self,
-        _pointer: ScreenPoint,
+        _region: ScreenRect,
     ) -> Result<Vec<OcrCandidate>, PlatformError> {
         Err(PlatformError::Unsupported(Capability::ScreenshotOcr))
     }

@@ -49,11 +49,11 @@ pub struct MacOcrProvider;
 
 #[async_trait]
 impl OcrProvider for MacOcrProvider {
-    async fn recognize_near(
+    async fn recognize_region(
         &self,
-        pointer: ScreenPoint,
+        region: vocab_platform_api::ScreenRect,
     ) -> Result<Vec<OcrCandidate>, PlatformError> {
-        recognize_near_with(pointer, ffi::capture_ocr_at).await
+        recognize_near_with(region.center(), ffi::capture_ocr_at).await
     }
 }
 
