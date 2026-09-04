@@ -5,11 +5,11 @@ import type { Settings } from "../lib/types";
 import WindowsApp from "./WindowsApp.svelte";
 
 class TrackingReviewBackend extends DemoBackend {
-  ratings: Array<{ wordId: string; rating: "forgot" | "remembered" }> = [];
+  ratings: Array<{ wordId: string; rating: "forgot" | "remembered"; submissionId?: string }> = [];
 
-  override async submitReview(wordId: string, rating: "forgot" | "remembered") {
-    this.ratings.push({ wordId, rating });
-    return super.submitReview(wordId, rating);
+  override async submitReview(wordId: string, rating: "forgot" | "remembered", submissionId?: string) {
+    this.ratings.push({ wordId, rating, submissionId });
+    return super.submitReview(wordId, rating, submissionId);
   }
 }
 
@@ -329,9 +329,9 @@ describe("Windows main presentation", () => {
     const api = new TrackingReviewBackend(true);
     const submit = api.submitReview.bind(api);
     let attempts = 0;
-    api.submitReview = async (wordId, rating) => {
+    api.submitReview = async (wordId, rating, submissionId) => {
       if (attempts++ === 0) throw new Error("Could not save review");
-      return submit(wordId, rating);
+      return submit(wordId, rating, submissionId);
     };
     render(WindowsApp, { api });
 
@@ -340,8 +340,45 @@ describe("Windows main presentation", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Could not save review");
     expect(screen.getByRole("heading", { name: "serendipity" })).toBeVisible();
 
-    await fireEvent.click(screen.getByRole("button", { name: "Remembered" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Retry Remembered" }));
     expect(await screen.findByRole("button", { name: "Next" })).toBeVisible();
+    expect(api.ratings[0].submissionId).toBeTruthy();
+  });
+
+  it("resumes a revealed but unrated card in Recall state", async () => {
+    const api = new TrackingReviewBackend(true);
+    render(WindowsApp, { api });
+
+    await fireEvent.click(await screen.findByRole("button", { name: "Start review (3)" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Show answer" }));
+    expect(screen.getByText("glücklicher Zufall")).toBeVisible();
+    await fireEvent.click(screen.getByRole("button", { name: "Close review" }));
+    await fireEvent.click(await screen.findByRole("button", { name: "Resume review" }));
+
+    expect(screen.queryByText("glücklicher Zufall")).toBeNull();
+    expect(screen.getByRole("button", { name: "Show answer" })).toBeVisible();
+    expect(api.ratings).toHaveLength(0);
+  });
+
+  it("reuses the logical submission after an ambiguous response", async () => {
+    const api = new TrackingReviewBackend(true);
+    const submit = api.submitReview.bind(api);
+    let first = true;
+    api.submitReview = async (wordId, rating, submissionId) => {
+      const result = await submit(wordId, rating, submissionId);
+      if (first) { first = false; throw new Error("Response was lost"); }
+      return result;
+    };
+    render(WindowsApp, { api });
+
+    await fireEvent.click(await screen.findByRole("button", { name: "Start review (3)" }));
+    await revealAndRate("Remembered");
+    await fireEvent.click(await screen.findByRole("button", { name: "Retry Remembered" }));
+
+    expect(await screen.findByRole("button", { name: "Next" })).toBeVisible();
+    expect(api.ratings).toHaveLength(2);
+    expect(api.ratings[0].submissionId).toBe(api.ratings[1].submissionId);
+    expect((await api.getToday()).totalDueCount).toBe(2);
   });
 
   it("blocks stale Resume until a failed close refresh succeeds", async () => {

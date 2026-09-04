@@ -45,6 +45,8 @@ pub enum ApplicationError {
     WordNotFound,
     #[error("target language must be explicit")]
     InvalidTargetLanguage,
+    #[error("review submission identity does not match the original request")]
+    ReviewSubmissionConflict,
 }
 
 pub struct AppService {
@@ -185,6 +187,36 @@ impl AppService {
         rating: ReviewRating,
         reviewed_at: DateTime<Utc>,
     ) -> Result<ReviewResult, ApplicationError> {
+        self.submit_review_once(Uuid::now_v7(), word_id, rating, reviewed_at)
+    }
+
+    pub fn submit_review_once(
+        &self,
+        submission_id: Uuid,
+        word_id: Uuid,
+        rating: ReviewRating,
+        reviewed_at: DateTime<Utc>,
+    ) -> Result<ReviewResult, ApplicationError> {
+        let review_history =
+            vocab_domain::ReviewRepository::list_for_word(self.store.as_ref(), word_id)?;
+        if let Some(existing) = review_history.iter().find(|review| review.id == submission_id) {
+            if existing.word_id != word_id || existing.rating != rating {
+                return Err(ApplicationError::ReviewSubmissionConflict);
+            }
+            let word = WordRepository::get(self.store.as_ref(), word_id)?
+                .ok_or(ApplicationError::WordNotFound)?;
+            let current = word.review_state.ok_or(ApplicationError::WordNotFound)?;
+            let encounter_count = self.store.list_for_word(word_id)?.len();
+            let consecutive_forgotten = review_history
+                .iter().rev().take_while(|review| review.rating == ReviewRating::Forgot).count();
+            return Ok(ReviewResult {
+                word_id, rating, reviewed_at: existing.reviewed_at,
+                previous_due_at: current.due_at, next_due_at: current.due_at,
+                previous_stability: current.stability, stability: current.stability,
+                difficulty: current.difficulty, lapse_count: current.lapse_count,
+                encounter_count, repeated_forgetting: consecutive_forgotten >= 3,
+            });
+        }
         let mut word = WordRepository::get(self.store.as_ref(), word_id)?
             .ok_or(ApplicationError::WordNotFound)?;
         let prior = word
@@ -200,7 +232,7 @@ impl AppService {
         word.review_state = Some(apply_review(Some(&prior), rating, reviewed_at));
         word.updated_at = reviewed_at;
         let review = ReviewLog {
-            id: Uuid::now_v7(),
+            id: submission_id,
             word_id,
             rating,
             reviewed_at,

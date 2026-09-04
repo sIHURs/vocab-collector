@@ -148,3 +148,56 @@ Ticket 04 can make Review lifecycle transitions resilient: closing after a
 successful submission must resume at the next unreviewed item, reveal-only
 state must resume safely, and retrying one logical submission must not produce
 duplicate durable Review events.
+
+## Ticket 04 — Make the Review lifecycle resumable and single-submit
+
+### Implemented
+
+- Added a caller-owned Review submission ID to the portable application and
+  desktop command boundary.
+- Made sequential retries of one logical submission idempotent before applying
+  scheduling changes or appending another Review Log.
+- Preserved the revealed card and a rating-specific retry action after errors,
+  while disabling conflicting or repeated rating actions in flight.
+- Defined reveal-only pause/resume to restart the same card in Recall state.
+- Guarded stale responses with request versions and restored keyboard focus to
+  the next meaningful Review action after each transition.
+
+### Key design decisions
+
+- Idempotency belongs to shared application behavior; Windows generates and
+  reuses an opaque UUID but owns no persistence rule.
+- A submission ID cannot be reused with another word or rating.
+- Closing is unavailable while a submission is in flight; stale response guards
+  provide a second boundary against navigation races.
+- Reveal remains ephemeral and never creates a Review Log.
+
+### Main files changed
+
+- Shared application Review submission flow and application tests.
+- Desktop Review command contract.
+- TypeScript backend contract and idempotent demo backend.
+- Windows Review state machine, focus behavior, and lifecycle tests.
+
+### Tests run
+
+- TDD red/green: `retrying_one_logical_review_submission_is_idempotent` failed before the new application seam and then passed.
+- `cargo test -p vocab-application --test application_flow`: 12 passed.
+- `cargo test --workspace --exclude vocab-platform-macos --exclude vocab-platform-linux --exclude vocab-desktop`: passed; live provider tests and the opt-in physical Windows UIA test remained ignored by design.
+- `cargo check -p vocab-desktop --tests`: passed.
+- `pnpm test -- --run`: 76 passed.
+- `pnpm --dir ui check`: 0 errors and 0 warnings.
+
+### Not yet verified
+
+- Native window close timing, keyboard focus, and screen-reader announcements
+  have not been exercised in the physical Windows desktop runtime.
+- Concurrent submissions from separate processes are outside this ticket's
+  sequential lost-response retry contract and remain unverified.
+- macOS presentation remains intentionally unchanged and unverified.
+
+### Next ticket starting point
+
+Ticket 05 can accumulate each successful Review result once, summarize the
+session in shared application logic, calculate the next local calendar day's
+expected workload, and render the resulting Insight in the Windows Review page.

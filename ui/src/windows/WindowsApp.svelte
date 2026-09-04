@@ -32,6 +32,9 @@
   let reviewError = "";
   let reviewRevealed = false;
   let reviewResult: ReviewResult | null = null;
+  let reviewSubmissionId: string | null = null;
+  let reviewSubmissionRating: ReviewRating | null = null;
+  let reviewRequestVersion = 0;
   let settingsDraft: Settings | null = null;
   let appliedSettings: Settings | null = null;
   let settingsSaving = false;
@@ -45,6 +48,7 @@
   let captureDialog: HTMLElement;
   let detailTrigger: HTMLElement | null = null;
   let detailCloseButton: HTMLButtonElement;
+  let reviewCardElement: HTMLElement;
 
   $: filteredWords = words.filter((word) => `${word.displayForm} ${word.translation ?? ""}`.toLowerCase().includes(search.trim().toLowerCase()));
   $: vocabularyPageCount = Math.max(1, Math.ceil(filteredWords.length / vocabularyPageSize));
@@ -148,7 +152,7 @@
     catch (cause) { error = cause instanceof Error ? cause.message : String(cause); }
   }
 
-  function startReview() {
+  async function startReview() {
     if (!today?.reviewQueue.length || reviewRefreshRequired) return;
     route = "Review";
     reviewOpen = true;
@@ -156,12 +160,27 @@
     reviewError = "";
     reviewRevealed = false;
     reviewResult = null;
+    reviewSubmissionId = null;
+    reviewSubmissionRating = null;
+    await tick();
+    reviewCardElement?.querySelector<HTMLButtonElement>(".review-actions button")?.focus();
+  }
+
+  async function revealReview() {
+    reviewRevealed = true;
+    await tick();
+    reviewCardElement?.querySelector<HTMLButtonElement>(".review-actions button")?.focus();
   }
 
   async function closeReview() {
     if (reviewSubmitting) return;
     reviewOpen = false;
+    reviewRequestVersion += 1;
     reviewPaused = true;
+    reviewRevealed = false;
+    reviewResult = null;
+    reviewSubmissionId = null;
+    reviewSubmissionRating = null;
     if (await refresh()) reviewIndex = 0;
     else reviewRefreshRequired = true;
   }
@@ -183,12 +202,37 @@
 
   async function rateReview(rating: ReviewRating) {
     if (!activeReview || reviewSubmitting) return;
+    const wordId = activeReview.wordId;
+    if (reviewSubmissionRating && reviewSubmissionRating !== rating) return;
+    reviewSubmissionRating = rating;
+    reviewSubmissionId ??= globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
+    const requestVersion = ++reviewRequestVersion;
     reviewSubmitting = true;
     reviewError = "";
     try {
-      reviewResult = await api.submitReview(activeReview.wordId, rating);
-    } catch (cause) { reviewError = cause instanceof Error ? cause.message : String(cause); }
-    finally { reviewSubmitting = false; }
+      const result = await api.submitReview(wordId, rating, reviewSubmissionId);
+      if (requestVersion === reviewRequestVersion && activeReview?.wordId === wordId) {
+        reviewResult = result;
+        await tick();
+        reviewCardElement?.querySelector<HTMLButtonElement>(".review-actions button:last-child")?.focus();
+      }
+    } catch (cause) {
+      if (requestVersion === reviewRequestVersion) {
+        reviewError = cause instanceof Error ? cause.message : String(cause);
+      }
+    } finally {
+      if (requestVersion === reviewRequestVersion) {
+        reviewSubmitting = false;
+        if (reviewError) {
+          await tick();
+          reviewCardElement?.querySelector<HTMLButtonElement>(".review-actions button")?.focus();
+        }
+      }
+    }
+  }
+
+  async function retryReviewSubmission() {
+    if (reviewSubmissionRating) await rateReview(reviewSubmissionRating);
   }
 
   async function nextReview() {
@@ -198,6 +242,10 @@
       reviewRevealed = false;
       reviewResult = null;
       reviewError = "";
+      reviewSubmissionId = null;
+      reviewSubmissionRating = null;
+      await tick();
+      reviewCardElement?.querySelector<HTMLButtonElement>(".review-actions button")?.focus();
     } else {
         reviewOpen = false;
         reviewPaused = false;
@@ -323,7 +371,7 @@
         {#if filteredWords.length}<nav class="pagination" aria-label="Vocabulary pages"><button class="secondary" disabled={vocabularyPage === 1} onclick={() => goToVocabularyPage(1)}>First</button><button class="secondary" disabled={vocabularyPage === 1} onclick={() => goToVocabularyPage(vocabularyPage - 1)}>Previous</button><form aria-label="Go to vocabulary page" onsubmit={(event) => { event.preventDefault(); goToVocabularyPage(vocabularyPageInput); }}><label><span>Page</span><input aria-label="Page number" type="number" min="1" max={vocabularyPageCount} bind:value={vocabularyPageInput} onblur={() => goToVocabularyPage(vocabularyPageInput)} /><span>of {vocabularyPageCount}</span></label></form><button class="secondary" disabled={vocabularyPage === vocabularyPageCount} onclick={() => goToVocabularyPage(vocabularyPage + 1)}>Next</button><button class="secondary" disabled={vocabularyPage === vocabularyPageCount} onclick={() => goToVocabularyPage(vocabularyPageCount)}>Last</button></nav>{/if}
       {:else if route === "Review"}
         {#if reviewOpen && activeReview}
-          <div class="review-card" aria-live="polite"><div class="review-progress"><span>{reviewIndex + 1} of {today?.reviewQueue.length}</span><button class="icon" aria-label="Close review" disabled={reviewSubmitting} onclick={closeReview}>×</button></div><span class="eyebrow">Do you remember this word?</span><h2>{activeReview.displayForm}</h2><p>{activeReview.context ?? "No saved context"}</p>{#if reviewResult}<div class="review-translation" role="status"><small>{reviewResult.rating === "remembered" ? "Remembered" : "Forgot"}</small><strong>Next review {new Date(reviewResult.nextDueAt).toLocaleDateString()}</strong><span>{`Encountered ${reviewResult.encounterCount} time${reviewResult.encounterCount === 1 ? "" : "s"}`}</span>{#if reviewResult.repeatedForgetting}<p>This Vocabulary Item has been repeatedly forgotten. Another context or a translation check may help.</p>{/if}</div>{:else if reviewRevealed}<div class="review-translation" role="status"><small>Translation</small><strong>{activeReview.translation ?? "Unavailable"}</strong></div>{/if}{#if reviewError}<div class="dialog-error" role="alert">{reviewError}</div>{/if}<div class="review-actions">{#if reviewResult}{#if reviewResult.repeatedForgetting}<button class="secondary" onclick={(event) => showDetail(activeReview.wordId, event.currentTarget)}>Review contexts</button>{/if}<button class="primary" onclick={nextReview}>Next</button>{:else if reviewRevealed}<button class="secondary" disabled={reviewSubmitting} onclick={() => rateReview("forgot")}>Forgot</button><button class="primary" disabled={reviewSubmitting} onclick={() => rateReview("remembered")}>Remembered</button>{:else}<button class="primary" onclick={() => (reviewRevealed = true)}>Show answer</button>{/if}</div></div>
+          <div class="review-card" aria-live="polite" bind:this={reviewCardElement}><div class="review-progress"><span>{reviewIndex + 1} of {today?.reviewQueue.length}</span><button class="icon" aria-label="Close review" disabled={reviewSubmitting} onclick={closeReview}>×</button></div><span class="eyebrow">Do you remember this word?</span><h2>{activeReview.displayForm}</h2><p>{activeReview.context ?? "No saved context"}</p>{#if reviewResult}<div class="review-translation" role="status"><small>{reviewResult.rating === "remembered" ? "Remembered" : "Forgot"}</small><strong>Next review {new Date(reviewResult.nextDueAt).toLocaleDateString()}</strong><span>{`Encountered ${reviewResult.encounterCount} time${reviewResult.encounterCount === 1 ? "" : "s"}`}</span>{#if reviewResult.repeatedForgetting}<p>This Vocabulary Item has been repeatedly forgotten. Another context or a translation check may help.</p>{/if}</div>{:else if reviewRevealed}<div class="review-translation" role="status"><small>Translation</small><strong>{activeReview.translation ?? "Unavailable"}</strong></div>{/if}{#if reviewError}<div class="dialog-error" role="alert">{reviewError}</div>{/if}<div class="review-actions">{#if reviewResult}{#if reviewResult.repeatedForgetting}<button class="secondary" onclick={(event) => showDetail(activeReview.wordId, event.currentTarget)}>Review contexts</button>{/if}<button class="primary" onclick={nextReview}>Next</button>{:else if reviewRevealed}{#if reviewError && reviewSubmissionRating}<button class="primary" disabled={reviewSubmitting} onclick={retryReviewSubmission}>Retry {reviewSubmissionRating === "remembered" ? "Remembered" : "Forgot"}</button>{:else}<button class="secondary" disabled={reviewSubmitting} onclick={() => rateReview("forgot")}>Forgot</button><button class="primary" disabled={reviewSubmitting} onclick={() => rateReview("remembered")}>Remembered</button>{/if}{:else}<button class="primary" onclick={revealReview}>Show answer</button>{/if}</div></div>
         {:else if reviewComplete}
           <div class="state"><h2>Review complete</h2><span>Today is refreshed. Your next due dates come from the shared review schedule.</span><button class="primary" onclick={() => (route = "Today")}>Back to Today</button></div>
         {:else if reviewRefreshRequired}

@@ -54,12 +54,13 @@ pub fn get_word(state: State<'_, AppState>, word_id: Uuid) -> Result<WordDetail,
 #[tauri::command]
 pub fn submit_review(
     state: State<'_, AppState>,
+    submission_id: Uuid,
     word_id: Uuid,
     rating: ReviewRating,
 ) -> Result<ReviewResult, String> {
     state
         .application()
-        .submit_review(word_id, rating, Utc::now())
+        .submit_review_once(submission_id, word_id, rating, Utc::now())
         .map_err(|error| error.to_string())
 }
 

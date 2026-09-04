@@ -3,7 +3,7 @@ use std::sync::Arc;
 use chrono::{TimeZone, Utc};
 use uuid::Uuid;
 use vocab_application::{AppService, CaptureRequest};
-use vocab_domain::{CaptureOrigin, ReviewRating, SettingsRepository};
+use vocab_domain::{CaptureOrigin, ReviewRating, ReviewRepository, SettingsRepository, WordRepository};
 use vocab_storage::SqliteStore;
 
 fn request(word: &str, translation: &str) -> CaptureRequest {
@@ -101,6 +101,29 @@ fn review_result_reports_encounters_and_repeated_forgetting_after_three_consecut
     assert!(!one.repeated_forgetting);
     assert!(!two.repeated_forgetting);
     assert!(three.repeated_forgetting);
+}
+
+#[test]
+fn retrying_one_logical_review_submission_is_idempotent() {
+    let store = Arc::new(SqliteStore::open_in_memory().unwrap());
+    let service = AppService::new(store.clone(), Uuid::now_v7());
+    let card = service.capture(request("Durable", "beständig")).unwrap();
+    let reviewed_at = Utc.with_ymd_and_hms(2026, 8, 25, 12, 5, 0).unwrap();
+    let submission_id = Uuid::now_v7();
+
+    let first = service
+        .submit_review_once(submission_id, card.word_id, ReviewRating::Remembered, reviewed_at)
+        .unwrap();
+    let word_after_first = WordRepository::get(store.as_ref(), card.word_id).unwrap().unwrap();
+    let retry = service
+        .submit_review_once(submission_id, card.word_id, ReviewRating::Remembered, reviewed_at)
+        .unwrap();
+    let word_after_retry = WordRepository::get(store.as_ref(), card.word_id).unwrap().unwrap();
+
+    assert_eq!(retry.word_id, first.word_id);
+    assert_eq!(retry.rating, first.rating);
+    assert_eq!(word_after_retry.review_state, word_after_first.review_state);
+    assert_eq!(ReviewRepository::list_for_word(store.as_ref(), card.word_id).unwrap().len(), 1);
 }
 
 #[test]

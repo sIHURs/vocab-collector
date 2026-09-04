@@ -12,7 +12,7 @@ export interface Backend {
   getToday(): Promise<TodayView>;
   listWords(): Promise<WordListItem[]>;
   getWord(wordId: string): Promise<WordDetail>;
-  submitReview(wordId: string, rating: ReviewRating): Promise<ReviewResult>;
+  submitReview(wordId: string, rating: ReviewRating, submissionId?: string): Promise<ReviewResult>;
   getSettings(): Promise<Settings>;
   updateSettings(settings: Settings): Promise<void>;
   replaceShortcut(candidate: string): Promise<Settings>;
@@ -40,11 +40,12 @@ const unavailablePlatformCapabilities: PlatformCapabilities = {
   nonActivatingWindow: false,
 };
 
-const id = () => globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
+const id = (): string => globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
 
 export class DemoBackend implements Backend {
   private words: DemoWord[] = [];
   private settings = { ...defaultSettings };
+  private reviewSubmissions = new Map<string, ReviewResult>();
 
   constructor(seed = true) {
     if (seed) {
@@ -132,7 +133,12 @@ export class DemoBackend implements Backend {
     if (!word) throw new Error("word not found");
     return structuredClone(word) as WordDetail;
   }
-  async submitReview(wordId: string, rating: ReviewRating): Promise<ReviewResult> {
+  async submitReview(wordId: string, rating: ReviewRating, submissionId: string = id()): Promise<ReviewResult> {
+    const existing = this.reviewSubmissions.get(submissionId);
+    if (existing) {
+      if (existing.wordId !== wordId || existing.rating !== rating) throw new Error("review submission conflict");
+      return { ...existing };
+    }
     const word = this.words.find((candidate) => candidate.item.id === wordId);
     if (!word) throw new Error("word not found");
     const reviewedAt = new Date().toISOString();
@@ -140,10 +146,12 @@ export class DemoBackend implements Backend {
     const nextDueAt = new Date(Date.now() + (rating === "forgot" ? 86_400_000 : 259_200_000)).toISOString();
     word.due = false;
     word.item.nextReviewAt = nextDueAt;
-    return { wordId, rating, reviewedAt, previousDueAt, nextDueAt,
+    const result = { wordId, rating, reviewedAt, previousDueAt, nextDueAt,
       previousStability: 1, stability: rating === "forgot" ? 0.5 : 3,
       difficulty: rating === "forgot" ? 5.5 : 4.85, lapseCount: rating === "forgot" ? 1 : 0,
       encounterCount: word.encounters.length, repeatedForgetting: false };
+    this.reviewSubmissions.set(submissionId, result);
+    return { ...result };
   }
   async getSettings() { return { ...this.settings }; }
   async updateSettings(settings: Settings) { this.settings = { ...settings }; }
@@ -170,7 +178,9 @@ class TauriBackend implements Backend {
   getToday() { return invoke<TodayView>("get_today"); }
   listWords() { return invoke<WordListItem[]>("list_words"); }
   getWord(wordId: string) { return invoke<WordDetail>("get_word", { wordId }); }
-  submitReview(wordId: string, rating: ReviewRating) { return invoke<ReviewResult>("submit_review", { wordId, rating }); }
+  submitReview(wordId: string, rating: ReviewRating, submissionId = id()) {
+    return invoke<ReviewResult>("submit_review", { submissionId, wordId, rating });
+  }
   getSettings() { return invoke<Settings>("get_settings"); }
   updateSettings(settings: Settings) { return invoke<void>("update_settings", { settings }); }
   replaceShortcut(candidate: string) { return invoke<Settings>("replace_shortcut", { candidate }); }
