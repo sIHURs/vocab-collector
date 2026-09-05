@@ -40,6 +40,38 @@ pub struct AchievedWordListItem {
     pub encounter_count: usize,
     pub achieved_at: DateTime<Utc>,
     pub delete_after: DateTime<Utc>,
+    pub remaining_days: u32,
+    pub urgency: DeletionUrgency,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DeletionUrgency {
+    Normal,
+    Warning,
+    Urgent,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AchievedCaptureConflict {
+    pub word_id: Uuid,
+    pub display_form: String,
+    pub achieved_at: DateTime<Utc>,
+    pub delete_after: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GlobalInsight {
+    pub current_vocabulary_count: usize,
+    pub current_achieved_count: usize,
+    pub lifetime_vocabulary_count: usize,
+    pub lifetime_encounter_count: usize,
+    pub lifetime_review_count: usize,
+    pub lifetime_remembered_count: usize,
+    pub lifetime_forgotten_count: usize,
+    pub lifetime_rating_breakdown_complete: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]

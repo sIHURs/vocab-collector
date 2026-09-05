@@ -67,3 +67,7 @@ _Avoid_: Mastered item, deleted item, trash item
 **Unachieve**:
 The user decision that returns an Achieved Vocabulary Item to Mastered status before permanent deletion.
 _Avoid_: Restore to learning, undo review
+
+**Recapture an Achieved Vocabulary Item**:
+The explicit capture-window decision that returns an Achieved Vocabulary Item to Learning and records the new Encounter atomically. This is distinct from Unachieve because the new Encounter is evidence that active learning should resume.
+_Avoid_: Automatic restore, duplicate capture

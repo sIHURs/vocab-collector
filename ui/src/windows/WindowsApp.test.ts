@@ -528,8 +528,8 @@ describe("Windows main presentation", () => {
   it("selects the filtered Achieved list and runs batch Unachieve or confirmed deletion", async () => {
     const api = new DemoBackend(false);
     let achieved = [
-      { id: "one", lemma: "achieve", displayForm: "achieve", translation: "erreichen", encounterCount: 2, achievedAt: "2026-09-01T00:00:00Z", deleteAfter: "2026-10-01T00:00:00Z" },
-      { id: "two", lemma: "durable", displayForm: "durable", translation: "beständig", encounterCount: 1, achievedAt: "2026-09-02T00:00:00Z", deleteAfter: "2026-10-02T00:00:00Z" },
+      { id: "one", lemma: "achieve", displayForm: "achieve", translation: "erreichen", encounterCount: 2, achievedAt: "2026-09-01T00:00:00Z", deleteAfter: "2026-10-01T00:00:00Z", remainingDays: 26, urgency: "normal" as const },
+      { id: "two", lemma: "durable", displayForm: "durable", translation: "beständig", encounterCount: 1, achievedAt: "2026-09-02T00:00:00Z", deleteAfter: "2026-10-02T00:00:00Z", remainingDays: 27, urgency: "normal" as const },
     ];
     const unachieve = vi.fn(async (ids: string[]) => { achieved = achieved.filter((word) => !ids.includes(word.id)); return ids.length; });
     const remove = vi.fn(async (ids: string[]) => { achieved = achieved.filter((word) => !ids.includes(word.id)); return ids.length; });
@@ -552,5 +552,52 @@ describe("Windows main presentation", () => {
     await fireEvent.click(screen.getByLabelText("Select durable"));
     await fireEvent.click(screen.getByRole("button", { name: "Delete permanently" }));
     expect(remove).toHaveBeenCalledWith(["two"]);
+  });
+
+  it("offers an inline Achieved tag before returning a captured item to Learning", async () => {
+    const api = new DemoBackend(false);
+    api.findAchievedCapture = vi.fn(async () => ({ wordId: "achieved-1", displayForm: "achieve", achievedAt: "2026-09-01T00:00:00Z", deleteAfter: "2026-10-01T00:00:00Z" }));
+    api.restoreAchievedAndCapture = vi.fn(async () => ({ wordId: "achieved-1", encounterId: "encounter-2", displayForm: "achieve", context: "We can achieve this.", encounterCount: 2, isExistingWord: true }));
+    render(WindowsApp, { api });
+    await screen.findByText("No captures yet");
+
+    await saveManualCapture("achieve", "We can achieve this.");
+
+    const dialog = screen.getByRole("dialog", { name: "Save a reading context" });
+    expect(within(dialog).getByText("Achieved")).toBeVisible();
+    expect(within(dialog).getByText(/Return it to Learning/)).toBeVisible();
+    await fireEvent.click(within(dialog).getByRole("button", { name: "Return to Learning" }));
+    expect(api.restoreAchievedAndCapture).toHaveBeenCalledWith("achieved-1", expect.objectContaining({ selectedText: "achieve" }));
+    expect(await screen.findByRole("dialog", { name: "Capture saved" })).toBeVisible();
+  });
+
+  it("shows archived-aware lifetime Insight on Review", async () => {
+    const api = new DemoBackend(false);
+    api.getGlobalInsight = async () => ({
+      currentVocabularyCount: 12, currentAchievedCount: 3,
+      lifetimeVocabularyCount: 35, lifetimeEncounterCount: 81, lifetimeReviewCount: 144,
+      lifetimeRememberedCount: 108, lifetimeForgottenCount: 36,
+      lifetimeRatingBreakdownComplete: true,
+    });
+    render(WindowsApp, { api });
+    await screen.findByText("No captures yet");
+    await fireEvent.click(screen.getByRole("button", { name: "Review" }));
+
+    const insight = screen.getByRole("region", { name: "All-time progress" });
+    expect(within(insight).getByText("35")).toBeVisible();
+    expect(within(insight).getByText("144")).toBeVisible();
+    expect(within(insight).getByText("108")).toBeVisible();
+  });
+
+  it("shows when each Achieved Vocabulary Item was achieved", async () => {
+    const api = new DemoBackend(false);
+    const achievedAt = "2026-09-01T00:00:00Z";
+    api.listAchievedWords = async () => [{ id: "one", lemma: "achieve", displayForm: "achieve", translation: "erreichen", encounterCount: 2, achievedAt, deleteAfter: "2026-10-01T00:00:00Z", remainingDays: 26, urgency: "normal" }];
+    render(WindowsApp, { api });
+    await screen.findByText("No captures yet");
+    await fireEvent.click(screen.getByRole("button", { name: "Vocabulary" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Achieved (1)" }));
+
+    expect(screen.getByText(`Achieved ${new Date(achievedAt).toLocaleDateString()}`)).toBeVisible();
   });
 });

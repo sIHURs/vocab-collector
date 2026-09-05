@@ -219,6 +219,31 @@ pub fn save_native_capture(
 }
 
 #[tauri::command]
+pub fn find_achieved_native_capture(
+    state: State<'_, AppState>,
+    request_id: Uuid,
+) -> Result<Option<vocab_domain::AchievedCaptureConflict>, CaptureFailure> {
+    state
+        .find_achieved_capture(request_id)
+        .map_err(CaptureFailure::from)
+}
+
+#[tauri::command]
+pub fn restore_achieved_and_save_native_capture(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    request_id: Uuid,
+    word_id: Uuid,
+    without_translation: bool,
+) -> Result<CaptureCard, CaptureFailure> {
+    let saved = state
+        .restore_achieved_and_save_capture(request_id, word_id, without_translation)
+        .map_err(CaptureFailure::from)?;
+    let _ = app.emit_to("main", LIBRARY_CHANGED_EVENT, ());
+    Ok(saved)
+}
+
+#[tauri::command]
 pub fn correct_native_capture(
     state: State<'_, AppState>,
     request_id: Uuid,

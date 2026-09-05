@@ -223,3 +223,64 @@
 - `cargo check --workspace`: PASS.
 - `pnpm --dir ui test`: PASS, 78 tests.
 - `pnpm --dir ui check`: PASS.
+
+## 2026-09-05 - Follow-up: recapture recovery and Lifetime Insight
+
+### Implemented
+
+- Added an inline `Achieved` tag to both Windows capture presentations. A
+  confirmed action returns the item to Learning and saves the new Encounter.
+- Added an atomic shared Rust use case for recapturing an Achieved Vocabulary
+  Item, including stale-ID protection.
+- Added the shared Global Insight query and rendered archive-aware Lifetime
+  totals on the Review page.
+- Preserved Remembered and Forgotten totals during permanent purge through
+  SQLite schema version 5.
+- Added the Achieved date to every Achieved-list row alongside its existing
+  deletion countdown and deadline.
+
+### Key design decisions
+
+- Recapture is not the same transition as list-based Unachieve: Unachieve
+  returns to Mastered, while a newly encountered Achieved item returns to
+  Learning.
+- The restore and Encounter write share one SQLite transaction; Windows UI
+  only presents the conflict and records consent.
+- The Review dashboard labels its values as all-time totals. It does not mix
+  archived aggregate-only data into detailed time-window charts.
+
+### Main files
+
+- `crates/application/src/lib.rs`
+- `crates/application/src/platform_capture.rs`
+- `crates/domain/src/views.rs`
+- `crates/storage/src/lib.rs`
+- `apps/desktop/src-tauri/src/commands/{capture,library}.rs`
+- `ui/src/windows/{WindowsApp,WindowsFloatingCapture}.svelte`
+
+### Tests and results
+
+- Application seam tests for consent and atomic return to Learning: PASS.
+- Application seam test for stable Lifetime totals across purge: PASS.
+- `cargo test -p vocab-application`: PASS, 40 tests.
+- `cargo test -p vocab-storage`: PASS, 9 tests.
+- `cargo test -p vocab-domain`: PASS, 11 tests.
+- `cargo test -p vocab-desktop --tests`: PASS, 40 tests.
+- `pnpm --dir ui test`: PASS, 82 tests.
+- `pnpm --dir ui build`: PASS.
+- `cargo check --workspace`: PASS.
+- `cargo test --workspace`: blocked only by the existing macOS native FFI
+  linker symbols on Windows.
+
+### Not yet verified
+
+- The new buttons, focus behavior, locale-formatted dates, and dashboard layout
+  have not yet been exercised manually in the physical Windows 11 WebView.
+- Remembered/Forgotten breakdowns from databases that had already purged
+  reviews before schema version 5 remain explicitly marked incomplete; the
+  aggregate total Review count is still preserved.
+
+### Next starting point
+
+- Run the final UI type check, then exercise a disposable Achieved item through
+  both Manual Capture and Selection Capture in the physical Windows app.

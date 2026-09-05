@@ -4,7 +4,7 @@ use chrono::{Duration, TimeZone, Utc};
 use uuid::Uuid;
 use vocab_application::{AppService, CaptureRequest};
 use vocab_domain::{
-    CaptureOrigin, ReviewRating, ReviewRepository, SettingsRepository, WordRepository,
+    CaptureOrigin, ReviewRating, ReviewRepository, SettingsRepository, WordRepository, WordStatus,
 };
 use vocab_storage::SqliteStore;
 
@@ -88,8 +88,79 @@ fn user_can_achieve_one_mastered_vocabulary_item() {
     let achieved = service.achieve_word(card.word_id, now).unwrap();
 
     assert_eq!(achieved.delete_after, now + Duration::days(30));
+    assert_eq!(achieved.remaining_days, 30);
     assert!(service.list_words().unwrap().is_empty());
     assert_eq!(service.list_achieved_words().unwrap()[0].id, card.word_id);
+}
+
+#[test]
+fn achieved_capture_requires_consent_then_atomically_returns_the_item_to_learning() {
+    let store = Arc::new(SqliteStore::open_in_memory().unwrap());
+    let service = AppService::new(store.clone(), Uuid::now_v7());
+    let original = service.capture(request("Achieve", "erreichen")).unwrap();
+    let achieved_at = Utc.with_ymd_and_hms(2026, 9, 5, 12, 0, 0).unwrap();
+    let mut word = WordRepository::get(store.as_ref(), original.word_id)
+        .unwrap()
+        .unwrap();
+    word.enter_mastered(achieved_at);
+    WordRepository::save(store.as_ref(), &word).unwrap();
+    service.achieve_word(original.word_id, achieved_at).unwrap();
+    let repeated = request("achieve", "erreichen");
+
+    let conflict = service
+        .find_achieved_capture(&repeated)
+        .unwrap()
+        .expect("Achieved capture should require consent");
+    assert_eq!(conflict.word_id, original.word_id);
+    assert_eq!(conflict.display_form, "Achieve");
+    assert_eq!(service.list_achieved_words().unwrap().len(), 1);
+
+    let saved = service
+        .restore_achieved_and_capture(conflict.word_id, repeated)
+        .unwrap();
+    let restored = WordRepository::get(store.as_ref(), original.word_id)
+        .unwrap()
+        .unwrap();
+    assert_eq!(restored.status, WordStatus::Learning);
+    assert_eq!(restored.mastered_at, None);
+    assert_eq!(restored.achieved_at, None);
+    assert_eq!(restored.delete_after, None);
+    assert_eq!(saved.encounter_count, 2);
+}
+
+#[test]
+fn global_insight_preserves_lifetime_totals_after_an_achieved_item_is_purged() {
+    let store = Arc::new(SqliteStore::open_in_memory().unwrap());
+    let service = AppService::new(store.clone(), Uuid::now_v7());
+    let now = Utc.with_ymd_and_hms(2026, 9, 5, 12, 0, 0).unwrap();
+    let card = service.capture(request("Archive", "Archiv")).unwrap();
+    service
+        .submit_review(card.word_id, ReviewRating::Remembered, now)
+        .unwrap();
+    let mut word = WordRepository::get(store.as_ref(), card.word_id)
+        .unwrap()
+        .unwrap();
+    word.enter_mastered(now);
+    WordRepository::save(store.as_ref(), &word).unwrap();
+    service.achieve_word(card.word_id, now).unwrap();
+
+    let before = service.get_global_insight().unwrap();
+    service.delete_achieved_words(&[card.word_id], now).unwrap();
+    let after = service.get_global_insight().unwrap();
+
+    assert_eq!(
+        after.lifetime_vocabulary_count,
+        before.lifetime_vocabulary_count
+    );
+    assert_eq!(
+        after.lifetime_encounter_count,
+        before.lifetime_encounter_count
+    );
+    assert_eq!(after.lifetime_review_count, before.lifetime_review_count);
+    assert_eq!(after.lifetime_remembered_count, 1);
+    assert_eq!(after.lifetime_forgotten_count, 0);
+    assert_eq!(after.current_vocabulary_count, 0);
+    assert_eq!(after.current_achieved_count, 0);
 }
 
 #[test]

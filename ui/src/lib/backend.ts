@@ -1,13 +1,15 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type {
-  AchievedWordListItem, CaptureCard, CaptureInput, Encounter, PlatformCapabilities, ReviewRating, ReviewResult, ReviewSessionInsight, Settings,
+  AchievedCaptureConflict, AchievedWordListItem, CaptureCard, CaptureInput, Encounter, GlobalInsight, PlatformCapabilities, ReviewRating, ReviewResult, ReviewSessionInsight, Settings,
   SettingsApplyResult, SystemSettingsStatus, TodayView,
   WordDetail, WordListItem,
 } from "./types";
 
 export interface Backend {
   capture(input: CaptureInput): Promise<CaptureCard>;
+  findAchievedCapture?(input: CaptureInput): Promise<AchievedCaptureConflict | null>;
+  restoreAchievedAndCapture?(wordId: string, input: CaptureInput): Promise<CaptureCard>;
   undoCapture(encounterId: string): Promise<void>;
   getToday(): Promise<TodayView>;
   listWords(): Promise<WordListItem[]>;
@@ -19,6 +21,7 @@ export interface Backend {
   getWord(wordId: string): Promise<WordDetail>;
   submitReview(wordId: string, rating: ReviewRating, submissionId?: string): Promise<ReviewResult>;
   getReviewSessionInsight(submissionIds: string[], nextDayEnd: string): Promise<ReviewSessionInsight>;
+  getGlobalInsight?(): Promise<GlobalInsight>;
   getSettings(): Promise<Settings>;
   updateSettings(settings: Settings): Promise<void>;
   replaceShortcut(candidate: string): Promise<Settings>;
@@ -48,6 +51,10 @@ const unavailablePlatformCapabilities: PlatformCapabilities = {
 };
 
 const id = (): string => globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
+const achievedTiming = (deleteAfter: string) => {
+  const remainingDays = Math.max(0, Math.ceil((new Date(deleteAfter).getTime() - Date.now()) / 86_400_000));
+  return { remainingDays, urgency: remainingDays <= 2 ? "urgent" as const : remainingDays <= 7 ? "warning" as const : "normal" as const };
+};
 
 export class DemoBackend implements Backend {
   private words: DemoWord[] = [];
@@ -139,7 +146,22 @@ export class DemoBackend implements Backend {
     return this.words.filter((word) => word.item.achievedAt && word.item.deleteAfter).map((word) => ({
       id: word.item.id, lemma: word.lemma, displayForm: word.item.displayForm, translation: word.item.translation,
       encounterCount: word.item.encounterCount, achievedAt: word.item.achievedAt!, deleteAfter: word.item.deleteAfter!,
+      ...achievedTiming(word.item.deleteAfter!),
     }));
+  }
+
+  async findAchievedCapture(input: CaptureInput): Promise<AchievedCaptureConflict | null> {
+    const normalized = input.selectedText.trim().toLowerCase();
+    const word = this.words.find((candidate) => candidate.lemma === normalized && candidate.item.achievedAt && candidate.item.deleteAfter);
+    return word ? { wordId: word.item.id, displayForm: word.item.displayForm, achievedAt: word.item.achievedAt!, deleteAfter: word.item.deleteAfter! } : null;
+  }
+  async restoreAchievedAndCapture(wordId: string, input: CaptureInput): Promise<CaptureCard> {
+    const word = this.words.find((candidate) => candidate.item.id === wordId && candidate.item.achievedAt);
+    if (!word) throw new Error("Achieved Vocabulary Item changed; try capturing again");
+    word.item.status = "learning";
+    word.item.achievedAt = undefined;
+    word.item.deleteAfter = undefined;
+    return this.capture(input);
   }
   async achieveWord(wordId: string): Promise<AchievedWordListItem> {
     const word = this.words.find((candidate) => candidate.item.id === wordId);
@@ -148,7 +170,8 @@ export class DemoBackend implements Backend {
     const deleteAfter = new Date(achievedAt.getTime() + (this.settings.achievedRetentionDays ?? 30) * 86_400_000);
     word.item.achievedAt = achievedAt.toISOString(); word.item.deleteAfter = deleteAfter.toISOString();
     return { id: word.item.id, lemma: word.lemma, displayForm: word.item.displayForm, translation: word.item.translation,
-      encounterCount: word.item.encounterCount, achievedAt: word.item.achievedAt, deleteAfter: word.item.deleteAfter };
+      encounterCount: word.item.encounterCount, achievedAt: word.item.achievedAt, deleteAfter: word.item.deleteAfter,
+      ...achievedTiming(word.item.deleteAfter) };
   }
   async unachieveWords(wordIds: string[]): Promise<number> {
     for (const wordId of wordIds) {
@@ -205,6 +228,19 @@ export class DemoBackend implements Backend {
         new Date(word.item.nextReviewAt!).getTime() < new Date(nextDayEnd).getTime()).length,
     };
   }
+  async getGlobalInsight(): Promise<GlobalInsight> {
+    const reviews = [...this.reviewSubmissions.values()];
+    return {
+      currentVocabularyCount: this.words.length,
+      currentAchievedCount: this.words.filter((word) => word.item.achievedAt).length,
+      lifetimeVocabularyCount: this.words.length,
+      lifetimeEncounterCount: this.words.reduce((total, word) => total + word.encounters.length, 0),
+      lifetimeReviewCount: reviews.length,
+      lifetimeRememberedCount: reviews.filter((review) => review.rating === "remembered").length,
+      lifetimeForgottenCount: reviews.filter((review) => review.rating === "forgot").length,
+      lifetimeRatingBreakdownComplete: true,
+    };
+  }
   async getSettings() { return { ...this.settings }; }
   async updateSettings(settings: Settings) { this.settings = { ...settings }; }
   async replaceShortcut(candidate: string) { this.settings.selectionCaptureShortcut = candidate; return { ...this.settings }; }
@@ -217,15 +253,20 @@ export class DemoBackend implements Backend {
 }
 
 class TauriBackend implements Backend {
-  capture(input: CaptureInput) {
-    return invoke<CaptureCard>("capture_word", { request: {
+  private captureRequest(input: CaptureInput) {
+    return {
       selectedText: input.selectedText, lemma: input.selectedText, sentence: input.sentence,
       sourceLanguage: "en", targetLanguage: "de", translation: input.translation,
       partOfSpeech: undefined, sourceApp: input.sourceApp, sourceTitle: input.sourceTitle,
       sourceUrl: input.sourceUrl, captureOrigin: input.captureOrigin ?? "manual",
       capturedAt: new Date().toISOString(),
-    }});
+    };
   }
+  capture(input: CaptureInput) {
+    return invoke<CaptureCard>("capture_word", { request: this.captureRequest(input) });
+  }
+  findAchievedCapture(input: CaptureInput) { return invoke<AchievedCaptureConflict | null>("find_achieved_capture", { request: this.captureRequest(input) }); }
+  restoreAchievedAndCapture(wordId: string, input: CaptureInput) { return invoke<CaptureCard>("restore_achieved_and_capture", { wordId, request: this.captureRequest(input) }); }
   undoCapture(encounterId: string) { return invoke<void>("undo_capture", { encounterId }); }
   getToday() { return invoke<TodayView>("get_today"); }
   listWords() { return invoke<WordListItem[]>("list_words"); }
@@ -241,6 +282,7 @@ class TauriBackend implements Backend {
   getReviewSessionInsight(submissionIds: string[], nextDayEnd: string) {
     return invoke<ReviewSessionInsight>("get_review_session_insight", { submissionIds, nextDayEnd });
   }
+  getGlobalInsight() { return invoke<GlobalInsight>("get_global_insight"); }
   getSettings() { return invoke<Settings>("get_settings"); }
   updateSettings(settings: Settings) { return invoke<void>("update_settings", { settings }); }
   replaceShortcut(candidate: string) { return invoke<Settings>("replace_shortcut", { candidate }); }

@@ -2,3 +2,4 @@
 
 Achieve is a user-authorized transition available only to a Mastered Vocabulary Item: authorization is either a direct action or the persisted, opt-in automatic-Achieve setting. Achieved items remain reviewable for their captured retention period before the shared Rust application and storage layers permanently purge their item-level data; platform presentations may trigger checks and show notifications but cannot decide eligibility, deadlines, or deletion semantics. This preserves user control and cross-platform behavior while deliberately bounding detailed SQLite history.
 
+Recapturing an Achieved Vocabulary Item is also an explicit user-authorized transition, but it returns the item to Learning rather than Mastered because the new Encounter reopens active study. The shared application and storage layers must perform the transition and Encounter write atomically; a platform presentation may only show the Achieved state and collect confirmation.

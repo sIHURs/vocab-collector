@@ -229,6 +229,31 @@ impl AppState {
             .save(request_id, without_translation, chrono::Utc::now())
     }
 
+    pub fn find_achieved_capture(
+        &self,
+        request_id: Uuid,
+    ) -> Result<
+        Option<vocab_domain::AchievedCaptureConflict>,
+        vocab_application::PlatformCaptureError,
+    > {
+        self.workflow
+            .find_achieved_capture(request_id, chrono::Utc::now())
+    }
+
+    pub fn restore_achieved_and_save_capture(
+        &self,
+        request_id: Uuid,
+        word_id: Uuid,
+        without_translation: bool,
+    ) -> Result<vocab_domain::CaptureCard, vocab_application::PlatformCaptureError> {
+        self.workflow.restore_achieved_and_save(
+            request_id,
+            word_id,
+            without_translation,
+            chrono::Utc::now(),
+        )
+    }
+
     pub fn correct_capture(
         &self,
         request_id: Uuid,

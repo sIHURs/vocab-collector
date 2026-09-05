@@ -112,6 +112,24 @@ export interface WordListItem {
   deleteAfter?: string;
 }
 
+export interface AchievedCaptureConflict {
+  wordId: string;
+  displayForm: string;
+  achievedAt: string;
+  deleteAfter: string;
+}
+
+export interface GlobalInsight {
+  currentVocabularyCount: number;
+  currentAchievedCount: number;
+  lifetimeVocabularyCount: number;
+  lifetimeEncounterCount: number;
+  lifetimeReviewCount: number;
+  lifetimeRememberedCount: number;
+  lifetimeForgottenCount: number;
+  lifetimeRatingBreakdownComplete: boolean;
+}
+
 export interface AchievedWordListItem {
   id: string;
   lemma: string;
@@ -120,6 +138,8 @@ export interface AchievedWordListItem {
   encounterCount: number;
   achievedAt: string;
   deleteAfter: string;
+  remainingDays: number;
+  urgency: "normal" | "warning" | "urgent";
 }
 
 export interface ReviewCard {

@@ -45,9 +45,12 @@ CREATE TABLE IF NOT EXISTS lifetime_archive (
   singleton INTEGER PRIMARY KEY CHECK(singleton = 1),
   vocabulary_count INTEGER NOT NULL DEFAULT 0,
   encounter_count INTEGER NOT NULL DEFAULT 0,
-  review_count INTEGER NOT NULL DEFAULT 0
+  review_count INTEGER NOT NULL DEFAULT 0,
+  remembered_count INTEGER NOT NULL DEFAULT 0,
+  forgotten_count INTEGER NOT NULL DEFAULT 0,
+  rating_breakdown_complete INTEGER NOT NULL DEFAULT 1
 );
-PRAGMA user_version = 4;
+PRAGMA user_version = 5;
 "#;
 
 #[derive(Clone, Debug)]
@@ -71,6 +74,22 @@ pub struct StoredCapture {
     pub word: Word,
     pub encounter: Encounter,
     pub is_existing_word: bool,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct LifetimeStatistics {
+    pub current_vocabulary_count: usize,
+    pub current_achieved_count: usize,
+    pub active_encounter_count: usize,
+    pub review_count: usize,
+    pub remembered_count: usize,
+    pub forgotten_count: usize,
+    pub archived_vocabulary_count: usize,
+    pub archived_encounter_count: usize,
+    pub archived_review_count: usize,
+    pub archived_remembered_count: usize,
+    pub archived_forgotten_count: usize,
+    pub rating_breakdown_complete: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -203,8 +222,31 @@ impl SqliteStore {
              );",
             )
             .map_err(repo_error)?;
+        let archive_columns = {
+            let mut statement = connection
+                .prepare("PRAGMA table_info(lifetime_archive)")
+                .map_err(repo_error)?;
+            statement
+                .query_map([], |row| row.get::<_, String>(1))
+                .map_err(repo_error)?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(repo_error)?
+        };
+        if !archive_columns
+            .iter()
+            .any(|column| column == "remembered_count")
+        {
+            connection
+                .execute_batch(
+                    "ALTER TABLE lifetime_archive ADD COLUMN remembered_count INTEGER NOT NULL DEFAULT 0;
+                     ALTER TABLE lifetime_archive ADD COLUMN forgotten_count INTEGER NOT NULL DEFAULT 0;
+                     ALTER TABLE lifetime_archive ADD COLUMN rating_breakdown_complete INTEGER NOT NULL DEFAULT 1;
+                     UPDATE lifetime_archive SET rating_breakdown_complete = CASE WHEN review_count = 0 THEN 1 ELSE 0 END;",
+                )
+                .map_err(repo_error)?;
+        }
         connection
-            .execute_batch("PRAGMA user_version = 4;")
+            .execute_batch("PRAGMA user_version = 5;")
             .map_err(repo_error)?;
         Ok(Self {
             connection: Mutex::new(connection),
@@ -280,6 +322,95 @@ impl SqliteStore {
             word,
             encounter,
             is_existing_word,
+        })
+    }
+
+    pub fn restore_achieved_and_capture(
+        &self,
+        expected_word_id: Uuid,
+        input: &CaptureRecord,
+    ) -> Result<StoredCapture, RepositoryError> {
+        let mut connection = self.lock()?;
+        let transaction = connection.transaction().map_err(repo_error)?;
+        let key = dedupe_key(&input.lemma, &input.source_language, &input.target_language);
+        let mut word = find_word(&transaction, &key)?.ok_or(RepositoryError::NotFound)?;
+        if word.id != expected_word_id || !word.is_achieved() {
+            return Err(RepositoryError::NotFound);
+        }
+        word.unmaster(input.captured_at, WordStatus::Learning);
+        insert_word(&transaction, &key, &word)?;
+        enqueue(
+            &transaction,
+            "word",
+            word.id,
+            "upsert",
+            &word,
+            input.captured_at,
+        )?;
+        let mut encounter = Encounter::new(
+            word.id,
+            input.selected_text.trim().to_string(),
+            input.sentence.clone(),
+            input.source_app.clone(),
+            input.captured_at,
+        );
+        encounter.source_title.clone_from(&input.source_title);
+        encounter.source_url.clone_from(&input.source_url);
+        encounter.capture_origin = input.capture_origin;
+        insert_encounter(&transaction, &encounter)?;
+        enqueue(
+            &transaction,
+            "encounter",
+            encounter.id,
+            "upsert",
+            &encounter,
+            input.captured_at,
+        )?;
+        transaction.commit().map_err(repo_error)?;
+        Ok(StoredCapture {
+            word,
+            encounter,
+            is_existing_word: true,
+        })
+    }
+
+    pub fn lifetime_statistics(&self) -> Result<LifetimeStatistics, RepositoryError> {
+        let connection = self.lock()?;
+        let count = |sql: &str| -> Result<usize, RepositoryError> {
+            let value: i64 = connection
+                .query_row(sql, [], |row| row.get(0))
+                .map_err(repo_error)?;
+            usize::try_from(value).map_err(repo_error)
+        };
+        let archived = connection
+            .query_row(
+                "SELECT vocabulary_count, encounter_count, review_count, remembered_count, forgotten_count, rating_breakdown_complete
+                 FROM lifetime_archive WHERE singleton = 1",
+                [],
+                |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?, row.get::<_, i64>(2)?, row.get::<_, i64>(3)?, row.get::<_, i64>(4)?, row.get::<_, bool>(5)?)),
+            )
+            .optional()
+            .map_err(repo_error)?
+            .unwrap_or((0, 0, 0, 0, 0, true));
+        Ok(LifetimeStatistics {
+            current_vocabulary_count: count("SELECT COUNT(*) FROM words WHERE deleted_at IS NULL")?,
+            current_achieved_count: count(
+                "SELECT COUNT(*) FROM words WHERE deleted_at IS NULL AND achieved_at IS NOT NULL AND delete_after IS NOT NULL",
+            )?,
+            active_encounter_count: count(
+                "SELECT COUNT(*) FROM encounters WHERE deleted_at IS NULL",
+            )?,
+            review_count: count("SELECT COUNT(*) FROM review_logs")?,
+            remembered_count: count(
+                "SELECT COUNT(*) FROM review_logs WHERE rating = '\"remembered\"'",
+            )?,
+            forgotten_count: count("SELECT COUNT(*) FROM review_logs WHERE rating = '\"forgot\"'")?,
+            archived_vocabulary_count: usize::try_from(archived.0).map_err(repo_error)?,
+            archived_encounter_count: usize::try_from(archived.1).map_err(repo_error)?,
+            archived_review_count: usize::try_from(archived.2).map_err(repo_error)?,
+            archived_remembered_count: usize::try_from(archived.3).map_err(repo_error)?,
+            archived_forgotten_count: usize::try_from(archived.4).map_err(repo_error)?,
+            rating_breakdown_complete: archived.5,
         })
     }
 
@@ -448,11 +579,26 @@ impl SqliteStore {
                     |row| row.get(0),
                 )
                 .map_err(repo_error)?;
+            let remembered_count: i64 = tx
+                .query_row(
+                    "SELECT COUNT(*) FROM review_logs WHERE word_id = ?1 AND rating = '\"remembered\"'",
+                    [id.to_string()],
+                    |row| row.get(0),
+                )
+                .map_err(repo_error)?;
+            let forgotten_count: i64 = tx
+                .query_row(
+                    "SELECT COUNT(*) FROM review_logs WHERE word_id = ?1 AND rating = '\"forgot\"'",
+                    [id.to_string()],
+                    |row| row.get(0),
+                )
+                .map_err(repo_error)?;
             tx.execute(
-                "INSERT INTO lifetime_archive(singleton, vocabulary_count, encounter_count, review_count) VALUES(1,1,?1,?2)
+                "INSERT INTO lifetime_archive(singleton, vocabulary_count, encounter_count, review_count, remembered_count, forgotten_count) VALUES(1,1,?1,?2,?3,?4)
                  ON CONFLICT(singleton) DO UPDATE SET vocabulary_count=vocabulary_count+1,
-                 encounter_count=encounter_count+excluded.encounter_count, review_count=review_count+excluded.review_count",
-                params![encounter_count, review_count],
+                 encounter_count=encounter_count+excluded.encounter_count, review_count=review_count+excluded.review_count,
+                 remembered_count=remembered_count+excluded.remembered_count, forgotten_count=forgotten_count+excluded.forgotten_count",
+                params![encounter_count, review_count, remembered_count, forgotten_count],
             ).map_err(repo_error)?;
             tx.execute(
                 "DELETE FROM review_logs WHERE word_id = ?1",

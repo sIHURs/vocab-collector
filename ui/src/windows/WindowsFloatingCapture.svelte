@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { CaptureCandidate, CaptureCard } from "../lib/types";
+  import type { AchievedCaptureConflict, CaptureCandidate, CaptureCard } from "../lib/types";
   import {
     tauriWindowsCaptureBackend,
     type OcrCandidate,
@@ -21,6 +21,7 @@
   let translationStale = false;
   let lastTranslatedText = "";
   let saved: CaptureCard | null = null;
+  let achievedConflict: AchievedCaptureConflict | null = null;
   let busy = false;
   let error = "";
   let mounted = false;
@@ -94,6 +95,12 @@
     busy = true;
     error = "";
     try {
+      const conflict = await captureBackend.findAchieved(requestId);
+      if (!mounted || requestId !== activeRequest) return;
+      if (conflict) {
+        achievedConflict = conflict;
+        return;
+      }
       const result = await captureBackend.save(requestId, !translation.trim());
       if (!mounted || requestId !== activeRequest) return;
       saved = result;
@@ -102,6 +109,26 @@
     } catch (cause) {
       if (!mounted || requestId !== activeRequest) return;
       error = cause instanceof Error ? cause.message : String(cause);
+    } finally {
+      if (mounted && requestId === activeRequest) busy = false;
+    }
+  }
+
+  async function restoreToLearningAndSave() {
+    if (!achievedConflict || busy) return;
+    const requestId = activeRequest;
+    const wordId = achievedConflict.wordId;
+    busy = true;
+    error = "";
+    try {
+      const result = await captureBackend.restoreAchievedAndSave(requestId, wordId, !translation.trim());
+      if (!mounted || requestId !== activeRequest) return;
+      achievedConflict = null;
+      saved = result;
+      editing = false;
+      scheduleDismiss(requestId);
+    } catch (cause) {
+      if (mounted && requestId === activeRequest) error = cause instanceof Error ? cause.message : String(cause);
     } finally {
       if (mounted && requestId === activeRequest) busy = false;
     }
@@ -147,6 +174,7 @@
       await captureBackend.undo(requestId, encounterId);
       if (!mounted || requestId !== activeRequest) return;
       saved = null;
+      achievedConflict = null;
       clearDismissTimer();
       await captureBackend.close(requestId);
     } catch (cause) {
@@ -240,6 +268,7 @@
       translationStale = false;
       lastTranslatedText = "";
       saved = null;
+      achievedConflict = null;
       error = "";
       editing = false;
       resetOcrState();
@@ -255,6 +284,7 @@
       activeRequest = event.requestId;
       candidate = null;
       saved = null;
+      achievedConflict = null;
       error = event.failure.message;
       ocrEligibleFailure = event.failure.code === "empty_selection" || event.failure.code === "unsupported_element";
       ocrOffer = ocrAvailable && (ocrEligibleFailure || ocrAttempted);
@@ -318,6 +348,9 @@
         <label>Translation <small>Optional</small><input aria-label="Translation (optional)" bind:value={translation} /></label>
         <button class="primary" disabled={busy || !selectedText.trim()} onclick={applyChanges}>Apply changes</button>
       {:else}
+        {#if achievedConflict}
+          <span class="status-tag">Achieved</span>
+        {/if}
         <h1>{selectedText}</h1>
         <p>“{sentence}”</p>
         {#if translation}
@@ -330,8 +363,14 @@
         {/if}
         {#if translationFailed}<button class="secondary" disabled={busy} onclick={() => translateCandidate(activeRequest, selectedText.trim())}>Retry translation</button>{/if}
         {#if translationStale}<p class="notice" role="status">Vocabulary changed. The translation may no longer match.</p><button class="secondary" disabled={busy} onclick={() => translateCandidate(activeRequest, selectedText.trim())}>Translate again</button>{/if}
-        <button class="primary" disabled={busy} onclick={beginEditing}>Edit capture</button>
-        <button class="secondary" disabled={busy} onclick={save}>Save capture</button>
+        {#if achievedConflict}
+          <p class="achieved-prompt" role="status">This Vocabulary Item is Achieved. Return it to Learning and save this Encounter?</p>
+          <button class="primary" disabled={busy} onclick={restoreToLearningAndSave}>Return to Learning</button>
+          <button class="secondary" disabled={busy} onclick={cancel}>Cancel</button>
+        {:else}
+          <button class="primary" disabled={busy} onclick={beginEditing}>Edit capture</button>
+          <button class="secondary" disabled={busy} onclick={save}>Save capture</button>
+        {/if}
       {/if}
     {:else if ocrOffer}
       <p role="alert">{error}</p>
@@ -363,6 +402,8 @@
   input, textarea { box-sizing: border-box; display: block; width: 100%; margin-top: 2px; padding: 5px 7px; border: 1px solid #55596a; border-radius: 5px; color: #eeeef3; background: #252732; font: inherit; }
   textarea { min-height: 42px; resize: vertical; }
   .notice { margin: 8px 0; font-size: 12px; }
+  .status-tag { display: inline-block; margin-bottom: 4px; padding: 3px 7px; border: 1px solid #8b6f3d; border-radius: 999px; color: #f1ca78; background: #3a3020; font-size: 11px; font-weight: 700; }
+  .achieved-prompt { padding: 8px 10px; border-left: 3px solid #d6a84f; background: rgba(214, 168, 79, .1); }
   button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid #aab3ff; outline-offset: 2px; }
   @media (forced-colors: active) { .windows-capture { border-color: CanvasText; color: CanvasText; background: Canvas; box-shadow: none; } p, small, label, header { color: CanvasText; } .primary, .secondary, input, textarea { border: 1px solid ButtonText; color: ButtonText; background: ButtonFace; } }
   @media (prefers-reduced-motion: reduce) { .windows-capture, .windows-capture * { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }

@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/svelte";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import WindowsFloatingCapture from "./WindowsFloatingCapture.svelte";
 import type { CaptureReady, OcrCandidatesReady, RegionOcrStart, WindowsCaptureBackend } from "./captureBackend";
+import type { AchievedCaptureConflict } from "../lib/types";
 
 const mocks = {
   focus: vi.fn(async () => {}),
@@ -10,6 +11,8 @@ const mocks = {
   hide: vi.fn(async (_requestId: string) => {}),
   apply: vi.fn(async () => {}),
   save: vi.fn(async () => ({ wordId: "word-1", encounterId: "encounter-1", displayForm: "nuance", context: "A useful nuance.", encounterCount: 1, isExistingWord: false })),
+  findAchieved: vi.fn(async (): Promise<AchievedCaptureConflict | null> => null),
+  restoreAchievedAndSave: vi.fn(async () => ({ wordId: "word-1", encounterId: "encounter-2", displayForm: "nuance", context: "A useful nuance.", encounterCount: 2, isExistingWord: true })),
   undo: vi.fn(async (_requestId: string, _encounterId: string) => {}),
   recognizeRegion: vi.fn(async () => {}),
   startRegionOcr: vi.fn(async () => "region-request"),
@@ -32,6 +35,8 @@ const captureBackend: WindowsCaptureBackend = {
   hide: mocks.hide,
   apply: mocks.apply,
   save: mocks.save,
+  findAchieved: mocks.findAchieved,
+  restoreAchievedAndSave: mocks.restoreAchievedAndSave,
   undo: mocks.undo,
   recognizeRegion: mocks.recognizeRegion,
   startRegionOcr: mocks.startRegionOcr,
@@ -54,6 +59,10 @@ describe("Windows floating capture presentation", () => {
     mocks.apply.mockClear();
     mocks.save.mockReset();
     mocks.save.mockResolvedValue({ wordId: "word-1", encounterId: "encounter-1", displayForm: "nuance", context: "A useful nuance.", encounterCount: 1, isExistingWord: false });
+    mocks.findAchieved.mockReset();
+    mocks.findAchieved.mockResolvedValue(null);
+    mocks.restoreAchievedAndSave.mockReset();
+    mocks.restoreAchievedAndSave.mockResolvedValue({ wordId: "word-1", encounterId: "encounter-2", displayForm: "nuance", context: "A useful nuance.", encounterCount: 2, isExistingWord: true });
     mocks.undo.mockClear();
     mocks.recognizeRegion.mockClear();
     mocks.startRegionOcr.mockClear();
@@ -95,6 +104,24 @@ describe("Windows floating capture presentation", () => {
 
     await fireEvent.click(screen.getByRole("button", { name: "Save capture" }));
     expect(mocks.save).toHaveBeenCalledWith("translated-request", false);
+  });
+
+  it("keeps an Achieved capture in the same window until the user returns it to Learning", async () => {
+    mocks.findAchieved.mockResolvedValue({ wordId: "word-1", displayForm: "nuance", achievedAt: "2026-09-01T00:00:00Z", deleteAfter: "2026-10-01T00:00:00Z" });
+    render(WindowsFloatingCapture, { captureBackend });
+    await waitFor(() => expect(mocks.ready).toBeTypeOf("function"));
+    mocks.ready?.({ requestId: "achieved-request", candidate: { selectedText: "nuance", sentence: "A useful nuance.", origin: "accessibility" } });
+
+    const save = await screen.findByRole("button", { name: "Save capture" });
+    await waitFor(() => expect(save).toBeEnabled());
+    await fireEvent.click(save);
+
+    expect(await screen.findByText("Achieved")).toBeVisible();
+    expect(screen.getByText(/Return it to Learning/)).toBeVisible();
+    expect(mocks.save).not.toHaveBeenCalled();
+    await fireEvent.click(screen.getByRole("button", { name: "Return to Learning" }));
+    expect(mocks.restoreAchievedAndSave).toHaveBeenCalledWith("achieved-request", "word-1", true);
+    expect(await screen.findByText("Saved")).toBeVisible();
   });
 
   it("uses the top bar as a native window drag region without making the close button draggable", () => {

@@ -376,6 +376,9 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             library::capture_word,
+            library::find_achieved_capture,
+            library::restore_achieved_and_capture,
+            library::get_global_insight,
             library::undo_capture,
             library::get_today,
             library::list_words,
@@ -404,6 +407,8 @@ pub fn run() {
             capture::translate_text,
             capture::confirm_ocr,
             capture::save_native_capture,
+            capture::find_achieved_native_capture,
+            capture::restore_achieved_and_save_native_capture,
             capture::correct_native_capture,
             capture::undo_native_capture,
             capture::close_capture_window,

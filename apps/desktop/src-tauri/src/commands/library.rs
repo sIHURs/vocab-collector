@@ -3,8 +3,9 @@ use tauri::State;
 use uuid::Uuid;
 use vocab_application::CaptureRequest;
 use vocab_domain::{
-    AchievedWordListItem, CaptureCard, LifecycleSweepResult, ReviewRating, ReviewResult,
-    ReviewSessionInsight, TodayView, UserSettings, WordDetail, WordListItem,
+    AchievedCaptureConflict, AchievedWordListItem, CaptureCard, GlobalInsight,
+    LifecycleSweepResult, ReviewRating, ReviewResult, ReviewSessionInsight, TodayView,
+    UserSettings, WordDetail, WordListItem,
 };
 
 use crate::bootstrap::AppState;
@@ -17,6 +18,37 @@ pub fn capture_word(
     state
         .application()
         .capture(request)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn find_achieved_capture(
+    state: State<'_, AppState>,
+    request: CaptureRequest,
+) -> Result<Option<AchievedCaptureConflict>, String> {
+    state
+        .application()
+        .find_achieved_capture(&request)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn restore_achieved_and_capture(
+    state: State<'_, AppState>,
+    word_id: Uuid,
+    request: CaptureRequest,
+) -> Result<CaptureCard, String> {
+    state
+        .application()
+        .restore_achieved_and_capture(word_id, request)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn get_global_insight(state: State<'_, AppState>) -> Result<GlobalInsight, String> {
+    state
+        .application()
+        .get_global_insight()
         .map_err(|error| error.to_string())
 }
 
@@ -41,7 +73,7 @@ pub fn list_achieved_words(
         .map_err(|error| error.to_string())?;
     state
         .application()
-        .list_achieved_words()
+        .list_achieved_words_at(Utc::now())
         .map_err(|error| error.to_string())
 }
 

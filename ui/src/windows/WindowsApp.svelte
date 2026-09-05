@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
   import { createBackend, type Backend } from "../lib/backend";
-  import type { AchievedWordListItem, CaptureCard, ReviewCard, ReviewRating, ReviewResult, ReviewSessionInsight, Settings, SystemSettingsStatus, TodayView, WordDetail, WordListItem } from "../lib/types";
+  import type { AchievedCaptureConflict, AchievedWordListItem, CaptureCard, GlobalInsight, ReviewCard, ReviewRating, ReviewResult, ReviewSessionInsight, Settings, SystemSettingsStatus, TodayView, WordDetail, WordListItem } from "../lib/types";
   import WindowsWordRow from "./WindowsWordRow.svelte";
 
   type Route = "Today" | "Vocabulary" | "Review" | "Settings";
@@ -25,6 +25,7 @@
   let vocabularyPageInput = "1";
   const vocabularyPageSize = 10;
   let captureError = "";
+  let achievedCaptureConflict: AchievedCaptureConflict | null = null;
   let captureInput = { selectedText: "", translation: "", sentence: "" };
   let reviewIndex = 0;
   let reviewOpen = false;
@@ -42,6 +43,7 @@
   let reviewSessionResults: ReviewResult[] = [];
   let reviewSessionCards: ReviewCard[] = [];
   let reviewSessionInsight: ReviewSessionInsight | null = null;
+  let globalInsight: GlobalInsight | null = null;
   let settingsDraft: Settings | null = null;
   let appliedSettings: Settings | null = null;
   let settingsSaving = false;
@@ -72,12 +74,13 @@
     loading = true;
     error = "";
     try {
-      const [nextToday, nextWords, nextAchievedWords, nextSettings] = await Promise.all([api.getToday(), api.listWords(), api.listAchievedWords?.() ?? Promise.resolve([]), api.getSettings()]);
+      const [nextToday, nextWords, nextAchievedWords, nextSettings, nextGlobalInsight] = await Promise.all([api.getToday(), api.listWords(), api.listAchievedWords?.() ?? Promise.resolve([]), api.getSettings(), api.getGlobalInsight?.() ?? Promise.resolve(null)]);
       today = nextToday;
       words = nextWords;
       achievedWords = nextAchievedWords;
       settingsDraft = { ...nextSettings };
       appliedSettings = { ...nextSettings };
+      globalInsight = nextGlobalInsight;
       if (api.getWindowsSettingsStatus) systemStatus = await api.getWindowsSettingsStatus();
       if (selectedDetail) selectedDetail = await api.getWord(selectedDetail.item.id);
       return true;
@@ -90,6 +93,7 @@
     captureTrigger = event?.currentTarget instanceof HTMLElement ? event.currentTarget : document.activeElement instanceof HTMLElement ? document.activeElement : null;
     captureInput = { selectedText: "", translation: "", sentence: "" };
     captureError = "";
+    achievedCaptureConflict = null;
     savedCard = null;
     captureOpen = true;
     await tick();
@@ -132,7 +136,27 @@
     saving = true;
     captureError = "";
     try {
-      savedCard = await api.capture({ ...captureInput, translation: captureInput.translation.trim() || undefined, captureOrigin: "manual" });
+      const input = { ...captureInput, translation: captureInput.translation.trim() || undefined, captureOrigin: "manual" as const };
+      const conflict = await api.findAchievedCapture?.(input);
+      if (conflict) {
+        achievedCaptureConflict = conflict;
+        return;
+      }
+      savedCard = await api.capture(input);
+      closeCapture();
+      await refresh();
+      reviewComplete = false;
+    } catch (cause) { captureError = cause instanceof Error ? cause.message : String(cause); }
+    finally { saving = false; }
+  }
+
+  async function restoreCapturedWordToLearning() {
+    if (!achievedCaptureConflict || !api.restoreAchievedAndCapture) return;
+    saving = true;
+    captureError = "";
+    try {
+      savedCard = await api.restoreAchievedAndCapture(achievedCaptureConflict.wordId, { ...captureInput, translation: captureInput.translation.trim() || undefined, captureOrigin: "manual" });
+      achievedCaptureConflict = null;
       closeCapture();
       await refresh();
       reviewComplete = false;
@@ -407,7 +431,6 @@
   }
 
   const encounterLabel = (count: number) => `${count} encounter${count === 1 ? "" : "s"}`;
-  const daysRemaining = (deadline: string) => Math.max(0, Math.ceil((new Date(deadline).getTime() - Date.now()) / 86_400_000));
   onMount(() => {
     let mounted = true;
     let unlisten: (() => void) | undefined;
@@ -456,7 +479,7 @@
       {:else if route === "Vocabulary"}
         <div class="vocabulary-tabs" role="tablist" aria-label="Vocabulary views"><button class:active={vocabularyView === "active"} onclick={() => { vocabularyView = "active"; updateSearch(""); }}>Active</button><button class:active={vocabularyView === "mastered"} onclick={() => { vocabularyView = "mastered"; updateSearch(""); }}>Mastered</button><button class:active={vocabularyView === "achieved"} onclick={() => { vocabularyView = "achieved"; updateSearch(""); }}>Achieved ({achievedWords.length})</button></div>
         <div class="tools"><label><span>Search</span><input aria-label="Search vocabulary" value={search} oninput={(event) => updateSearch(event.currentTarget.value)} placeholder="Word or translation" /></label><span>{vocabularyView === "achieved" ? filteredAchievedWords.length : filteredWords.length} items</span></div>
-        {#if vocabularyView === "achieved"}<div class="list vocabulary-list">{#if filteredAchievedWords.length}<label class="select-all"><input type="checkbox" aria-label="Select all filtered Achieved vocabulary" checked={allFilteredAchievedSelected} onchange={(event) => toggleAllAchieved(event.currentTarget.checked)} /> Select all filtered</label>{/if}{#each filteredAchievedWords as word}<label class:urgent={daysRemaining(word.deleteAfter) <= 2} class:warning={daysRemaining(word.deleteAfter) >= 3 && daysRemaining(word.deleteAfter) <= 7} class="achieved-row"><input type="checkbox" aria-label={`Select ${word.displayForm}`} checked={selectedAchievedIds.has(word.id)} onchange={(event) => toggleAchieved(word.id, event.currentTarget.checked)} /><span><strong>{word.displayForm}</strong><small>{word.translation ?? "No translation"}</small></span><span>{daysRemaining(word.deleteAfter)} days remaining · Deletes {new Date(word.deleteAfter).toLocaleDateString()}</span></label>{:else}<div class="state"><strong>No Achieved vocabulary</strong><span>Mastered words you Achieve will wait here before deletion.</span></div>{/each}</div>{#if selectedAchievedIds.size}<div class="bulk-actions"><strong>{selectedAchievedIds.size} selected</strong><button class="secondary" onclick={unachieveSelected}>Unachieve</button><button class="danger" onclick={deleteSelectedAchieved}>Delete permanently</button></div>{/if}{:else}<div class="list vocabulary-list">{#each pagedWords as word}<WindowsWordRow {word} onSelect={showDetail} onAchieve={achieveWordFromRow} />{:else}{#if visibleWords.length}<div class="state"><strong>No matching vocabulary</strong><span>Try a different word or translation.</span></div>{:else}<div class="state"><strong>No {vocabularyView} vocabulary</strong><span>Vocabulary Items in this state will appear here.</span></div>{/if}{/each}</div>
+        {#if vocabularyView === "achieved"}<div class="list vocabulary-list">{#if filteredAchievedWords.length}<label class="select-all"><input type="checkbox" aria-label="Select all filtered Achieved vocabulary" checked={allFilteredAchievedSelected} onchange={(event) => toggleAllAchieved(event.currentTarget.checked)} /> Select all filtered</label>{/if}{#each filteredAchievedWords as word}<label class:urgent={word.urgency === "urgent"} class:warning={word.urgency === "warning"} class="achieved-row"><input type="checkbox" aria-label={`Select ${word.displayForm}`} checked={selectedAchievedIds.has(word.id)} onchange={(event) => toggleAchieved(word.id, event.currentTarget.checked)} /><span><strong>{word.displayForm}</strong><small>{word.translation ?? "No translation"}</small><small>Achieved {new Date(word.achievedAt).toLocaleDateString()}</small></span><span>{word.remainingDays} days remaining · Deletes {new Date(word.deleteAfter).toLocaleDateString()}</span></label>{:else}<div class="state"><strong>No Achieved vocabulary</strong><span>Mastered words you Achieve will wait here before deletion.</span></div>{/each}</div>{#if selectedAchievedIds.size}<div class="bulk-actions"><strong>{selectedAchievedIds.size} selected</strong><button class="secondary" onclick={unachieveSelected}>Unachieve</button><button class="danger" onclick={deleteSelectedAchieved}>Delete permanently</button></div>{/if}{:else}<div class="list vocabulary-list">{#each pagedWords as word}<WindowsWordRow {word} onSelect={showDetail} onAchieve={achieveWordFromRow} />{:else}{#if visibleWords.length}<div class="state"><strong>No matching vocabulary</strong><span>Try a different word or translation.</span></div>{:else}<div class="state"><strong>No {vocabularyView} vocabulary</strong><span>Vocabulary Items in this state will appear here.</span></div>{/if}{/each}</div>
         {#if filteredWords.length}<nav class="pagination" aria-label="Vocabulary pages"><button class="secondary" disabled={vocabularyPage === 1} onclick={() => goToVocabularyPage(1)}>First</button><button class="secondary" disabled={vocabularyPage === 1} onclick={() => goToVocabularyPage(vocabularyPage - 1)}>Previous</button><form aria-label="Go to vocabulary page" onsubmit={(event) => { event.preventDefault(); goToVocabularyPage(vocabularyPageInput); }}><label><span>Page</span><input aria-label="Page number" type="number" min="1" max={vocabularyPageCount} bind:value={vocabularyPageInput} onblur={() => goToVocabularyPage(vocabularyPageInput)} /><span>of {vocabularyPageCount}</span></label></form><button class="secondary" disabled={vocabularyPage === vocabularyPageCount} onclick={() => goToVocabularyPage(vocabularyPage + 1)}>Next</button><button class="secondary" disabled={vocabularyPage === vocabularyPageCount} onclick={() => goToVocabularyPage(vocabularyPageCount)}>Last</button></nav>{/if}{/if}
       {:else if route === "Review"}
         {#if reviewOpen && activeReview}
@@ -469,6 +492,11 @@
           <div class="state"><strong>{reviewPaused ? "Review paused" : `${today.plannedReviewCount} planned · ${today.totalDueCount} total due`}</strong><span>{reviewPaused ? `${today.reviewQueue.length} words remaining.` : `About ${today.estimatedMinutes} minute${today.estimatedMinutes === 1 ? "" : "s"}.`}</span><button class="primary" onclick={startReview}>{reviewPaused ? "Resume review" : "Start review"}</button></div>
         {:else}
           <div class="state"><strong>Nothing due</strong><span>Your review queue is clear for today.</span></div>
+        {/if}
+        {#if !reviewOpen && globalInsight}
+          <div class="section-heading"><h2>All-time progress</h2><p>Includes anonymous totals retained after permanent deletion.</p></div>
+          <div class="insight-grid" role="region" aria-label="All-time progress"><div><span>Vocabulary encountered</span><strong>{globalInsight.lifetimeVocabularyCount}</strong></div><div><span>Encounters saved</span><strong>{globalInsight.lifetimeEncounterCount}</strong></div><div><span>Reviews completed</span><strong>{globalInsight.lifetimeReviewCount}</strong></div><div><span>Remembered</span><strong>{globalInsight.lifetimeRememberedCount}</strong></div><div><span>Forgot</span><strong>{globalInsight.lifetimeForgottenCount}</strong></div><div><span>Currently achieved</span><strong>{globalInsight.currentAchievedCount}</strong></div></div>
+          {#if !globalInsight.lifetimeRatingBreakdownComplete}<p class="insight-coverage">Remembered and Forgot totals exclude anonymous review history deleted before this app version.</p>{/if}
         {/if}
       {:else if settingsDraft}
         <form class="settings" onsubmit={(event) => { event.preventDefault(); saveSettings(); }}>
@@ -508,7 +536,7 @@
 </div>
 {#if settingsSaved}<div class="settings-success settings-toast" role="status">Settings saved</div>{/if}
 
-{#if captureOpen}<div class="backdrop"><div bind:this={captureDialog} class="dialog" role="dialog" tabindex="-1" aria-modal="true" aria-labelledby="manual-capture-title" onkeydown={trapDialogFocus}><form onsubmit={(event) => { event.preventDefault(); saveCapture(); }}><div class="dialog-heading"><div><span class="eyebrow">Manual Capture</span><h2 id="manual-capture-title">Save a reading context</h2></div><button type="button" class="icon" aria-label="Close manual capture" onclick={closeCapture}>×</button></div>{#if captureError}<div class="dialog-error" role="alert">{captureError}</div>{/if}<label>Word or phrase<input bind:this={captureFirstField} bind:value={captureInput.selectedText} /></label><label>Translation <small>Optional</small><input bind:value={captureInput.translation} /></label><label>Context<textarea bind:value={captureInput.sentence}></textarea></label><div class="actions"><button type="button" class="secondary" onclick={closeCapture}>Cancel</button><button class="primary" disabled={saving || !captureInput.selectedText.trim() || !captureInput.sentence.trim()}>{saving ? "Saving..." : "Save capture"}</button></div></form></div></div>{/if}
+{#if captureOpen}<div class="backdrop"><div bind:this={captureDialog} class="dialog" role="dialog" tabindex="-1" aria-modal="true" aria-labelledby="manual-capture-title" onkeydown={trapDialogFocus}><form onsubmit={(event) => { event.preventDefault(); achievedCaptureConflict ? restoreCapturedWordToLearning() : saveCapture(); }}><div class="dialog-heading"><div><span class="eyebrow">Manual Capture</span><h2 id="manual-capture-title">Save a reading context</h2></div><button type="button" class="icon" aria-label="Close manual capture" onclick={closeCapture}>×</button></div>{#if achievedCaptureConflict}<div class="achieved-capture-notice" role="status"><span>Achieved</span><p>This Vocabulary Item has been Achieved. Return it to Learning and save this Encounter?</p></div>{/if}{#if captureError}<div class="dialog-error" role="alert">{captureError}</div>{/if}<label>Word or phrase<input bind:this={captureFirstField} bind:value={captureInput.selectedText} /></label><label>Translation <small>Optional</small><input bind:value={captureInput.translation} /></label><label>Context<textarea bind:value={captureInput.sentence}></textarea></label><div class="actions"><button type="button" class="secondary" onclick={closeCapture}>Cancel</button><button class="primary" disabled={saving || !captureInput.selectedText.trim() || !captureInput.sentence.trim()}>{saving ? "Saving..." : achievedCaptureConflict ? "Return to Learning" : "Save capture"}</button></div></form></div></div>{/if}
 
 {#if savedCard}<div class="toast" role="dialog" aria-label="Capture saved"><span class="saved-mark" aria-hidden="true">✓</span><div><strong>{savedCard.displayForm}</strong><span>{encounterLabel(savedCard.encounterCount)}</span></div><button onclick={undoSaved}>Undo</button><button class="icon" aria-label="Dismiss saved capture" onclick={() => (savedCard = null)}>×</button></div>{/if}
 {#if lastUnachievedIds.length}<div class="toast" role="status"><span class="saved-mark" aria-hidden="true">✓</span><div><strong>{lastUnachievedIds.length} Unachieved</strong><span>Returned to Mastered</span></div><button onclick={undoUnachieve}>Undo</button><button class="icon" aria-label="Dismiss Unachieve result" onclick={() => (lastUnachievedIds = [])}>×</button></div>{/if}
@@ -542,6 +570,8 @@
   .vocabulary-tabs { display:flex; gap:6px; margin-bottom:14px; }.vocabulary-tabs button { padding:7px 12px; border:1px solid var(--line); border-radius:6px; color:var(--muted); background:transparent; }.vocabulary-tabs button.active { color:var(--text); background:var(--surface-raised); }.select-all,.achieved-row { display:grid; align-items:center; gap:12px; padding:12px 14px; border-bottom:1px solid var(--line); }.select-all { grid-template-columns:auto 1fr; color:var(--muted); }.achieved-row { grid-template-columns:auto minmax(0,1fr) auto; color:var(--text); }.achieved-row.warning { border-left:3px solid #c79b39; }.achieved-row.urgent { border-left:3px solid #b95862; }.achieved-row span { display:grid; gap:3px; }.achieved-row small { color:var(--muted); }.bulk-actions { position:sticky; bottom:12px; display:flex; justify-content:flex-end; align-items:center; gap:10px; margin-top:12px; padding:12px; border:1px solid var(--line); border-radius:7px; background:var(--surface-raised); }.danger { min-height:34px; padding:0 14px; border:1px solid #914d55; border-radius:6px; color:#fff; background:#8b3945; }.drawer-action { margin-top:16px; }
   .error { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 14px; padding: 11px 13px; border: 1px solid #724747; border-radius: 6px; color: #f0b4b4; background: #321f24; }.error button { border: 0; color: #cad0ff; background: transparent; cursor: pointer; }
   .dialog-error { padding: 9px 10px; border: 1px solid #724747; border-radius: 6px; color: #f0b4b4; background: #321f24; font-size: 12px; }
+  .achieved-capture-notice { padding: 10px; border: 1px solid #80652f; border-radius: 6px; background: rgba(196, 145, 46, .1); }.achieved-capture-notice span { display: inline-block; padding: 2px 7px; border-radius: 999px; color: #f1ca78; background: #3a3020; font-size: 10px; font-weight: 700; text-transform: uppercase; }.achieved-capture-notice p { margin: 7px 0 0; color: var(--text); font-size: 12px; }
+  .insight-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }.insight-grid > div { display: grid; gap: 6px; padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }.insight-grid span { color: var(--muted); font-size: 11px; }.insight-grid strong { font-size: 22px; }
   .settings { max-width: 900px; margin: 0 auto; }.settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }.settings fieldset { min-width: 0; display: grid; align-content: start; gap: 14px; margin: 0; padding: 18px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); }.settings legend { padding: 0; color: var(--text); font-size: 15px; font-weight: 700; }.settings fieldset > p { color: var(--muted); font-size: 11px; }.settings label { display: grid; gap: 6px; color: var(--muted); font-size: 11px; }.settings input:not([type="checkbox"]), .settings select { width: 100%; min-height: 36px; padding: 0 10px; border: 1px solid var(--line); border-radius: 6px; color: var(--text); background: var(--field); }.toggle-row { grid-template-columns: 1fr auto; align-items: center; }.toggle-row span { display: grid; gap: 3px; }.toggle-row strong { color: var(--text); font-size: 12px; }.toggle-row small { color: var(--muted); }.toggle-row input { width: 18px; height: 18px; accent-color: #7584ef; }.settings-actions { display: flex; justify-content: flex-end; margin-top: 14px; }.settings-message { margin-bottom: 12px; }.settings-success { padding: 9px 10px; border: 1px solid #3f755f; border-radius: 6px; color: #28624d; background: #dff4e9; font-size: 12px; }.settings-toast { position: fixed; z-index: 40; top: 18px; left: 50%; width: min(520px, calc(100vw - 32px)); margin: 0; box-shadow: 0 12px 36px rgba(0,0,0,.24); transform: translateX(-50%); animation: settings-toast-out 200ms ease 1s forwards; }
   @keyframes settings-toast-out { to { opacity: 0; transform: translate(-50%, -6px); } }
   .field-error { color: #f0b4b4; font-size: 11px; line-height: 1.4; }

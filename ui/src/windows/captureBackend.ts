@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import type { CaptureCandidate, CaptureCard, CaptureFailure, PlatformCapabilities, Settings, TranslationResult } from "../lib/types";
+import type { AchievedCaptureConflict, CaptureCandidate, CaptureCard, CaptureFailure, PlatformCapabilities, Settings, TranslationResult } from "../lib/types";
 
 export type CaptureReady = { requestId: string; candidate: CaptureCandidate };
 export type CaptureError = { requestId: string; failure: CaptureFailure };
@@ -20,6 +20,8 @@ export interface WindowsCaptureBackend {
   hide(requestId: string): Promise<void>;
   apply(requestId: string, correction: { selectedText: string; sentence: string; translation?: string }): Promise<void>;
   save(requestId: string, withoutTranslation: boolean): Promise<CaptureCard>;
+  findAchieved(requestId: string): Promise<AchievedCaptureConflict | null>;
+  restoreAchievedAndSave(requestId: string, wordId: string, withoutTranslation: boolean): Promise<CaptureCard>;
   undo(requestId: string, encounterId: string): Promise<void>;
   recognizeRegion(requestId: string, region: { x: number; y: number; width: number; height: number }): Promise<void>;
   startRegionOcr(): Promise<string>;
@@ -41,6 +43,8 @@ export const tauriWindowsCaptureBackend: WindowsCaptureBackend = {
   hide: (requestId) => invoke("hide_capture_window", { requestId }),
   apply: (requestId, correction) => invoke("correct_native_capture", { requestId, selectedText: correction.selectedText, sentence: correction.sentence, manualTranslation: correction.translation }),
   save: (requestId, withoutTranslation) => invoke<CaptureCard>("save_native_capture", { requestId, withoutTranslation }),
+  findAchieved: (requestId) => invoke<AchievedCaptureConflict | null>("find_achieved_native_capture", { requestId }),
+  restoreAchievedAndSave: (requestId, wordId, withoutTranslation) => invoke<CaptureCard>("restore_achieved_and_save_native_capture", { requestId, wordId, withoutTranslation }),
   undo: (requestId, encounterId) => invoke("undo_native_capture", { requestId, encounterId }),
   recognizeRegion: (requestId, region) => invoke("capture_ocr_region", { requestId, region }),
   startRegionOcr: () => invoke<string>("start_region_ocr_capture"),
