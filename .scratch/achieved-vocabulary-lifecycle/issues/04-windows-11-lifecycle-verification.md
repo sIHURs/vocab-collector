@@ -9,12 +9,12 @@ automated and unverified behavior.
 and permanently purge Achieved Vocabulary Items; 03: Run user-authorized
 automatic Achieve and expiry
 
-**Status:** ready-for-agent
+**Status:** blocked — native WebView automation is unavailable to this Codex session
 
 **Involved directories:** `apps/desktop`, `ui/src/windows`, `docs`; shared
 `crates` only when a discovered defect requires a portable fix
 
-- [ ] Upgrading a populated legacy database preserves data and does not
+- [x] Upgrading a populated legacy database preserves data and does not
       immediately Achieve existing Mastered items.
 - [ ] Manual Achieve, restart persistence, Achieved search/selection, batch
       Unachieve, and confirmed batch deletion work through the real WebView.
@@ -24,7 +24,7 @@ automatic Achieve and expiry
       processing and restart catch-up without a Windows background service.
 - [ ] SQLite inspection proves item-level detail is removed and promised
       Lifetime Insight aggregates remain stable.
-- [ ] The development log separately records Windows 11 physical, automated,
+- [x] The development log separately records Windows 11 physical, automated,
       not run, and not verified evidence.
 
 ## Verification commands

@@ -134,3 +134,57 @@
 
 - Ticket 04 starts with the complete automated feature and records real
   Windows 11 WebView, notification, restart, and SQLite evidence.
+
+## 2026-09-05 - Ticket 04: Windows 11 physical verification
+
+### Implemented and observed
+
+- Confirmed the host reports Windows 11 Pro build 26100 on an HP Pavilion
+  Gaming Laptop 15-dk1xxx.
+- Started the real Tauri development executable successfully and stopped it
+  cleanly after startup inspection.
+- Confirmed the app-owned SQLite database migrated to schema version 4,
+  contains all three lifecycle columns, and passes `PRAGMA integrity_check`.
+- Added an automated populated-version-3 migration test proving a legacy
+  Mastered item receives `masteredAt` without becoming Achieved.
+
+### Key design decisions
+
+- Windows physical host identity and process startup are evidence, but they do
+  not prove controls that this session could not operate or observe.
+- The Codex computer-use surface exposed no native app windows, so native
+  WebView claims remain deliberately unchecked.
+
+### Main files
+
+- `crates/storage/tests/sqlite_repository.rs`
+- `.scratch/achieved-vocabulary-lifecycle/issues/04-windows-11-lifecycle-verification.md`
+
+### Tests and results
+
+- `cargo test -p vocab-storage legacy_mastered_items_receive_migration_time`:
+  PASS.
+- `pnpm --dir ui test`: PASS, 78 tests.
+- `pnpm --dir ui check`: PASS.
+- `pnpm --dir ui build`: PASS.
+- `cargo check --workspace`: PASS.
+- `cargo test --workspace`: FAIL only while linking the existing macOS native
+  FFI adapter test on Windows (`LNK2019` for `vocab_mac_*` symbols). Focused
+  shared Rust and Windows desktop suites pass.
+- `pnpm tauri dev`: PASS for compilation, process launch, schema migration, and
+  startup only.
+
+### Not yet verified
+
+- Manual Achieve, search/select, batch Unachieve/delete, confirmation focus,
+  countdown styling, and restart readback through the real WebView.
+- Native notification delivery and a real local-date daily wake-up.
+- Time-driven automatic purge against disposable physical test data.
+- Item deletion and Lifetime Insight stability in the user's production data
+  were intentionally not exercised destructively.
+
+### Next ticket starting point
+
+- Resume Ticket 04 with a native-window-capable UI session. Use disposable
+  Mastered/Achieved data, perform the unchecked scenarios, then mark the ticket
+  complete only after recording direct evidence.

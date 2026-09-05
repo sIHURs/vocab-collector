@@ -85,6 +85,34 @@ fn version_one_database_migrates_existing_encounters_to_manual_origin() {
 }
 
 #[test]
+fn legacy_mastered_items_receive_migration_time_without_becoming_achieved() {
+    let path = std::env::temp_dir().join(format!("vocab-v3-mastered-{}.db", Uuid::now_v7()));
+    let id = Uuid::now_v7();
+    let connection = rusqlite::Connection::open(&path).unwrap();
+    connection.execute_batch(
+        "CREATE TABLE words (
+           id TEXT PRIMARY KEY, dedupe_key TEXT NOT NULL UNIQUE, owner_scope TEXT NOT NULL,
+           lemma TEXT NOT NULL, display_form TEXT NOT NULL, source_language TEXT NOT NULL,
+           target_language TEXT NOT NULL, translation TEXT, part_of_speech TEXT, status TEXT NOT NULL,
+           created_at TEXT NOT NULL, updated_at TEXT NOT NULL, deleted_at TEXT, review_state_json TEXT
+         ); PRAGMA user_version = 3;"
+    ).unwrap();
+    connection.execute(
+        "INSERT INTO words VALUES(?1,'legacy|en|de','\"guest\"','legacy','Legacy','en','de',NULL,NULL,'\"mastered\"','2026-01-01T00:00:00+00:00','2026-01-01T00:00:00+00:00',NULL,'null')",
+        [id.to_string()],
+    ).unwrap();
+    drop(connection);
+
+    let store = SqliteStore::open(&path).unwrap();
+    let word = WordRepository::get(&store, id).unwrap().unwrap();
+    assert!(word.mastered_at.is_some());
+    assert!(word.achieved_at.is_none());
+    assert!(word.delete_after.is_none());
+    drop(store);
+    std::fs::remove_file(path).unwrap();
+}
+
+#[test]
 fn duplicate_capture_keeps_one_word_and_all_contexts() {
     let store = SqliteStore::open_in_memory().unwrap();
 
