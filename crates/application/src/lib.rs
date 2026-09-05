@@ -52,6 +52,8 @@ pub enum ApplicationError {
     Lifecycle(#[from] LifecycleError),
     #[error("retention must be 10, 20, 30, or 60 days")]
     InvalidAchievedRetention,
+    #[error("batch must contain between 1 and 500 unique Vocabulary Items")]
+    InvalidLifecycleBatch,
 }
 
 pub struct AppService {
@@ -200,7 +202,8 @@ impl AppService {
         ids: &[Uuid],
         now: DateTime<Utc>,
     ) -> Result<usize, ApplicationError> {
-        Ok(self.store.unachieve_words(ids, now)?)
+        let ids = validated_batch(ids)?;
+        Ok(self.store.unachieve_words(&ids, now)?)
     }
 
     pub fn delete_achieved_words(
@@ -208,7 +211,8 @@ impl AppService {
         ids: &[Uuid],
         now: DateTime<Utc>,
     ) -> Result<usize, ApplicationError> {
-        Ok(self.store.delete_achieved_words(ids, now)?)
+        let ids = validated_batch(ids)?;
+        Ok(self.store.delete_achieved_words(&ids, now)?)
     }
 
     pub fn run_lifecycle_sweep(
@@ -255,6 +259,7 @@ impl AppService {
     ) -> Result<AchievedWordListItem, ApplicationError> {
         Ok(AchievedWordListItem {
             id: word.id,
+            lemma: word.lemma,
             display_form: word.display_form,
             translation: word.translation,
             encounter_count: self.store.list_for_word(word.id)?.len(),
@@ -426,4 +431,12 @@ impl AppService {
         SettingsRepository::save(self.store.as_ref(), &settings)?;
         Ok(())
     }
+}
+
+fn validated_batch(ids: &[Uuid]) -> Result<Vec<Uuid>, ApplicationError> {
+    let unique = ids.iter().copied().collect::<HashSet<_>>();
+    if unique.is_empty() || unique.len() > 500 {
+        return Err(ApplicationError::InvalidLifecycleBatch);
+    }
+    Ok(unique.into_iter().collect())
 }

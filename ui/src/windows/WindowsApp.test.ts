@@ -528,8 +528,8 @@ describe("Windows main presentation", () => {
   it("selects the filtered Achieved list and runs batch Unachieve or confirmed deletion", async () => {
     const api = new DemoBackend(false);
     let achieved = [
-      { id: "one", displayForm: "achieve", translation: "erreichen", encounterCount: 2, achievedAt: "2026-09-01T00:00:00Z", deleteAfter: "2026-10-01T00:00:00Z" },
-      { id: "two", displayForm: "durable", translation: "beständig", encounterCount: 1, achievedAt: "2026-09-02T00:00:00Z", deleteAfter: "2026-10-02T00:00:00Z" },
+      { id: "one", lemma: "achieve", displayForm: "achieve", translation: "erreichen", encounterCount: 2, achievedAt: "2026-09-01T00:00:00Z", deleteAfter: "2026-10-01T00:00:00Z" },
+      { id: "two", lemma: "durable", displayForm: "durable", translation: "beständig", encounterCount: 1, achievedAt: "2026-09-02T00:00:00Z", deleteAfter: "2026-10-02T00:00:00Z" },
     ];
     const unachieve = vi.fn(async (ids: string[]) => { achieved = achieved.filter((word) => !ids.includes(word.id)); return ids.length; });
     const remove = vi.fn(async (ids: string[]) => { achieved = achieved.filter((word) => !ids.includes(word.id)); return ids.length; });

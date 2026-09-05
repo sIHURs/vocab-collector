@@ -137,7 +137,7 @@ export class DemoBackend implements Backend {
   async listWords() { return this.words.filter((word) => !word.item.achievedAt).map((word) => ({ ...word.item })); }
   async listAchievedWords(): Promise<AchievedWordListItem[]> {
     return this.words.filter((word) => word.item.achievedAt && word.item.deleteAfter).map((word) => ({
-      id: word.item.id, displayForm: word.item.displayForm, translation: word.item.translation,
+      id: word.item.id, lemma: word.lemma, displayForm: word.item.displayForm, translation: word.item.translation,
       encounterCount: word.item.encounterCount, achievedAt: word.item.achievedAt!, deleteAfter: word.item.deleteAfter!,
     }));
   }
@@ -147,7 +147,7 @@ export class DemoBackend implements Backend {
     const achievedAt = new Date();
     const deleteAfter = new Date(achievedAt.getTime() + (this.settings.achievedRetentionDays ?? 30) * 86_400_000);
     word.item.achievedAt = achievedAt.toISOString(); word.item.deleteAfter = deleteAfter.toISOString();
-    return { id: word.item.id, displayForm: word.item.displayForm, translation: word.item.translation,
+    return { id: word.item.id, lemma: word.lemma, displayForm: word.item.displayForm, translation: word.item.translation,
       encounterCount: word.item.encounterCount, achievedAt: word.item.achievedAt, deleteAfter: word.item.deleteAfter };
   }
   async unachieveWords(wordIds: string[]): Promise<number> {

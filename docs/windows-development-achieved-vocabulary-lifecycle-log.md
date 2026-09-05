@@ -188,3 +188,38 @@
 - Resume Ticket 04 with a native-window-capable UI session. Use disposable
   Mastered/Achieved data, perform the unchecked scenarios, then mark the ticket
   complete only after recording direct evidence.
+
+## 2026-09-05 - Post-implementation review remediation
+
+### Implemented
+
+- Bounded lifecycle batches to 500 unique IDs and deduplicated repeated IDs
+  before storage, preventing duplicate archive totals.
+- Exposed compact archived Vocabulary, Encounter, and Review totals through
+  database diagnostics instead of leaving the aggregate table write-only.
+- Added normalized lemma to the Achieved DTO/search contract.
+- Added the missing Settings explanation that retention changes affect future
+  Achieve actions only.
+- Preserved startup lifecycle results long enough for the Windows adapter to
+  issue a summary notification.
+
+### Review outcome
+
+- Standards review: no documented repository-standard violations; three
+  judgement-call smells remain (retention primitive, broad Windows root
+  component, repeated SQL projection).
+- Spec review: batch bounds, aggregate observability, normalized search,
+  Settings copy, and startup summary handling were corrected.
+- Still partial: the capture failure is typed in Rust and instructs the user to
+  Unachieve, but the capture dialog does not yet contain a direct recovery
+  button. The separate Global Insight dashboard query described by its own plan
+  is not present on this branch, so archived totals are exposed at diagnostics
+  rather than merged into a dashboard DTO.
+
+### Verification
+
+- Shared Rust suites: PASS, including 17 application and 9 storage tests.
+- `cargo test -p vocab-desktop`: PASS, 40 tests.
+- `cargo check --workspace`: PASS.
+- `pnpm --dir ui test`: PASS, 78 tests.
+- `pnpm --dir ui check`: PASS.

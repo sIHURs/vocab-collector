@@ -299,7 +299,10 @@ pub fn run() {
                     status.notification_error = review_time_error;
                     runtime.replace(status);
                 }
-                let _ = state.application().run_lifecycle_sweep(chrono::Utc::now());
+                let startup_lifecycle = state
+                    .application()
+                    .run_lifecycle_sweep(chrono::Utc::now())
+                    .unwrap_or_default();
                 app.manage(state);
                 app.manage(scheduler.clone());
                 app.manage(runtime.clone());
@@ -328,6 +331,18 @@ pub fn run() {
                     runtime.replace(status);
                 }
                 install_windows_tray(app.handle())?;
+                if startup_lifecycle.achieved_count + startup_lifecycle.purged_count > 0 {
+                    use tauri_plugin_notification::NotificationExt;
+                    let _ = app
+                        .notification()
+                        .builder()
+                        .title("Vocab Collector")
+                        .body(format!(
+                            "{} words moved to Achieved; {} expired words deleted.",
+                            startup_lifecycle.achieved_count, startup_lifecycle.purged_count
+                        ))
+                        .show();
+                }
                 if std::env::args().any(|argument| argument == "--autostart")
                     && let Some(window) = app.get_webview_window("main")
                 {

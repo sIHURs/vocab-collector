@@ -82,6 +82,9 @@ pub struct DatabaseSummary {
     pub active_encounter_count: usize,
     pub review_log_count: usize,
     pub pending_outbox_count: usize,
+    pub archived_vocabulary_count: usize,
+    pub archived_encounter_count: usize,
+    pub archived_review_count: usize,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -314,6 +317,10 @@ impl SqliteStore {
         let foreign_keys_enabled = connection
             .query_row("PRAGMA foreign_keys", [], |row| row.get::<_, bool>(0))
             .map_err(repo_error)?;
+        let archived = connection.query_row(
+            "SELECT vocabulary_count, encounter_count, review_count FROM lifetime_archive WHERE singleton = 1",
+            [], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?, row.get::<_, i64>(2)?)),
+        ).optional().map_err(repo_error)?.unwrap_or((0, 0, 0));
 
         Ok(DatabaseSummary {
             schema_version,
@@ -324,6 +331,9 @@ impl SqliteStore {
             )?,
             review_log_count: count("SELECT COUNT(*) FROM review_logs")?,
             pending_outbox_count: count("SELECT COUNT(*) FROM outbox")?,
+            archived_vocabulary_count: usize::try_from(archived.0).map_err(repo_error)?,
+            archived_encounter_count: usize::try_from(archived.1).map_err(repo_error)?,
+            archived_review_count: usize::try_from(archived.2).map_err(repo_error)?,
         })
     }
 

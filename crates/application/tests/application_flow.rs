@@ -120,7 +120,7 @@ fn user_can_unachieve_or_permanently_delete_achieved_items_in_batches() {
 
     assert_eq!(
         service
-            .delete_achieved_words(&[second.word_id], now + Duration::days(1))
+            .delete_achieved_words(&[second.word_id, second.word_id], now + Duration::days(1))
             .unwrap(),
         1
     );
@@ -129,6 +129,9 @@ fn user_can_unachieve_or_permanently_delete_achieved_items_in_batches() {
             .unwrap()
             .is_none()
     );
+    let summary = store.database_summary().unwrap();
+    assert_eq!(summary.archived_vocabulary_count, 1);
+    assert_eq!(summary.archived_encounter_count, 1);
 }
 
 #[test]

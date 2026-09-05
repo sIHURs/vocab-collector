@@ -60,7 +60,7 @@
 
   $: visibleWords = words.filter((word) => vocabularyView === "active" ? word.status !== "mastered" : word.status === "mastered");
   $: filteredWords = visibleWords.filter((word) => `${word.displayForm} ${word.translation ?? ""}`.toLowerCase().includes(search.trim().toLowerCase()));
-  $: filteredAchievedWords = achievedWords.filter((word) => `${word.displayForm} ${word.translation ?? ""}`.toLowerCase().includes(search.trim().toLowerCase()));
+  $: filteredAchievedWords = achievedWords.filter((word) => `${word.displayForm} ${word.lemma} ${word.translation ?? ""}`.toLowerCase().includes(search.trim().toLowerCase()));
   $: allFilteredAchievedSelected = filteredAchievedWords.length > 0 && filteredAchievedWords.every((word) => selectedAchievedIds.has(word.id));
   $: vocabularyPageCount = Math.max(1, Math.ceil(filteredWords.length / vocabularyPageSize));
   $: if (vocabularyPage > vocabularyPageCount) vocabularyPage = vocabularyPageCount;
@@ -484,6 +484,7 @@
               <label>Daily limit<input type="number" min="1" max="50" bind:value={settingsDraft.dailyLimit} /></label>
               <label>Recent captures<input type="number" min="1" max="100" bind:value={settingsDraft.recentCapturesLimit} /></label>
               <label>Keep achieved words for<select bind:value={settingsDraft.achievedRetentionDays}><option value={10}>10 days</option><option value={20}>20 days</option><option value={30}>30 days</option><option value={60}>60 days</option></select></label>
+              <small>Retention changes apply only to words Achieved after you save this setting.</small>
               <label class="toggle-row"><span><strong>Automatically achieve Mastered words</strong><small>After 30 uninterrupted days; manual Achieve remains available</small></span><input aria-label="Automatically achieve Mastered words after 30 days" type="checkbox" bind:checked={settingsDraft.automaticAchieveEnabled} /></label>
             </fieldset>
             <fieldset><legend>Capture shortcuts</legend><p>Selection Capture is recommended. Leave a shortcut blank to disable it.</p>

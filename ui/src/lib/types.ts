@@ -114,6 +114,7 @@ export interface WordListItem {
 
 export interface AchievedWordListItem {
   id: string;
+  lemma: string;
   displayForm: string;
   translation?: string;
   encounterCount: number;

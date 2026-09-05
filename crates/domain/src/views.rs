@@ -34,6 +34,7 @@ pub struct WordListItem {
 #[serde(rename_all = "camelCase")]
 pub struct AchievedWordListItem {
     pub id: Uuid,
+    pub lemma: String,
     pub display_form: String,
     pub translation: Option<String>,
     pub encounter_count: usize,
