@@ -15,7 +15,7 @@ use vocab_domain::{
     EncounterRepository, GlobalInsight, LifecycleError, LifecycleSweepResult, RepositoryError,
     ReviewCard, ReviewLog, ReviewRating, ReviewResult, ReviewSessionInsight, SettingsRepository,
     TodayView, UserSettings, WordDetail, WordListItem, WordRepository, WordStatus, apply_review,
-    build_review_queue, dedupe_key, summarize_review_session,
+    build_review_queue, dedupe_key, normalize_lemma, summarize_review_session,
 };
 use vocab_storage::{CaptureRecord, SqliteStore};
 
@@ -78,16 +78,38 @@ impl AppService {
     ) -> Result<Option<AchievedCaptureConflict>, ApplicationError> {
         let lemma = request.lemma.as_deref().unwrap_or(&request.selected_text);
         let key = dedupe_key(lemma, &request.source_language, &request.target_language);
-        Ok(
-            WordRepository::find_by_dedupe_key(self.store.as_ref(), &key)?
-                .filter(|word| word.is_achieved())
-                .map(|word| AchievedCaptureConflict {
-                    word_id: word.id,
-                    display_form: word.display_form,
-                    achieved_at: word.achieved_at.expect("Achieved invariant checked"),
-                    delete_after: word.delete_after.expect("Achieved invariant checked"),
-                }),
-        )
+        let exact = WordRepository::find_by_dedupe_key(self.store.as_ref(), &key)?
+            .filter(|word| word.is_achieved());
+        let word = match exact {
+            Some(word) => Some(word),
+            None => {
+                let normalized = normalize_lemma(lemma);
+                let mut compatible = self.store.list()?.into_iter().filter(|word| {
+                    word.is_achieved()
+                        && word.lemma == normalized
+                        && word
+                            .target_language
+                            .eq_ignore_ascii_case(&request.target_language)
+                        && (word
+                            .source_language
+                            .eq_ignore_ascii_case(&request.source_language)
+                            || word.source_language.eq_ignore_ascii_case("auto")
+                            || request.source_language.eq_ignore_ascii_case("auto"))
+                });
+                let first = compatible.next();
+                if compatible.next().is_some() {
+                    None
+                } else {
+                    first
+                }
+            }
+        };
+        Ok(word.map(|word| AchievedCaptureConflict {
+            word_id: word.id,
+            display_form: word.display_form,
+            achieved_at: word.achieved_at.expect("Achieved invariant checked"),
+            delete_after: word.delete_after.expect("Achieved invariant checked"),
+        }))
     }
 
     pub fn restore_achieved_and_capture(

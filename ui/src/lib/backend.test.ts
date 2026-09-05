@@ -1,8 +1,19 @@
 import { describe, expect, it } from "vitest";
 
-import { DemoBackend } from "./backend";
+import { DemoBackend, captureRequestFor } from "./backend";
 
 describe("browser backend contract", () => {
+  it("uses the saved language pair when constructing a desktop Manual Capture request", () => {
+    const capturedAt = "2026-09-05T12:00:00.000Z";
+    const request = captureRequestFor(
+      { selectedText: "validate", sentence: "Validate the result." },
+      { sourceLanguage: "auto", targetLanguage: "zh-Hans", selectionCaptureShortcut: "", regionOcrCaptureShortcut: "", reviewTime: "18:00", dailyLimit: 5, recentCapturesLimit: 20, launchAtLogin: false, appearance: "system", reducedMotion: false },
+      capturedAt,
+    );
+
+    expect(request).toMatchObject({ sourceLanguage: "auto", targetLanguage: "zh-Hans", capturedAt });
+  });
+
   it("deduplicates words while preserving encounters", async () => {
     const backend = new DemoBackend(false);
 

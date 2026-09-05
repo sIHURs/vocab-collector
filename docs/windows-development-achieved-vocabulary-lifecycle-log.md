@@ -284,3 +284,37 @@
 
 - Run the final UI type check, then exercise a disposable Achieved item through
   both Manual Capture and Selection Capture in the physical Windows app.
+
+## 2026-09-05 - Human-test remediation: auto-detected source language
+
+### Implemented
+
+- Reproduced an Achieved lookup miss when the stored Vocabulary Item used
+  source language `auto` and a later browser Selection Capture resolved it to
+  `en`.
+- Made `auto` compatible with one unambiguous resolved source-language match
+  while preserving separation between two explicitly different languages.
+- Applied the same compatibility validation inside the atomic restore-and-save
+  transaction.
+- Removed the Windows Manual Capture adapter's hard-coded `en` to `de` request
+  and now builds requests from persisted language settings.
+
+### Evidence and verification
+
+- The inspected desktop database stored `validate` as `auto` to `zh-hans`; this
+  is the exact language-key pattern covered by the regression test.
+- `achieved_capture_matches_an_auto_detected_source_when_recapture_resolves_the_language`
+  failed before the fix and passes afterward.
+- `cargo test -p vocab-application`: PASS, 41 tests.
+- `cargo test -p vocab-storage`: PASS, 9 tests.
+- `cargo test -p vocab-desktop --tests`: PASS, 40 tests.
+- Focused UI/backend tests: PASS, 54 tests.
+- `pnpm --dir ui check`: PASS.
+- `cargo check --workspace`: PASS.
+
+### Still requires human confirmation
+
+- The inspected database currently reports `validate` as Learning with no
+  Achieved timestamps. The tester must first confirm that the running app and
+  Achieved list refer to the same database, then Achieve the item and repeat
+  Selection Capture using the rebuilt process.

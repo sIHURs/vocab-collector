@@ -332,11 +332,23 @@ impl SqliteStore {
     ) -> Result<StoredCapture, RepositoryError> {
         let mut connection = self.lock()?;
         let transaction = connection.transaction().map_err(repo_error)?;
-        let key = dedupe_key(&input.lemma, &input.source_language, &input.target_language);
-        let mut word = find_word(&transaction, &key)?.ok_or(RepositoryError::NotFound)?;
-        if word.id != expected_word_id || !word.is_achieved() {
+        let mut word =
+            get_word_by_id(&transaction, expected_word_id)?.ok_or(RepositoryError::NotFound)?;
+        let source_is_compatible = word
+            .source_language
+            .eq_ignore_ascii_case(&input.source_language)
+            || word.source_language.eq_ignore_ascii_case("auto")
+            || input.source_language.eq_ignore_ascii_case("auto");
+        if !word.is_achieved()
+            || word.lemma != normalize_lemma(&input.lemma)
+            || !word
+                .target_language
+                .eq_ignore_ascii_case(&input.target_language)
+            || !source_is_compatible
+        {
             return Err(RepositoryError::NotFound);
         }
+        let key = dedupe_key(&word.lemma, &word.source_language, &word.target_language);
         word.unmaster(input.captured_at, WordStatus::Learning);
         insert_word(&transaction, &key, &word)?;
         enqueue(

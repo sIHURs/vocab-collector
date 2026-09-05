@@ -51,6 +51,20 @@ const unavailablePlatformCapabilities: PlatformCapabilities = {
 };
 
 const id = (): string => globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
+export const captureRequestFor = (input: CaptureInput, settings: Settings, capturedAt = new Date().toISOString()) => ({
+  selectedText: input.selectedText,
+  lemma: input.selectedText,
+  sentence: input.sentence,
+  sourceLanguage: settings.sourceLanguage,
+  targetLanguage: settings.targetLanguage,
+  translation: input.translation,
+  partOfSpeech: undefined,
+  sourceApp: input.sourceApp,
+  sourceTitle: input.sourceTitle,
+  sourceUrl: input.sourceUrl,
+  captureOrigin: input.captureOrigin ?? "manual",
+  capturedAt,
+});
 const achievedTiming = (deleteAfter: string) => {
   const remainingDays = Math.max(0, Math.ceil((new Date(deleteAfter).getTime() - Date.now()) / 86_400_000));
   return { remainingDays, urgency: remainingDays <= 2 ? "urgent" as const : remainingDays <= 7 ? "warning" as const : "normal" as const };
@@ -253,20 +267,14 @@ export class DemoBackend implements Backend {
 }
 
 class TauriBackend implements Backend {
-  private captureRequest(input: CaptureInput) {
-    return {
-      selectedText: input.selectedText, lemma: input.selectedText, sentence: input.sentence,
-      sourceLanguage: "en", targetLanguage: "de", translation: input.translation,
-      partOfSpeech: undefined, sourceApp: input.sourceApp, sourceTitle: input.sourceTitle,
-      sourceUrl: input.sourceUrl, captureOrigin: input.captureOrigin ?? "manual",
-      capturedAt: new Date().toISOString(),
-    };
+  private async captureRequest(input: CaptureInput) {
+    return captureRequestFor(input, await this.getSettings());
   }
-  capture(input: CaptureInput) {
-    return invoke<CaptureCard>("capture_word", { request: this.captureRequest(input) });
+  async capture(input: CaptureInput) {
+    return invoke<CaptureCard>("capture_word", { request: await this.captureRequest(input) });
   }
-  findAchievedCapture(input: CaptureInput) { return invoke<AchievedCaptureConflict | null>("find_achieved_capture", { request: this.captureRequest(input) }); }
-  restoreAchievedAndCapture(wordId: string, input: CaptureInput) { return invoke<CaptureCard>("restore_achieved_and_capture", { wordId, request: this.captureRequest(input) }); }
+  async findAchievedCapture(input: CaptureInput) { return invoke<AchievedCaptureConflict | null>("find_achieved_capture", { request: await this.captureRequest(input) }); }
+  async restoreAchievedAndCapture(wordId: string, input: CaptureInput) { return invoke<CaptureCard>("restore_achieved_and_capture", { wordId, request: await this.captureRequest(input) }); }
   undoCapture(encounterId: string) { return invoke<void>("undo_capture", { encounterId }); }
   getToday() { return invoke<TodayView>("get_today"); }
   listWords() { return invoke<WordListItem[]>("list_words"); }

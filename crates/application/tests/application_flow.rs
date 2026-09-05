@@ -129,6 +129,38 @@ fn achieved_capture_requires_consent_then_atomically_returns_the_item_to_learnin
 }
 
 #[test]
+fn achieved_capture_matches_an_auto_detected_source_when_recapture_resolves_the_language() {
+    let store = Arc::new(SqliteStore::open_in_memory().unwrap());
+    let service = AppService::new(store.clone(), Uuid::now_v7());
+    let mut original_request = request("Validate", "验证");
+    original_request.source_language = "auto".into();
+    original_request.target_language = "zh-Hans".into();
+    let original = service.capture(original_request).unwrap();
+    let achieved_at = Utc.with_ymd_and_hms(2026, 9, 5, 12, 0, 0).unwrap();
+    let mut word = WordRepository::get(store.as_ref(), original.word_id)
+        .unwrap()
+        .unwrap();
+    word.enter_mastered(achieved_at);
+    WordRepository::save(store.as_ref(), &word).unwrap();
+    service.achieve_word(original.word_id, achieved_at).unwrap();
+    let mut recapture = request("validate", "验证");
+    recapture.source_language = "en".into();
+    recapture.target_language = "zh-Hans".into();
+
+    let conflict = service
+        .find_achieved_capture(&recapture)
+        .unwrap()
+        .expect("auto source should match its later resolved language");
+    assert_eq!(conflict.word_id, original.word_id);
+
+    service
+        .restore_achieved_and_capture(conflict.word_id, recapture)
+        .unwrap();
+    assert_eq!(service.list_words().unwrap().len(), 1);
+    assert_eq!(service.list_words().unwrap()[0].encounter_count, 2);
+}
+
+#[test]
 fn global_insight_preserves_lifetime_totals_after_an_achieved_item_is_purged() {
     let store = Arc::new(SqliteStore::open_in_memory().unwrap());
     let service = AppService::new(store.clone(), Uuid::now_v7());
