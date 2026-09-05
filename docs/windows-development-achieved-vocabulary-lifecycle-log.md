@@ -90,3 +90,47 @@
 
 - Ticket 03 can invoke the same transition and purge primitives from the
   opt-in automatic lifecycle sweep.
+
+## 2026-09-05 - Ticket 03: Automatic Achieve and expiry
+
+### Implemented
+
+- Added the opt-in automatic Achieve setting and 10/20/30/60-day retention
+  selector to the Windows Settings presentation.
+- Added a portable lifecycle sweep that Achieves eligible Mastered items and
+  purges expired Achieved items with bounded result counts.
+- Invoked the same sweep at startup, before Vocabulary refreshes, and once per
+  local calendar day while the Windows process remains alive.
+- Added a Windows summary notification adapter without moving eligibility into
+  Windows code.
+
+### Key design decisions
+
+- The exact 30-day decision uses explicit UTC instants in shared domain code.
+- Daily wake-up detects a local date change, avoiding a drifting 24-hour timer.
+- Existing deletion deadlines remain immutable after Settings changes.
+
+### Main files
+
+- `crates/domain/src/models.rs`, `crates/domain/src/views.rs`
+- `crates/application/src/lib.rs`
+- `apps/desktop/src-tauri/src/lib.rs`
+- `apps/desktop/src-tauri/src/commands/library.rs`
+- `ui/src/windows/WindowsApp.svelte`
+
+### Tests and results
+
+- Domain exact-boundary test: PASS.
+- Application opt-in, expiry, opt-out, and immutable-deadline tests: PASS.
+- Focused `WindowsApp.test.ts`: PASS, 25 tests.
+- Full required verification is run again before Ticket 03 commit.
+
+### Not yet verified
+
+- Native notification delivery, local-date wake-up, and restart catch-up are
+  not marked Windows 11 physical verified.
+
+### Next ticket starting point
+
+- Ticket 04 starts with the complete automated feature and records real
+  Windows 11 WebView, notification, restart, and SQLite evidence.

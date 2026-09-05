@@ -166,6 +166,38 @@ fn opted_in_lifecycle_sweep_achieves_at_thirty_days_and_purges_expired_items() {
 }
 
 #[test]
+fn automatic_achieve_stays_off_without_opt_in_and_existing_deadlines_do_not_follow_settings() {
+    let store = Arc::new(SqliteStore::open_in_memory().unwrap());
+    let service = AppService::new(store.clone(), Uuid::now_v7());
+    let mastered_at = Utc.with_ymd_and_hms(2026, 8, 1, 12, 0, 0).unwrap();
+    let card = service.capture(request("Consent", "Zustimmung")).unwrap();
+    let mut word = WordRepository::get(store.as_ref(), card.word_id)
+        .unwrap()
+        .unwrap();
+    word.enter_mastered(mastered_at);
+    WordRepository::save(store.as_ref(), &word).unwrap();
+    assert_eq!(
+        service
+            .run_lifecycle_sweep(mastered_at + Duration::days(60))
+            .unwrap()
+            .achieved_count,
+        0
+    );
+
+    let achieved = service
+        .achieve_word(card.word_id, mastered_at + Duration::days(60))
+        .unwrap();
+    let original_deadline = achieved.delete_after;
+    let mut settings = service.get_settings().unwrap();
+    settings.achieved_retention_days = 10;
+    service.update_settings(settings).unwrap();
+    assert_eq!(
+        service.list_achieved_words().unwrap()[0].delete_after,
+        original_deadline
+    );
+}
+
+#[test]
 fn review_result_reports_encounters_and_repeated_forgetting_after_three_consecutive_lapses() {
     let store = Arc::new(SqliteStore::open_in_memory().unwrap());
     let service = AppService::new(store, Uuid::now_v7());

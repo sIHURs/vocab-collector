@@ -432,6 +432,8 @@ describe("Windows main presentation", () => {
     await fireEvent.change(screen.getByLabelText("Translate into"), { target: { value: "es" } });
     await fireEvent.input(screen.getByLabelText("Daily limit"), { target: { value: "4" } });
     await fireEvent.input(screen.getByLabelText("Recent captures"), { target: { value: "12" } });
+    await fireEvent.change(screen.getByLabelText("Keep achieved words for"), { target: { value: "60" } });
+    await fireEvent.click(screen.getByLabelText("Automatically achieve Mastered words after 30 days"));
     await fireEvent.input(screen.getByLabelText("Selection Capture shortcut"), { target: { value: "Control+Shift+W" } });
     await fireEvent.input(screen.getByLabelText("Region OCR Capture shortcut"), { target: { value: "Control+Shift+O" } });
     await fireEvent.change(screen.getByLabelText("Theme"), { target: { value: "light" } });
@@ -443,7 +445,7 @@ describe("Windows main presentation", () => {
       sourceLanguage: "fr", targetLanguage: "es", reviewTime: "18:00", dailyLimit: 4,
       recentCapturesLimit: 12,
       selectionCaptureShortcut: "Control+Shift+W", regionOcrCaptureShortcut: "Control+Shift+O", launchAtLogin: false, appearance: "light",
-      reducedMotion: true, automaticAchieveEnabled: false, achievedRetentionDays: 30,
+      reducedMotion: true, automaticAchieveEnabled: true, achievedRetentionDays: 60,
     }]);
     expect(screen.getByLabelText("Selection Capture shortcut")).toHaveValue("Control+Shift+W");
     expect(screen.getByLabelText("Region OCR Capture shortcut")).toHaveValue("Control+Shift+O");

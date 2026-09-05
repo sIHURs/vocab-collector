@@ -143,8 +143,14 @@ fn start_review_scheduler(
 fn start_lifecycle_scheduler(app: tauri::AppHandle) {
     use tauri_plugin_notification::NotificationExt;
     std::thread::spawn(move || {
+        let mut last_run_date = chrono::Local::now().date_naive();
         loop {
-            std::thread::sleep(std::time::Duration::from_secs(24 * 60 * 60));
+            std::thread::sleep(std::time::Duration::from_secs(60));
+            let local_date = chrono::Local::now().date_naive();
+            if local_date == last_run_date {
+                continue;
+            }
+            last_run_date = local_date;
             if let Ok(result) = app
                 .state::<bootstrap::AppState>()
                 .application()
