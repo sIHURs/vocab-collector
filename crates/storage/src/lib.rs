@@ -19,7 +19,8 @@ CREATE TABLE IF NOT EXISTS words (
   id TEXT PRIMARY KEY, dedupe_key TEXT NOT NULL UNIQUE, owner_scope TEXT NOT NULL,
   lemma TEXT NOT NULL, display_form TEXT NOT NULL, source_language TEXT NOT NULL,
   target_language TEXT NOT NULL, translation TEXT, part_of_speech TEXT, status TEXT NOT NULL,
-  created_at TEXT NOT NULL, updated_at TEXT NOT NULL, deleted_at TEXT, review_state_json TEXT
+  created_at TEXT NOT NULL, updated_at TEXT NOT NULL, deleted_at TEXT,
+  mastered_at TEXT, achieved_at TEXT, delete_after TEXT, review_state_json TEXT
 );
 CREATE TABLE IF NOT EXISTS encounters (
   id TEXT PRIMARY KEY, word_id TEXT NOT NULL REFERENCES words(id), selected_text TEXT NOT NULL,
@@ -40,7 +41,13 @@ CREATE TABLE IF NOT EXISTS outbox (
   operation TEXT NOT NULL, payload TEXT NOT NULL, created_at TEXT NOT NULL,
   attempt_count INTEGER NOT NULL DEFAULT 0
 );
-PRAGMA user_version = 2;
+CREATE TABLE IF NOT EXISTS lifetime_archive (
+  singleton INTEGER PRIMARY KEY CHECK(singleton = 1),
+  vocabulary_count INTEGER NOT NULL DEFAULT 0,
+  encounter_count INTEGER NOT NULL DEFAULT 0,
+  review_count INTEGER NOT NULL DEFAULT 0
+);
+PRAGMA user_version = 4;
 "#;
 
 #[derive(Clone, Debug)]
@@ -149,6 +156,53 @@ impl SqliteStore {
                 )
                 .map_err(repo_error)?;
         }
+        let lifecycle_columns = {
+            let mut statement = connection
+                .prepare("PRAGMA table_info(words)")
+                .map_err(repo_error)?;
+            statement
+                .query_map([], |row| row.get::<_, String>(1))
+                .map_err(repo_error)?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(repo_error)?
+        };
+        if !lifecycle_columns
+            .iter()
+            .any(|column| column == "mastered_at")
+        {
+            connection
+                .execute_batch(
+                    "ALTER TABLE words ADD COLUMN mastered_at TEXT;
+                     ALTER TABLE words ADD COLUMN achieved_at TEXT;
+                     ALTER TABLE words ADD COLUMN delete_after TEXT;
+                     CREATE INDEX IF NOT EXISTS idx_words_achieved_deadline ON words(delete_after);
+                     CREATE INDEX IF NOT EXISTS idx_words_mastered_at ON words(mastered_at);
+                     PRAGMA user_version = 4;",
+                )
+                .map_err(repo_error)?;
+            let migrated_at = Utc::now().to_rfc3339();
+            connection
+                .execute(
+                    "UPDATE words SET mastered_at = ?1 WHERE status = '\"mastered\"' AND deleted_at IS NULL",
+                    [migrated_at],
+                )
+                .map_err(repo_error)?;
+        }
+        connection
+            .execute_batch(
+                "CREATE INDEX IF NOT EXISTS idx_words_achieved_deadline ON words(delete_after);
+             CREATE INDEX IF NOT EXISTS idx_words_mastered_at ON words(mastered_at);
+             CREATE TABLE IF NOT EXISTS lifetime_archive (
+               singleton INTEGER PRIMARY KEY CHECK(singleton = 1),
+               vocabulary_count INTEGER NOT NULL DEFAULT 0,
+               encounter_count INTEGER NOT NULL DEFAULT 0,
+               review_count INTEGER NOT NULL DEFAULT 0
+             );",
+            )
+            .map_err(repo_error)?;
+        connection
+            .execute_batch("PRAGMA user_version = 4;")
+            .map_err(repo_error)?;
         Ok(Self {
             connection: Mutex::new(connection),
         })
@@ -159,6 +213,9 @@ impl SqliteStore {
         let transaction = connection.transaction().map_err(repo_error)?;
         let key = dedupe_key(&input.lemma, &input.source_language, &input.target_language);
         let existing = find_word(&transaction, &key)?;
+        if existing.as_ref().is_some_and(Word::is_achieved) {
+            return Err(RepositoryError::Achieved);
+        }
         let is_existing_word = existing.is_some();
         let word = existing.unwrap_or_else(|| Word {
             id: Uuid::now_v7(),
@@ -173,6 +230,9 @@ impl SqliteStore {
             created_at: input.captured_at,
             updated_at: input.captured_at,
             deleted_at: None,
+            mastered_at: None,
+            achieved_at: None,
+            delete_after: None,
             review_state: Some(ReviewState {
                 difficulty: 5.0,
                 stability: 1.0,
@@ -325,6 +385,83 @@ impl SqliteStore {
         tx.commit().map_err(repo_error)
     }
 
+    pub fn unachieve_words(
+        &self,
+        ids: &[Uuid],
+        now: DateTime<Utc>,
+    ) -> Result<usize, RepositoryError> {
+        let mut connection = self.lock()?;
+        let tx = connection.transaction().map_err(repo_error)?;
+        let mut words = Vec::with_capacity(ids.len());
+        for id in ids {
+            let mut word = get_word_by_id(&tx, *id)?.ok_or(RepositoryError::NotFound)?;
+            word.unachieve(now)
+                .map_err(|error| RepositoryError::Persistence(error.to_string()))?;
+            words.push(word);
+        }
+        for word in &words {
+            let key = dedupe_key(&word.lemma, &word.source_language, &word.target_language);
+            insert_word(&tx, &key, word)?;
+            enqueue(&tx, "word", word.id, "upsert", word, now)?;
+        }
+        tx.commit().map_err(repo_error)?;
+        Ok(words.len())
+    }
+
+    pub fn delete_achieved_words(
+        &self,
+        ids: &[Uuid],
+        now: DateTime<Utc>,
+    ) -> Result<usize, RepositoryError> {
+        let mut connection = self.lock()?;
+        let tx = connection.transaction().map_err(repo_error)?;
+        for id in ids {
+            let word = get_word_by_id(&tx, *id)?.ok_or(RepositoryError::NotFound)?;
+            if !word.is_achieved() {
+                return Err(RepositoryError::Persistence(
+                    "only Achieved Vocabulary Items can be permanently deleted".into(),
+                ));
+            }
+        }
+        for id in ids {
+            let encounter_count: i64 = tx
+                .query_row(
+                    "SELECT COUNT(*) FROM encounters WHERE word_id = ?1",
+                    [id.to_string()],
+                    |row| row.get(0),
+                )
+                .map_err(repo_error)?;
+            let review_count: i64 = tx
+                .query_row(
+                    "SELECT COUNT(*) FROM review_logs WHERE word_id = ?1",
+                    [id.to_string()],
+                    |row| row.get(0),
+                )
+                .map_err(repo_error)?;
+            tx.execute(
+                "INSERT INTO lifetime_archive(singleton, vocabulary_count, encounter_count, review_count) VALUES(1,1,?1,?2)
+                 ON CONFLICT(singleton) DO UPDATE SET vocabulary_count=vocabulary_count+1,
+                 encounter_count=encounter_count+excluded.encounter_count, review_count=review_count+excluded.review_count",
+                params![encounter_count, review_count],
+            ).map_err(repo_error)?;
+            tx.execute(
+                "DELETE FROM review_logs WHERE word_id = ?1",
+                [id.to_string()],
+            )
+            .map_err(repo_error)?;
+            tx.execute(
+                "DELETE FROM encounters WHERE word_id = ?1",
+                [id.to_string()],
+            )
+            .map_err(repo_error)?;
+            tx.execute("DELETE FROM words WHERE id = ?1", [id.to_string()])
+                .map_err(repo_error)?;
+            enqueue(&tx, "word", *id, "delete", id, now)?;
+        }
+        tx.commit().map_err(repo_error)?;
+        Ok(ids.len())
+    }
+
     fn lock(&self) -> Result<std::sync::MutexGuard<'_, Connection>, RepositoryError> {
         self.connection
             .lock()
@@ -343,7 +480,7 @@ impl WordRepository for SqliteStore {
             .query_row(
                 "SELECT id, owner_scope, lemma, display_form, source_language, target_language,
                  translation, part_of_speech, status, created_at, updated_at, deleted_at,
-                 review_state_json FROM words WHERE id = ?1",
+                 mastered_at, achieved_at, delete_after, review_state_json FROM words WHERE id = ?1",
                 [id.to_string()],
                 map_word,
             )
@@ -357,7 +494,7 @@ impl WordRepository for SqliteStore {
             .prepare(
                 "SELECT id, owner_scope, lemma, display_form, source_language, target_language,
                  translation, part_of_speech, status, created_at, updated_at, deleted_at,
-                 review_state_json FROM words WHERE deleted_at IS NULL ORDER BY updated_at DESC",
+                 mastered_at, achieved_at, delete_after, review_state_json FROM words WHERE deleted_at IS NULL ORDER BY updated_at DESC",
             )
             .map_err(repo_error)?;
         statement
@@ -517,11 +654,12 @@ fn insert_word(tx: &Transaction<'_>, key: &str, word: &Word) -> Result<(), Repos
     tx.execute(
         "INSERT INTO words(id, dedupe_key, owner_scope, lemma, display_form, source_language,
          target_language, translation, part_of_speech, status, created_at, updated_at, deleted_at,
-         review_state_json) VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
+         mastered_at, achieved_at, delete_after, review_state_json) VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)
          ON CONFLICT(id) DO UPDATE SET display_form=excluded.display_form,
          translation=excluded.translation, part_of_speech=excluded.part_of_speech,
          status=excluded.status, updated_at=excluded.updated_at, deleted_at=excluded.deleted_at,
-         review_state_json=excluded.review_state_json",
+         mastered_at=excluded.mastered_at, achieved_at=excluded.achieved_at,
+         delete_after=excluded.delete_after, review_state_json=excluded.review_state_json",
         params![
             word.id.to_string(),
             key,
@@ -536,6 +674,9 @@ fn insert_word(tx: &Transaction<'_>, key: &str, word: &Word) -> Result<(), Repos
             word.created_at.to_rfc3339(),
             word.updated_at.to_rfc3339(),
             word.deleted_at.map(|time| time.to_rfc3339()),
+            word.mastered_at.map(|time| time.to_rfc3339()),
+            word.achieved_at.map(|time| time.to_rfc3339()),
+            word.delete_after.map(|time| time.to_rfc3339()),
             serde_json::to_string(&word.review_state).map_err(repo_error)?,
         ],
     )
@@ -548,8 +689,21 @@ fn find_word(connection: &Connection, key: &str) -> Result<Option<Word>, Reposit
         .query_row(
             "SELECT id, owner_scope, lemma, display_form, source_language, target_language,
              translation, part_of_speech, status, created_at, updated_at, deleted_at,
-             review_state_json FROM words WHERE dedupe_key = ?1 AND deleted_at IS NULL",
+             mastered_at, achieved_at, delete_after, review_state_json FROM words WHERE dedupe_key = ?1 AND deleted_at IS NULL",
             [key],
+            map_word,
+        )
+        .optional()
+        .map_err(repo_error)
+}
+
+fn get_word_by_id(connection: &Connection, id: Uuid) -> Result<Option<Word>, RepositoryError> {
+    connection
+        .query_row(
+            "SELECT id, owner_scope, lemma, display_form, source_language, target_language,
+         translation, part_of_speech, status, created_at, updated_at, deleted_at,
+         mastered_at, achieved_at, delete_after, review_state_json FROM words WHERE id = ?1",
+            [id.to_string()],
             map_word,
         )
         .optional()
@@ -573,7 +727,19 @@ fn map_word(row: &rusqlite::Row<'_>) -> rusqlite::Result<Word> {
             .get::<_, Option<String>>(11)?
             .map(parse_time)
             .transpose()?,
-        review_state: parse_json(&row.get::<_, String>(12)?)?,
+        mastered_at: row
+            .get::<_, Option<String>>(12)?
+            .map(parse_time)
+            .transpose()?,
+        achieved_at: row
+            .get::<_, Option<String>>(13)?
+            .map(parse_time)
+            .transpose()?,
+        delete_after: row
+            .get::<_, Option<String>>(14)?
+            .map(parse_time)
+            .transpose()?,
+        review_state: parse_json(&row.get::<_, String>(15)?)?,
     })
 }
 

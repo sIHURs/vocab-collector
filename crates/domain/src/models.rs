@@ -54,7 +54,86 @@ pub struct Word {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub deleted_at: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub mastered_at: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub achieved_at: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub delete_after: Option<DateTime<Utc>>,
     pub review_state: Option<ReviewState>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
+pub enum LifecycleError {
+    #[error("only an active Mastered Vocabulary Item can be Achieved")]
+    NotMastered,
+    #[error("Vocabulary Item is already Achieved")]
+    AlreadyAchieved,
+    #[error("retention must be 10, 20, 30, or 60 days")]
+    InvalidRetention,
+}
+
+impl Word {
+    pub fn is_achieved(&self) -> bool {
+        self.achieved_at.is_some() && self.delete_after.is_some() && self.deleted_at.is_none()
+    }
+
+    pub fn enter_mastered(&mut self, now: DateTime<Utc>) {
+        self.status = WordStatus::Mastered;
+        self.mastered_at = Some(now);
+        self.achieved_at = None;
+        self.delete_after = None;
+        self.updated_at = now;
+    }
+
+    pub fn unmaster(&mut self, now: DateTime<Utc>, status: WordStatus) {
+        debug_assert!(status != WordStatus::Mastered);
+        self.status = status;
+        self.mastered_at = None;
+        self.achieved_at = None;
+        self.delete_after = None;
+        self.updated_at = now;
+    }
+
+    pub fn is_automatic_achieve_due(&self, now: DateTime<Utc>) -> bool {
+        self.status == WordStatus::Mastered
+            && !self.is_achieved()
+            && self.deleted_at.is_none()
+            && self
+                .mastered_at
+                .is_some_and(|at| at + chrono::Duration::days(30) <= now)
+    }
+
+    pub fn achieve(
+        &mut self,
+        now: DateTime<Utc>,
+        retention_days: u16,
+    ) -> Result<(), LifecycleError> {
+        if self.deleted_at.is_some() || self.status != WordStatus::Mastered {
+            return Err(LifecycleError::NotMastered);
+        }
+        if self.is_achieved() {
+            return Err(LifecycleError::AlreadyAchieved);
+        }
+        if !UserSettings::retention_days_are_valid(retention_days) {
+            return Err(LifecycleError::InvalidRetention);
+        }
+        self.achieved_at = Some(now);
+        self.delete_after = Some(now + chrono::Duration::days(i64::from(retention_days)));
+        self.updated_at = now;
+        Ok(())
+    }
+
+    pub fn unachieve(&mut self, now: DateTime<Utc>) -> Result<(), LifecycleError> {
+        if !self.is_achieved() {
+            return Err(LifecycleError::NotMastered);
+        }
+        self.achieved_at = None;
+        self.delete_after = None;
+        self.mastered_at = Some(now);
+        self.updated_at = now;
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -155,6 +234,10 @@ pub struct UserSettings {
     pub launch_at_login: bool,
     pub appearance: Appearance,
     pub reduced_motion: bool,
+    #[serde(default)]
+    pub automatic_achieve_enabled: bool,
+    #[serde(default = "default_achieved_retention_days")]
+    pub achieved_retention_days: u16,
 }
 
 impl Default for UserSettings {
@@ -170,6 +253,8 @@ impl Default for UserSettings {
             launch_at_login: false,
             appearance: Appearance::System,
             reduced_motion: false,
+            automatic_achieve_enabled: false,
+            achieved_retention_days: default_achieved_retention_days(),
         }
     }
 }
@@ -183,6 +268,10 @@ fn default_region_ocr_capture_shortcut() -> String {
 }
 
 impl UserSettings {
+    pub const fn retention_days_are_valid(days: u16) -> bool {
+        matches!(days, 10 | 20 | 30 | 60)
+    }
+
     pub fn normalize_languages(&mut self) {
         self.source_language = normalize_language_code(&self.source_language);
         self.target_language = normalize_language_code(&self.target_language);
@@ -193,6 +282,10 @@ impl UserSettings {
             && !self.target_language.trim().is_empty()
             && self.target_language != "auto"
     }
+}
+
+const fn default_achieved_retention_days() -> u16 {
+    30
 }
 
 fn normalize_language_code(value: &str) -> String {

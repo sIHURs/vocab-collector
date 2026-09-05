@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
   import { createBackend, type Backend } from "../lib/backend";
-  import type { CaptureCard, ReviewCard, ReviewRating, ReviewResult, ReviewSessionInsight, Settings, SystemSettingsStatus, TodayView, WordDetail, WordListItem } from "../lib/types";
+  import type { AchievedWordListItem, CaptureCard, ReviewCard, ReviewRating, ReviewResult, ReviewSessionInsight, Settings, SystemSettingsStatus, TodayView, WordDetail, WordListItem } from "../lib/types";
   import WindowsWordRow from "./WindowsWordRow.svelte";
 
   type Route = "Today" | "Vocabulary" | "Review" | "Settings";
@@ -10,6 +10,10 @@
   let route: Route = "Today";
   let today: TodayView | null = null;
   let words: WordListItem[] = [];
+  let achievedWords: AchievedWordListItem[] = [];
+  let vocabularyView: "active" | "mastered" | "achieved" = "active";
+  let selectedAchievedIds = new Set<string>();
+  let lastUnachievedIds: string[] = [];
   let selectedDetail: WordDetail | null = null;
   let savedCard: CaptureCard | null = null;
   let captureOpen = false;
@@ -54,7 +58,10 @@
   let reviewCardElement: HTMLElement;
   let reviewCompleteHeading: HTMLHeadingElement;
 
-  $: filteredWords = words.filter((word) => `${word.displayForm} ${word.translation ?? ""}`.toLowerCase().includes(search.trim().toLowerCase()));
+  $: visibleWords = words.filter((word) => vocabularyView === "active" ? word.status !== "mastered" : word.status === "mastered");
+  $: filteredWords = visibleWords.filter((word) => `${word.displayForm} ${word.translation ?? ""}`.toLowerCase().includes(search.trim().toLowerCase()));
+  $: filteredAchievedWords = achievedWords.filter((word) => `${word.displayForm} ${word.translation ?? ""}`.toLowerCase().includes(search.trim().toLowerCase()));
+  $: allFilteredAchievedSelected = filteredAchievedWords.length > 0 && filteredAchievedWords.every((word) => selectedAchievedIds.has(word.id));
   $: vocabularyPageCount = Math.max(1, Math.ceil(filteredWords.length / vocabularyPageSize));
   $: if (vocabularyPage > vocabularyPageCount) vocabularyPage = vocabularyPageCount;
   $: vocabularyPageInput = String(vocabularyPage);
@@ -65,9 +72,10 @@
     loading = true;
     error = "";
     try {
-      const [nextToday, nextWords, nextSettings] = await Promise.all([api.getToday(), api.listWords(), api.getSettings()]);
+      const [nextToday, nextWords, nextAchievedWords, nextSettings] = await Promise.all([api.getToday(), api.listWords(), api.listAchievedWords?.() ?? Promise.resolve([]), api.getSettings()]);
       today = nextToday;
       words = nextWords;
+      achievedWords = nextAchievedWords;
       settingsDraft = { ...nextSettings };
       appliedSettings = { ...nextSettings };
       if (api.getWindowsSettingsStatus) systemStatus = await api.getWindowsSettingsStatus();
@@ -147,6 +155,50 @@
     selectedDetail = null;
     await tick();
     detailTrigger?.focus();
+  }
+
+  async function achieveSelectedWord() {
+    if (!selectedDetail || selectedDetail.item.status !== "mastered") return;
+    const retention = settingsDraft?.achievedRetentionDays ?? 30;
+    const deletion = new Date(Date.now() + retention * 86_400_000).toLocaleDateString();
+    if (!confirm(`Achieve ${selectedDetail.item.displayForm}? It will be permanently deleted on ${deletion}.`)) return;
+    try { if (!api.achieveWord) throw new Error("Achieve is unavailable"); await api.achieveWord(selectedDetail.item.id); selectedDetail = null; vocabularyView = "achieved"; await refresh(); }
+    catch (cause) { error = cause instanceof Error ? cause.message : String(cause); }
+  }
+
+  async function achieveWordFromRow(word: WordListItem) {
+    const retention = settingsDraft?.achievedRetentionDays ?? 30;
+    const deletion = new Date(Date.now() + retention * 86_400_000).toLocaleDateString();
+    if (!confirm(`Achieve ${word.displayForm}? It will be permanently deleted on ${deletion}.`)) return;
+    try { if (!api.achieveWord) throw new Error("Achieve is unavailable"); await api.achieveWord(word.id); vocabularyView = "achieved"; await refresh(); }
+    catch (cause) { error = cause instanceof Error ? cause.message : String(cause); }
+  }
+
+  function toggleAchieved(wordId: string, checked: boolean) {
+    const next = new Set(selectedAchievedIds); checked ? next.add(wordId) : next.delete(wordId); selectedAchievedIds = next;
+  }
+
+  function toggleAllAchieved(checked: boolean) {
+    const next = new Set(selectedAchievedIds); for (const word of filteredAchievedWords) checked ? next.add(word.id) : next.delete(word.id); selectedAchievedIds = next;
+  }
+
+  async function unachieveSelected() {
+    const ids = [...selectedAchievedIds]; if (!ids.length || !api.unachieveWords) return;
+    try { await api.unachieveWords(ids); lastUnachievedIds = ids; selectedAchievedIds = new Set(); await refresh(); }
+    catch (cause) { error = cause instanceof Error ? cause.message : String(cause); }
+  }
+
+  async function undoUnachieve() {
+    if (!api.achieveWord) return;
+    try { for (const id of lastUnachievedIds) await api.achieveWord(id); lastUnachievedIds = []; await refresh(); }
+    catch (cause) { error = cause instanceof Error ? cause.message : String(cause); }
+  }
+
+  async function deleteSelectedAchieved() {
+    const ids = [...selectedAchievedIds]; if (!ids.length || !api.deleteAchievedWords) return;
+    if (!confirm(`Permanently delete ${ids.length} Achieved Vocabulary Item${ids.length === 1 ? "" : "s"}? Word-level history cannot be recovered.`)) return;
+    try { await api.deleteAchievedWords(ids); selectedAchievedIds = new Set(); await refresh(); }
+    catch (cause) { error = cause instanceof Error ? cause.message : String(cause); }
   }
 
   async function undoSaved() {
@@ -355,6 +407,7 @@
   }
 
   const encounterLabel = (count: number) => `${count} encounter${count === 1 ? "" : "s"}`;
+  const daysRemaining = (deadline: string) => Math.max(0, Math.ceil((new Date(deadline).getTime() - Date.now()) / 86_400_000));
   onMount(() => {
     let mounted = true;
     let unlisten: (() => void) | undefined;
@@ -401,9 +454,10 @@
         <div class="section-heading"><h2>Recent captures</h2><p>New contexts appear here immediately after saving.</p></div>
         <div class="list recent-captures-list">{#each today?.recentCaptures ?? [] as word}<WindowsWordRow {word} onSelect={showDetail} />{:else}<div class="state"><strong>No captures yet</strong><span>Use Manual capture to save your first reading context.</span><button class="primary" onclick={openCapture}>Manual capture</button></div>{/each}</div>
       {:else if route === "Vocabulary"}
-        <div class="tools"><label><span>Search</span><input aria-label="Search vocabulary" value={search} oninput={(event) => updateSearch(event.currentTarget.value)} placeholder="Word or translation" /></label><span>{filteredWords.length} items</span></div>
-        <div class="list vocabulary-list">{#each pagedWords as word}<WindowsWordRow {word} onSelect={showDetail} />{:else}{#if words.length}<div class="state"><strong>No matching vocabulary</strong><span>Try a different word or translation.</span></div>{:else}<div class="state"><strong>Your vocabulary is empty</strong><span>Saved words will appear here.</span></div>{/if}{/each}</div>
-        {#if filteredWords.length}<nav class="pagination" aria-label="Vocabulary pages"><button class="secondary" disabled={vocabularyPage === 1} onclick={() => goToVocabularyPage(1)}>First</button><button class="secondary" disabled={vocabularyPage === 1} onclick={() => goToVocabularyPage(vocabularyPage - 1)}>Previous</button><form aria-label="Go to vocabulary page" onsubmit={(event) => { event.preventDefault(); goToVocabularyPage(vocabularyPageInput); }}><label><span>Page</span><input aria-label="Page number" type="number" min="1" max={vocabularyPageCount} bind:value={vocabularyPageInput} onblur={() => goToVocabularyPage(vocabularyPageInput)} /><span>of {vocabularyPageCount}</span></label></form><button class="secondary" disabled={vocabularyPage === vocabularyPageCount} onclick={() => goToVocabularyPage(vocabularyPage + 1)}>Next</button><button class="secondary" disabled={vocabularyPage === vocabularyPageCount} onclick={() => goToVocabularyPage(vocabularyPageCount)}>Last</button></nav>{/if}
+        <div class="vocabulary-tabs" role="tablist" aria-label="Vocabulary views"><button class:active={vocabularyView === "active"} onclick={() => { vocabularyView = "active"; updateSearch(""); }}>Active</button><button class:active={vocabularyView === "mastered"} onclick={() => { vocabularyView = "mastered"; updateSearch(""); }}>Mastered</button><button class:active={vocabularyView === "achieved"} onclick={() => { vocabularyView = "achieved"; updateSearch(""); }}>Achieved ({achievedWords.length})</button></div>
+        <div class="tools"><label><span>Search</span><input aria-label="Search vocabulary" value={search} oninput={(event) => updateSearch(event.currentTarget.value)} placeholder="Word or translation" /></label><span>{vocabularyView === "achieved" ? filteredAchievedWords.length : filteredWords.length} items</span></div>
+        {#if vocabularyView === "achieved"}<div class="list vocabulary-list">{#if filteredAchievedWords.length}<label class="select-all"><input type="checkbox" aria-label="Select all filtered Achieved vocabulary" checked={allFilteredAchievedSelected} onchange={(event) => toggleAllAchieved(event.currentTarget.checked)} /> Select all filtered</label>{/if}{#each filteredAchievedWords as word}<label class:urgent={daysRemaining(word.deleteAfter) <= 2} class:warning={daysRemaining(word.deleteAfter) >= 3 && daysRemaining(word.deleteAfter) <= 7} class="achieved-row"><input type="checkbox" aria-label={`Select ${word.displayForm}`} checked={selectedAchievedIds.has(word.id)} onchange={(event) => toggleAchieved(word.id, event.currentTarget.checked)} /><span><strong>{word.displayForm}</strong><small>{word.translation ?? "No translation"}</small></span><span>{daysRemaining(word.deleteAfter)} days remaining · Deletes {new Date(word.deleteAfter).toLocaleDateString()}</span></label>{:else}<div class="state"><strong>No Achieved vocabulary</strong><span>Mastered words you Achieve will wait here before deletion.</span></div>{/each}</div>{#if selectedAchievedIds.size}<div class="bulk-actions"><strong>{selectedAchievedIds.size} selected</strong><button class="secondary" onclick={unachieveSelected}>Unachieve</button><button class="danger" onclick={deleteSelectedAchieved}>Delete permanently</button></div>{/if}{:else}<div class="list vocabulary-list">{#each pagedWords as word}<WindowsWordRow {word} onSelect={showDetail} onAchieve={achieveWordFromRow} />{:else}{#if visibleWords.length}<div class="state"><strong>No matching vocabulary</strong><span>Try a different word or translation.</span></div>{:else}<div class="state"><strong>No {vocabularyView} vocabulary</strong><span>Vocabulary Items in this state will appear here.</span></div>{/if}{/each}</div>
+        {#if filteredWords.length}<nav class="pagination" aria-label="Vocabulary pages"><button class="secondary" disabled={vocabularyPage === 1} onclick={() => goToVocabularyPage(1)}>First</button><button class="secondary" disabled={vocabularyPage === 1} onclick={() => goToVocabularyPage(vocabularyPage - 1)}>Previous</button><form aria-label="Go to vocabulary page" onsubmit={(event) => { event.preventDefault(); goToVocabularyPage(vocabularyPageInput); }}><label><span>Page</span><input aria-label="Page number" type="number" min="1" max={vocabularyPageCount} bind:value={vocabularyPageInput} onblur={() => goToVocabularyPage(vocabularyPageInput)} /><span>of {vocabularyPageCount}</span></label></form><button class="secondary" disabled={vocabularyPage === vocabularyPageCount} onclick={() => goToVocabularyPage(vocabularyPage + 1)}>Next</button><button class="secondary" disabled={vocabularyPage === vocabularyPageCount} onclick={() => goToVocabularyPage(vocabularyPageCount)}>Last</button></nav>{/if}{/if}
       {:else if route === "Review"}
         {#if reviewOpen && activeReview}
           <div class="review-card" aria-live="polite" bind:this={reviewCardElement}><div class="review-progress"><span>{reviewIndex + 1} of {today?.reviewQueue.length}</span><button class="icon" aria-label="Close review" disabled={reviewSubmitting} onclick={closeReview}>×</button></div><span class="eyebrow">Do you remember this word?</span><h2>{activeReview.displayForm}</h2><p>{activeReview.context ?? "No saved context"}</p>{#if reviewResult}<div class="review-translation" role="status"><small>{reviewResult.rating === "remembered" ? "Remembered" : "Forgot"}</small><strong>Next review {new Date(reviewResult.nextDueAt).toLocaleDateString()}</strong><span>{`Encountered ${reviewResult.encounterCount} time${reviewResult.encounterCount === 1 ? "" : "s"}`}</span>{#if reviewResult.repeatedForgetting}<p>This Vocabulary Item has been repeatedly forgotten. Another context or a translation check may help.</p>{/if}</div>{:else if reviewRevealed}<div class="review-translation" role="status"><small>Translation</small><strong>{activeReview.translation ?? "Unavailable"}</strong></div>{/if}{#if reviewError}<div class="dialog-error" role="alert">{reviewError}</div>{/if}<div class="review-actions">{#if reviewResult}{#if reviewResult.repeatedForgetting}<button class="secondary" onclick={(event) => showDetail(activeReview.wordId, event.currentTarget)}>Review contexts</button>{/if}<button class="primary" onclick={nextReview}>Next</button>{:else if reviewRevealed}{#if reviewError && reviewSubmissionRating}<button class="primary" disabled={reviewSubmitting} onclick={retryReviewSubmission}>Retry {reviewSubmissionRating === "remembered" ? "Remembered" : "Forgot"}</button>{:else}<button class="secondary" disabled={reviewSubmitting} onclick={() => rateReview("forgot")}>Forgot</button><button class="primary" disabled={reviewSubmitting} onclick={() => rateReview("remembered")}>Remembered</button>{/if}{:else}<button class="primary" onclick={revealReview}>Show answer</button>{/if}</div></div>
@@ -429,6 +483,8 @@
               {#if systemStatus.notificationError}<small class="field-error" role="alert">{systemStatus.notificationError}</small>{/if}
               <label>Daily limit<input type="number" min="1" max="50" bind:value={settingsDraft.dailyLimit} /></label>
               <label>Recent captures<input type="number" min="1" max="100" bind:value={settingsDraft.recentCapturesLimit} /></label>
+              <label>Keep achieved words for<select bind:value={settingsDraft.achievedRetentionDays}><option value={10}>10 days</option><option value={20}>20 days</option><option value={30}>30 days</option><option value={60}>60 days</option></select></label>
+              <label class="toggle-row"><span><strong>Automatically achieve Mastered words</strong><small>After 30 uninterrupted days; manual Achieve remains available</small></span><input aria-label="Automatically achieve Mastered words after 30 days" type="checkbox" bind:checked={settingsDraft.automaticAchieveEnabled} /></label>
             </fieldset>
             <fieldset><legend>Capture shortcuts</legend><p>Selection Capture is recommended. Leave a shortcut blank to disable it.</p>
               <label>Selection Capture · Recommended<input aria-label="Selection Capture shortcut" bind:value={settingsDraft.selectionCaptureShortcut} /></label>
@@ -454,8 +510,9 @@
 {#if captureOpen}<div class="backdrop"><div bind:this={captureDialog} class="dialog" role="dialog" tabindex="-1" aria-modal="true" aria-labelledby="manual-capture-title" onkeydown={trapDialogFocus}><form onsubmit={(event) => { event.preventDefault(); saveCapture(); }}><div class="dialog-heading"><div><span class="eyebrow">Manual Capture</span><h2 id="manual-capture-title">Save a reading context</h2></div><button type="button" class="icon" aria-label="Close manual capture" onclick={closeCapture}>×</button></div>{#if captureError}<div class="dialog-error" role="alert">{captureError}</div>{/if}<label>Word or phrase<input bind:this={captureFirstField} bind:value={captureInput.selectedText} /></label><label>Translation <small>Optional</small><input bind:value={captureInput.translation} /></label><label>Context<textarea bind:value={captureInput.sentence}></textarea></label><div class="actions"><button type="button" class="secondary" onclick={closeCapture}>Cancel</button><button class="primary" disabled={saving || !captureInput.selectedText.trim() || !captureInput.sentence.trim()}>{saving ? "Saving..." : "Save capture"}</button></div></form></div></div>{/if}
 
 {#if savedCard}<div class="toast" role="dialog" aria-label="Capture saved"><span class="saved-mark" aria-hidden="true">✓</span><div><strong>{savedCard.displayForm}</strong><span>{encounterLabel(savedCard.encounterCount)}</span></div><button onclick={undoSaved}>Undo</button><button class="icon" aria-label="Dismiss saved capture" onclick={() => (savedCard = null)}>×</button></div>{/if}
+{#if lastUnachievedIds.length}<div class="toast" role="status"><span class="saved-mark" aria-hidden="true">✓</span><div><strong>{lastUnachievedIds.length} Unachieved</strong><span>Returned to Mastered</span></div><button onclick={undoUnachieve}>Undo</button><button class="icon" aria-label="Dismiss Unachieve result" onclick={() => (lastUnachievedIds = [])}>×</button></div>{/if}
 
-{#if selectedDetail}<div class="drawer" role="dialog" aria-modal="true" aria-labelledby="vocabulary-detail-title"><button bind:this={detailCloseButton} class="icon close" aria-label="Close vocabulary detail" onclick={closeDetail}>×</button><span class="eyebrow">Vocabulary detail</span><h2 id="vocabulary-detail-title">{selectedDetail.item.displayForm}</h2><strong class="translation">{selectedDetail.item.translation ?? "No translation"}</strong><span class="count">{selectedDetail.item.status} · {encounterLabel(selectedDetail.item.encounterCount)}</span><div class="timeline"><h3>Contexts</h3>{#each selectedDetail.encounters as encounter}<article><p>{encounter.sentence}</p><small>{[encounter.sourceApp, encounter.sourceTitle, encounter.sourceUrl].filter(Boolean).join(" · ") || "Manual entry"}</small></article>{/each}</div></div>{/if}
+{#if selectedDetail}<div class="drawer" role="dialog" aria-modal="true" aria-labelledby="vocabulary-detail-title"><button bind:this={detailCloseButton} class="icon close" aria-label="Close vocabulary detail" onclick={closeDetail}>×</button><span class="eyebrow">Vocabulary detail</span><h2 id="vocabulary-detail-title">{selectedDetail.item.displayForm}</h2><strong class="translation">{selectedDetail.item.translation ?? "No translation"}</strong><span class="count">{selectedDetail.item.status} · {encounterLabel(selectedDetail.item.encounterCount)}</span>{#if selectedDetail.item.status === "mastered"}<button class="primary drawer-action" onclick={achieveSelectedWord}>Achieve</button>{/if}<div class="timeline"><h3>Contexts</h3>{#each selectedDetail.encounters as encounter}<article><p>{encounter.sentence}</p><small>{[encounter.sourceApp, encounter.sourceTitle, encounter.sourceUrl].filter(Boolean).join(" · ") || "Manual entry"}</small></article>{/each}</div></div>{/if}
 </div>
 
 <style>
@@ -481,6 +538,7 @@
   .pagination form, .pagination label { display: flex; align-items: center; gap: 6px; }.pagination input { width: 54px; height: 32px; padding: 0 6px; border: 1px solid var(--line); border-radius: 5px; color: var(--text); background: var(--field); text-align: center; }
   .state { min-height: 220px; display: grid; place-content: center; justify-items: center; gap: 8px; color: var(--muted); text-align: center; }.state strong { color: var(--text); font-size: 16px; }.state .primary { margin-top: 8px; }
   .tools { display: flex; align-items: end; justify-content: space-between; margin-bottom: 12px; color: var(--muted); font-size: 11px; }.tools label { display: grid; gap: 6px; }.tools input { width: 310px; height: 34px; padding: 0 10px; border: 1px solid var(--line); border-radius: 6px; color: var(--text); background: var(--surface); }
+  .vocabulary-tabs { display:flex; gap:6px; margin-bottom:14px; }.vocabulary-tabs button { padding:7px 12px; border:1px solid var(--line); border-radius:6px; color:var(--muted); background:transparent; }.vocabulary-tabs button.active { color:var(--text); background:var(--surface-raised); }.select-all,.achieved-row { display:grid; align-items:center; gap:12px; padding:12px 14px; border-bottom:1px solid var(--line); }.select-all { grid-template-columns:auto 1fr; color:var(--muted); }.achieved-row { grid-template-columns:auto minmax(0,1fr) auto; color:var(--text); }.achieved-row.warning { border-left:3px solid #c79b39; }.achieved-row.urgent { border-left:3px solid #b95862; }.achieved-row span { display:grid; gap:3px; }.achieved-row small { color:var(--muted); }.bulk-actions { position:sticky; bottom:12px; display:flex; justify-content:flex-end; align-items:center; gap:10px; margin-top:12px; padding:12px; border:1px solid var(--line); border-radius:7px; background:var(--surface-raised); }.danger { min-height:34px; padding:0 14px; border:1px solid #914d55; border-radius:6px; color:#fff; background:#8b3945; }.drawer-action { margin-top:16px; }
   .error { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 14px; padding: 11px 13px; border: 1px solid #724747; border-radius: 6px; color: #f0b4b4; background: #321f24; }.error button { border: 0; color: #cad0ff; background: transparent; cursor: pointer; }
   .dialog-error { padding: 9px 10px; border: 1px solid #724747; border-radius: 6px; color: #f0b4b4; background: #321f24; font-size: 12px; }
   .settings { max-width: 900px; margin: 0 auto; }.settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }.settings fieldset { min-width: 0; display: grid; align-content: start; gap: 14px; margin: 0; padding: 18px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); }.settings legend { padding: 0; color: var(--text); font-size: 15px; font-weight: 700; }.settings fieldset > p { color: var(--muted); font-size: 11px; }.settings label { display: grid; gap: 6px; color: var(--muted); font-size: 11px; }.settings input:not([type="checkbox"]), .settings select { width: 100%; min-height: 36px; padding: 0 10px; border: 1px solid var(--line); border-radius: 6px; color: var(--text); background: var(--field); }.toggle-row { grid-template-columns: 1fr auto; align-items: center; }.toggle-row span { display: grid; gap: 3px; }.toggle-row strong { color: var(--text); font-size: 12px; }.toggle-row small { color: var(--muted); }.toggle-row input { width: 18px; height: 18px; accent-color: #7584ef; }.settings-actions { display: flex; justify-content: flex-end; margin-top: 14px; }.settings-message { margin-bottom: 12px; }.settings-success { padding: 9px 10px; border: 1px solid #3f755f; border-radius: 6px; color: #28624d; background: #dff4e9; font-size: 12px; }.settings-toast { position: fixed; z-index: 40; top: 18px; left: 50%; width: min(520px, calc(100vw - 32px)); margin: 0; box-shadow: 0 12px 36px rgba(0,0,0,.24); transform: translateX(-50%); animation: settings-toast-out 200ms ease 1s forwards; }

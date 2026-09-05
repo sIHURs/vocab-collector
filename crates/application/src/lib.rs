@@ -11,10 +11,10 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use vocab_domain::{
-    CaptureCard, CaptureOrigin, EncounterRepository, RepositoryError, ReviewCard, ReviewLog,
-    ReviewRating, ReviewResult, ReviewSessionInsight, SettingsRepository, TodayView, UserSettings,
-    WordDetail, WordListItem, WordRepository, WordStatus, apply_review, build_review_queue,
-    summarize_review_session,
+    AchievedWordListItem, CaptureCard, CaptureOrigin, EncounterRepository, LifecycleError,
+    LifecycleSweepResult, RepositoryError, ReviewCard, ReviewLog, ReviewRating, ReviewResult,
+    ReviewSessionInsight, SettingsRepository, TodayView, UserSettings, WordDetail, WordListItem,
+    WordRepository, WordStatus, apply_review, build_review_queue, summarize_review_session,
 };
 use vocab_storage::{CaptureRecord, SqliteStore};
 
@@ -48,6 +48,10 @@ pub enum ApplicationError {
     InvalidTargetLanguage,
     #[error("review submission identity does not match the original request")]
     ReviewSubmissionConflict,
+    #[error("{0}")]
+    Lifecycle(#[from] LifecycleError),
+    #[error("retention must be 10, 20, 30, or 60 days")]
+    InvalidAchievedRetention,
 }
 
 pub struct AppService {
@@ -140,6 +144,7 @@ impl AppService {
         self.store
             .list()?
             .into_iter()
+            .filter(|word| !word.is_achieved())
             .map(|word| {
                 let encounters = self.store.list_for_word(word.id)?;
                 let last_seen_at = encounters
@@ -153,10 +158,109 @@ impl AppService {
                     encounter_count: encounters.len(),
                     next_review_at: word.review_state.map(|state| state.due_at),
                     last_seen_at,
+                    achieved_at: word.achieved_at,
+                    delete_after: word.delete_after,
                 })
             })
             .collect::<Result<Vec<_>, RepositoryError>>()
             .map_err(Into::into)
+    }
+
+    pub fn achieve_word(
+        &self,
+        word_id: Uuid,
+        now: DateTime<Utc>,
+    ) -> Result<AchievedWordListItem, ApplicationError> {
+        let settings = self.get_settings()?;
+        let mut word = WordRepository::get(self.store.as_ref(), word_id)?
+            .ok_or(ApplicationError::WordNotFound)?;
+        word.achieve(now, settings.achieved_retention_days)?;
+        WordRepository::save(self.store.as_ref(), &word)?;
+        self.achieved_list_item(word)
+    }
+
+    pub fn list_achieved_words(&self) -> Result<Vec<AchievedWordListItem>, ApplicationError> {
+        let mut items = self
+            .store
+            .list()?
+            .into_iter()
+            .filter(|word| word.is_achieved())
+            .map(|word| self.achieved_list_item(word))
+            .collect::<Result<Vec<_>, _>>()?;
+        items.sort_by(|a, b| {
+            a.delete_after
+                .cmp(&b.delete_after)
+                .then_with(|| a.display_form.cmp(&b.display_form))
+        });
+        Ok(items)
+    }
+
+    pub fn unachieve_words(
+        &self,
+        ids: &[Uuid],
+        now: DateTime<Utc>,
+    ) -> Result<usize, ApplicationError> {
+        Ok(self.store.unachieve_words(ids, now)?)
+    }
+
+    pub fn delete_achieved_words(
+        &self,
+        ids: &[Uuid],
+        now: DateTime<Utc>,
+    ) -> Result<usize, ApplicationError> {
+        Ok(self.store.delete_achieved_words(ids, now)?)
+    }
+
+    pub fn run_lifecycle_sweep(
+        &self,
+        now: DateTime<Utc>,
+    ) -> Result<LifecycleSweepResult, ApplicationError> {
+        let settings = self.get_settings()?;
+        let mut achieved_count = 0;
+        if settings.automatic_achieve_enabled {
+            for mut word in self
+                .store
+                .list()?
+                .into_iter()
+                .filter(|word| word.is_automatic_achieve_due(now))
+            {
+                word.achieve(now, settings.achieved_retention_days)?;
+                WordRepository::save(self.store.as_ref(), &word)?;
+                achieved_count += 1;
+            }
+        }
+        let expired = self
+            .store
+            .list()?
+            .into_iter()
+            .filter(|word| {
+                word.is_achieved() && word.delete_after.is_some_and(|deadline| deadline <= now)
+            })
+            .map(|word| word.id)
+            .collect::<Vec<_>>();
+        let purged_count = if expired.is_empty() {
+            0
+        } else {
+            self.store.delete_achieved_words(&expired, now)?
+        };
+        Ok(LifecycleSweepResult {
+            achieved_count,
+            purged_count,
+        })
+    }
+
+    fn achieved_list_item(
+        &self,
+        word: vocab_domain::Word,
+    ) -> Result<AchievedWordListItem, ApplicationError> {
+        Ok(AchievedWordListItem {
+            id: word.id,
+            display_form: word.display_form,
+            translation: word.translation,
+            encounter_count: self.store.list_for_word(word.id)?.len(),
+            achieved_at: word.achieved_at.expect("Achieved invariant checked"),
+            delete_after: word.delete_after.expect("Achieved invariant checked"),
+        })
     }
 
     pub fn get_word(&self, word_id: Uuid) -> Result<WordDetail, ApplicationError> {
@@ -175,6 +279,8 @@ impl AppService {
                 encounter_count: encounters.len(),
                 next_review_at: word.review_state.as_ref().map(|state| state.due_at),
                 last_seen_at,
+                achieved_at: word.achieved_at,
+                delete_after: word.delete_after,
             },
             lemma: word.lemma,
             part_of_speech: word.part_of_speech,
@@ -313,6 +419,9 @@ impl AppService {
         settings.normalize_languages();
         if !settings.languages_are_valid() {
             return Err(ApplicationError::InvalidTargetLanguage);
+        }
+        if !UserSettings::retention_days_are_valid(settings.achieved_retention_days) {
+            return Err(ApplicationError::InvalidAchievedRetention);
         }
         SettingsRepository::save(self.store.as_ref(), &settings)?;
         Ok(())

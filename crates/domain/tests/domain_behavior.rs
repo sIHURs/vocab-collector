@@ -21,6 +21,9 @@ fn word(lemma: &str, due_offset_hours: i64) -> Word {
         created_at: now,
         updated_at: now,
         deleted_at: None,
+        mastered_at: None,
+        achieved_at: None,
+        delete_after: None,
         review_state: Some(ReviewState {
             difficulty: 5.0,
             stability: 1.0,
@@ -113,6 +116,49 @@ fn legacy_capture_shortcut_migrates_to_selection_and_adds_region_ocr_default() {
 
     assert_eq!(settings.selection_capture_shortcut, "Control+Shift+W");
     assert_eq!(settings.region_ocr_capture_shortcut, "Alt+Shift+O");
+    assert!(!settings.automatic_achieve_enabled);
+    assert_eq!(settings.achieved_retention_days, 30);
+}
+
+#[test]
+fn only_mastered_vocabulary_items_can_be_achieved() {
+    let now = Utc.with_ymd_and_hms(2026, 9, 5, 12, 0, 0).unwrap();
+    let mut item = word("achieve", 0);
+    assert!(item.achieve(now, 30).is_err());
+
+    item.enter_mastered(now);
+    item.achieve(now, 30).unwrap();
+
+    assert_eq!(item.status, WordStatus::Mastered);
+    assert_eq!(item.achieved_at, Some(now));
+    assert_eq!(item.delete_after, Some(now + Duration::days(30)));
+    assert!(item.achieve(now, 30).is_err());
+}
+
+#[test]
+fn achieved_retention_accepts_only_product_options() {
+    let now = Utc.with_ymd_and_hms(2026, 9, 5, 12, 0, 0).unwrap();
+    let mut item = word("achieve", 0);
+    item.enter_mastered(now);
+
+    assert!(item.achieve(now, 15).is_err());
+    assert!(UserSettings::retention_days_are_valid(10));
+    assert!(UserSettings::retention_days_are_valid(60));
+    assert!(!UserSettings::retention_days_are_valid(15));
+}
+
+#[test]
+fn automatic_achieve_requires_thirty_uninterrupted_mastered_days() {
+    let mastered_at = Utc.with_ymd_and_hms(2026, 8, 1, 12, 0, 0).unwrap();
+    let mut item = word("durable", 0);
+    item.enter_mastered(mastered_at);
+
+    assert!(
+        !item.is_automatic_achieve_due(mastered_at + Duration::days(30) - Duration::seconds(1))
+    );
+    assert!(item.is_automatic_achieve_due(mastered_at + Duration::days(30)));
+    item.unmaster(mastered_at + Duration::days(10), WordStatus::Learning);
+    assert!(!item.is_automatic_achieve_due(mastered_at + Duration::days(40)));
 }
 
 #[test]

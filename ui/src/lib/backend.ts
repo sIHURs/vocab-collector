@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type {
-  CaptureCard, CaptureInput, Encounter, PlatformCapabilities, ReviewRating, ReviewResult, ReviewSessionInsight, Settings,
+  AchievedWordListItem, CaptureCard, CaptureInput, Encounter, PlatformCapabilities, ReviewRating, ReviewResult, ReviewSessionInsight, Settings,
   SettingsApplyResult, SystemSettingsStatus, TodayView,
   WordDetail, WordListItem,
 } from "./types";
@@ -11,6 +11,11 @@ export interface Backend {
   undoCapture(encounterId: string): Promise<void>;
   getToday(): Promise<TodayView>;
   listWords(): Promise<WordListItem[]>;
+  listAchievedWords?(): Promise<AchievedWordListItem[]>;
+  achieveWord?(wordId: string): Promise<AchievedWordListItem>;
+  unachieveWords?(wordIds: string[]): Promise<number>;
+  deleteAchievedWords?(wordIds: string[]): Promise<number>;
+  runLifecycleSweep?(): Promise<{ achievedCount: number; purgedCount: number }>;
   getWord(wordId: string): Promise<WordDetail>;
   submitReview(wordId: string, rating: ReviewRating, submissionId?: string): Promise<ReviewResult>;
   getReviewSessionInsight(submissionIds: string[], nextDayEnd: string): Promise<ReviewSessionInsight>;
@@ -31,6 +36,7 @@ const defaultSettings: Settings = {
   regionOcrCaptureShortcut: "Alt+Shift+O",
   reviewTime: "18:00", dailyLimit: 5, launchAtLogin: false, appearance: "system",
   reducedMotion: false, recentCapturesLimit: 20,
+  automaticAchieveEnabled: false, achievedRetentionDays: 30,
 };
 
 const unavailablePlatformCapabilities: PlatformCapabilities = {
@@ -128,7 +134,38 @@ export class DemoBackend implements Backend {
     };
   }
 
-  async listWords() { return this.words.map((word) => ({ ...word.item })); }
+  async listWords() { return this.words.filter((word) => !word.item.achievedAt).map((word) => ({ ...word.item })); }
+  async listAchievedWords(): Promise<AchievedWordListItem[]> {
+    return this.words.filter((word) => word.item.achievedAt && word.item.deleteAfter).map((word) => ({
+      id: word.item.id, displayForm: word.item.displayForm, translation: word.item.translation,
+      encounterCount: word.item.encounterCount, achievedAt: word.item.achievedAt!, deleteAfter: word.item.deleteAfter!,
+    }));
+  }
+  async achieveWord(wordId: string): Promise<AchievedWordListItem> {
+    const word = this.words.find((candidate) => candidate.item.id === wordId);
+    if (!word || word.item.status !== "mastered" || word.item.achievedAt) throw new Error("only an active Mastered Vocabulary Item can be Achieved");
+    const achievedAt = new Date();
+    const deleteAfter = new Date(achievedAt.getTime() + (this.settings.achievedRetentionDays ?? 30) * 86_400_000);
+    word.item.achievedAt = achievedAt.toISOString(); word.item.deleteAfter = deleteAfter.toISOString();
+    return { id: word.item.id, displayForm: word.item.displayForm, translation: word.item.translation,
+      encounterCount: word.item.encounterCount, achievedAt: word.item.achievedAt, deleteAfter: word.item.deleteAfter };
+  }
+  async unachieveWords(wordIds: string[]): Promise<number> {
+    for (const wordId of wordIds) {
+      const word = this.words.find((candidate) => candidate.item.id === wordId && candidate.item.achievedAt);
+      if (!word) throw new Error("Vocabulary Item is not Achieved");
+    }
+    for (const word of this.words.filter((candidate) => wordIds.includes(candidate.item.id))) {
+      word.item.achievedAt = undefined; word.item.deleteAfter = undefined;
+    }
+    return wordIds.length;
+  }
+  async deleteAchievedWords(wordIds: string[]): Promise<number> {
+    if (wordIds.some((wordId) => !this.words.some((candidate) => candidate.item.id === wordId && candidate.item.achievedAt))) throw new Error("Vocabulary Item is not Achieved");
+    this.words = this.words.filter((candidate) => !wordIds.includes(candidate.item.id));
+    return wordIds.length;
+  }
+  async runLifecycleSweep() { return { achievedCount: 0, purgedCount: 0 }; }
   async getWord(wordId: string) {
     const word = this.words.find((candidate) => candidate.item.id === wordId);
     if (!word) throw new Error("word not found");
@@ -192,6 +229,11 @@ class TauriBackend implements Backend {
   undoCapture(encounterId: string) { return invoke<void>("undo_capture", { encounterId }); }
   getToday() { return invoke<TodayView>("get_today"); }
   listWords() { return invoke<WordListItem[]>("list_words"); }
+  listAchievedWords() { return invoke<AchievedWordListItem[]>("list_achieved_words"); }
+  achieveWord(wordId: string) { return invoke<AchievedWordListItem>("achieve_word", { wordId }); }
+  unachieveWords(wordIds: string[]) { return invoke<number>("unachieve_words", { wordIds }); }
+  deleteAchievedWords(wordIds: string[]) { return invoke<number>("delete_achieved_words", { wordIds }); }
+  runLifecycleSweep() { return invoke<{ achievedCount: number; purgedCount: number }>("run_lifecycle_sweep"); }
   getWord(wordId: string) { return invoke<WordDetail>("get_word", { wordId }); }
   submitReview(wordId: string, rating: ReviewRating, submissionId = id()) {
     return invoke<ReviewResult>("submit_review", { submissionId, wordId, rating });

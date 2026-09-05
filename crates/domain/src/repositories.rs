@@ -7,6 +7,8 @@ use crate::{Encounter, ReviewLog, UserSettings, Word};
 pub enum RepositoryError {
     #[error("record not found")]
     NotFound,
+    #[error("Vocabulary Item is Achieved; Unachieve it before adding another Encounter")]
+    Achieved,
     #[error("persistence failure: {0}")]
     Persistence(String),
 }

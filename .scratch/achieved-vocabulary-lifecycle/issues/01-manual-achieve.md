@@ -8,23 +8,23 @@ and the Windows presentation.
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** complete
 
 **Involved directories:** `crates/domain`, `crates/storage`,
 `crates/application`, `apps/desktop/src-tauri`, `ui/src/lib`, `ui/src/windows`
 
-- [ ] Only a non-deleted Mastered Vocabulary Item can be Achieved; Learning,
+- [x] Only a non-deleted Mastered Vocabulary Item can be Achieved; Learning,
       Paused, and already Achieved items return typed outcomes.
-- [ ] `WordStatus` remains unchanged and lifecycle timestamps independently
+- [x] `WordStatus` remains unchanged and lifecycle timestamps independently
       represent Mastered and Achieved.
-- [ ] SQLite and Settings migrate legacy data safely; legacy Mastered rows do
+- [x] SQLite and Settings migrate legacy data safely; legacy Mastered rows do
       not become immediately eligible for future automation.
-- [ ] Retention accepts only 10, 20, 30, or 60 days and defaults to 30 days.
-- [ ] A user can Achieve one item from the Mastered row menu or detail page
+- [x] Retention accepts only 10, 20, 30, or 60 days and defaults to 30 days.
+- [x] A user can Achieve one item from the Mastered row menu or detail page
       after confirming the calculated deletion date.
-- [ ] The item leaves active/Review/Mastered results and appears in a basic
+- [x] The item leaves active/Review/Mastered results and appears in a basic
       Achieved view after the command succeeds.
-- [ ] No bulk Achieve control is introduced.
+- [x] No bulk Achieve control is introduced.
 
 ## Verification commands
 
@@ -39,4 +39,3 @@ cargo check --workspace
 Automated implementation and verification can run in the current environment.
 Real WebView interaction and restart persistence are not Windows 11 physical
 verification until completed in Ticket 04.
-

@@ -443,7 +443,7 @@ describe("Windows main presentation", () => {
       sourceLanguage: "fr", targetLanguage: "es", reviewTime: "18:00", dailyLimit: 4,
       recentCapturesLimit: 12,
       selectionCaptureShortcut: "Control+Shift+W", regionOcrCaptureShortcut: "Control+Shift+O", launchAtLogin: false, appearance: "light",
-      reducedMotion: true,
+      reducedMotion: true, automaticAchieveEnabled: false, achievedRetentionDays: 30,
     }]);
     expect(screen.getByLabelText("Selection Capture shortcut")).toHaveValue("Control+Shift+W");
     expect(screen.getByLabelText("Region OCR Capture shortcut")).toHaveValue("Control+Shift+O");

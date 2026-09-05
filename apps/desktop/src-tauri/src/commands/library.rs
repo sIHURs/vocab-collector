@@ -3,8 +3,8 @@ use tauri::State;
 use uuid::Uuid;
 use vocab_application::CaptureRequest;
 use vocab_domain::{
-    CaptureCard, ReviewRating, ReviewResult, ReviewSessionInsight, TodayView, UserSettings,
-    WordDetail, WordListItem,
+    AchievedWordListItem, CaptureCard, LifecycleSweepResult, ReviewRating, ReviewResult,
+    ReviewSessionInsight, TodayView, UserSettings, WordDetail, WordListItem,
 };
 
 use crate::bootstrap::AppState;
@@ -21,6 +21,58 @@ pub fn capture_word(
 }
 
 #[tauri::command]
+pub fn achieve_word(
+    state: State<'_, AppState>,
+    word_id: Uuid,
+) -> Result<AchievedWordListItem, String> {
+    state
+        .application()
+        .achieve_word(word_id, Utc::now())
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn list_achieved_words(
+    state: State<'_, AppState>,
+) -> Result<Vec<AchievedWordListItem>, String> {
+    state
+        .application()
+        .run_lifecycle_sweep(Utc::now())
+        .map_err(|error| error.to_string())?;
+    state
+        .application()
+        .list_achieved_words()
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn run_lifecycle_sweep(state: State<'_, AppState>) -> Result<LifecycleSweepResult, String> {
+    state
+        .application()
+        .run_lifecycle_sweep(Utc::now())
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn unachieve_words(state: State<'_, AppState>, word_ids: Vec<Uuid>) -> Result<usize, String> {
+    state
+        .application()
+        .unachieve_words(&word_ids, Utc::now())
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn delete_achieved_words(
+    state: State<'_, AppState>,
+    word_ids: Vec<Uuid>,
+) -> Result<usize, String> {
+    state
+        .application()
+        .delete_achieved_words(&word_ids, Utc::now())
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 pub fn undo_capture(state: State<'_, AppState>, encounter_id: Uuid) -> Result<(), String> {
     state
         .application()
@@ -32,12 +84,20 @@ pub fn undo_capture(state: State<'_, AppState>, encounter_id: Uuid) -> Result<()
 pub fn get_today(state: State<'_, AppState>) -> Result<TodayView, String> {
     state
         .application()
+        .run_lifecycle_sweep(Utc::now())
+        .map_err(|error| error.to_string())?;
+    state
+        .application()
         .get_today(Utc::now())
         .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
 pub fn list_words(state: State<'_, AppState>) -> Result<Vec<WordListItem>, String> {
+    state
+        .application()
+        .run_lifecycle_sweep(Utc::now())
+        .map_err(|error| error.to_string())?;
     state
         .application()
         .list_words()

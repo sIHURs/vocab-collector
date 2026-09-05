@@ -26,6 +26,26 @@ pub struct WordListItem {
     pub encounter_count: usize,
     pub next_review_at: Option<DateTime<Utc>>,
     pub last_seen_at: DateTime<Utc>,
+    pub achieved_at: Option<DateTime<Utc>>,
+    pub delete_after: Option<DateTime<Utc>>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AchievedWordListItem {
+    pub id: Uuid,
+    pub display_form: String,
+    pub translation: Option<String>,
+    pub encounter_count: usize,
+    pub achieved_at: DateTime<Utc>,
+    pub delete_after: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LifecycleSweepResult {
+    pub achieved_count: usize,
+    pub purged_count: usize,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

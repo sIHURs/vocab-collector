@@ -35,6 +35,8 @@ export interface Settings {
   launchAtLogin: boolean;
   appearance: "system" | "light" | "dark";
   reducedMotion: boolean;
+  automaticAchieveEnabled?: boolean;
+  achievedRetentionDays?: 10 | 20 | 30 | 60;
 }
 
 export interface TranslationResult {
@@ -106,6 +108,17 @@ export interface WordListItem {
   encounterCount: number;
   nextReviewAt?: string;
   lastSeenAt: string;
+  achievedAt?: string;
+  deleteAfter?: string;
+}
+
+export interface AchievedWordListItem {
+  id: string;
+  displayForm: string;
+  translation?: string;
+  encounterCount: number;
+  achievedAt: string;
+  deleteAfter: string;
 }
 
 export interface ReviewCard {

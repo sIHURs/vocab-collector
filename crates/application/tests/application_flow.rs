@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use chrono::{TimeZone, Utc};
+use chrono::{Duration, TimeZone, Utc};
 use uuid::Uuid;
 use vocab_application::{AppService, CaptureRequest};
 use vocab_domain::{
@@ -71,6 +71,98 @@ fn repeated_capture_and_undo_return_frontend_ready_counts() {
 
     service.undo_capture(repeated.encounter_id).unwrap();
     assert_eq!(service.list_words().unwrap()[0].encounter_count, 1);
+}
+
+#[test]
+fn user_can_achieve_one_mastered_vocabulary_item() {
+    let store = Arc::new(SqliteStore::open_in_memory().unwrap());
+    let service = AppService::new(store.clone(), Uuid::now_v7());
+    let card = service.capture(request("Achieve", "erreichen")).unwrap();
+    let now = Utc.with_ymd_and_hms(2026, 9, 5, 12, 0, 0).unwrap();
+    let mut word = WordRepository::get(store.as_ref(), card.word_id)
+        .unwrap()
+        .unwrap();
+    word.enter_mastered(now);
+    WordRepository::save(store.as_ref(), &word).unwrap();
+
+    let achieved = service.achieve_word(card.word_id, now).unwrap();
+
+    assert_eq!(achieved.delete_after, now + Duration::days(30));
+    assert!(service.list_words().unwrap().is_empty());
+    assert_eq!(service.list_achieved_words().unwrap()[0].id, card.word_id);
+}
+
+#[test]
+fn user_can_unachieve_or_permanently_delete_achieved_items_in_batches() {
+    let store = Arc::new(SqliteStore::open_in_memory().unwrap());
+    let service = AppService::new(store.clone(), Uuid::now_v7());
+    let now = Utc.with_ymd_and_hms(2026, 9, 5, 12, 0, 0).unwrap();
+    let first = service.capture(request("First", "erste")).unwrap();
+    let second = service.capture(request("Second", "zweite")).unwrap();
+    for id in [first.word_id, second.word_id] {
+        let mut word = WordRepository::get(store.as_ref(), id).unwrap().unwrap();
+        word.enter_mastered(now);
+        WordRepository::save(store.as_ref(), &word).unwrap();
+        service.achieve_word(id, now).unwrap();
+    }
+
+    assert_eq!(
+        service
+            .unachieve_words(&[first.word_id], now + Duration::days(1))
+            .unwrap(),
+        1
+    );
+    let restored = WordRepository::get(store.as_ref(), first.word_id)
+        .unwrap()
+        .unwrap();
+    assert!(!restored.is_achieved());
+    assert_eq!(restored.mastered_at, Some(now + Duration::days(1)));
+
+    assert_eq!(
+        service
+            .delete_achieved_words(&[second.word_id], now + Duration::days(1))
+            .unwrap(),
+        1
+    );
+    assert!(
+        WordRepository::get(store.as_ref(), second.word_id)
+            .unwrap()
+            .is_none()
+    );
+}
+
+#[test]
+fn opted_in_lifecycle_sweep_achieves_at_thirty_days_and_purges_expired_items() {
+    let store = Arc::new(SqliteStore::open_in_memory().unwrap());
+    let service = AppService::new(store.clone(), Uuid::now_v7());
+    let mastered_at = Utc.with_ymd_and_hms(2026, 8, 1, 12, 0, 0).unwrap();
+    let card = service
+        .capture(request("Automatic", "automatisch"))
+        .unwrap();
+    let mut word = WordRepository::get(store.as_ref(), card.word_id)
+        .unwrap()
+        .unwrap();
+    word.enter_mastered(mastered_at);
+    WordRepository::save(store.as_ref(), &word).unwrap();
+    let mut settings = service.get_settings().unwrap();
+    settings.automatic_achieve_enabled = true;
+    settings.achieved_retention_days = 10;
+    service.update_settings(settings).unwrap();
+
+    let achieved = service
+        .run_lifecycle_sweep(mastered_at + Duration::days(30))
+        .unwrap();
+    assert_eq!(achieved.achieved_count, 1);
+    assert_eq!(achieved.purged_count, 0);
+    let purged = service
+        .run_lifecycle_sweep(mastered_at + Duration::days(40))
+        .unwrap();
+    assert_eq!(purged.purged_count, 1);
+    assert!(
+        WordRepository::get(store.as_ref(), card.word_id)
+            .unwrap()
+            .is_none()
+    );
 }
 
 #[test]

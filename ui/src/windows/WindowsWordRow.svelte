@@ -2,20 +2,21 @@
   import type { WordListItem } from "../lib/types";
   export let word: WordListItem;
   export let onSelect: (wordId: string, trigger: HTMLButtonElement) => void;
+  export let onAchieve: ((word: WordListItem) => void) | undefined = undefined;
   const encounters = (count: number) => `${count} encounter${count === 1 ? "" : "s"}`;
   const lastSeen = (value: string) => new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(value));
 </script>
 
-<button class="word-row" aria-label={`${word.displayForm}, ${encounters(word.encounterCount)}`} onclick={(event) => onSelect(word.id, event.currentTarget)}>
+<div class="word-row-wrap"><button class="word-row" aria-label={`${word.displayForm}, ${encounters(word.encounterCount)}`} onclick={(event) => onSelect(word.id, event.currentTarget)}>
   <span class="glyph">{word.displayForm.slice(0, 1).toUpperCase()}</span>
   <span class="word"><strong>{word.displayForm}</strong><small>{word.translation ?? "No translation"}</small></span>
   <span class="status">{word.status}</span>
   <span class="metadata">{encounters(word.encounterCount)} · Last seen {lastSeen(word.lastSeenAt)}</span>
   <span aria-hidden="true">›</span>
-</button>
+</button>{#if word.status === "mastered" && onAchieve}<button class="achieve-action" aria-label={`Achieve ${word.displayForm}`} onclick={() => onAchieve?.(word)}>Achieve</button>{/if}</div>
 
 <style>
-  .word-row { width: 100%; min-height: 60px; display: grid; grid-template-columns: 32px minmax(140px, 1fr) 76px 210px 16px; gap: 12px; align-items: center; padding: 8px 14px; border: 0; border-bottom: 1px solid var(--line, #30323d); color: var(--text, #eeeef3); background: transparent; text-align: left; cursor: pointer; font: inherit; }
+  .word-row-wrap { position:relative; border-bottom:1px solid var(--line, #30323d); }.word-row { width: 100%; min-height: 60px; display: grid; grid-template-columns: 32px minmax(140px, 1fr) 76px 210px 16px; gap: 12px; align-items: center; padding: 8px 90px 8px 14px; border: 0; color: var(--text, #eeeef3); background: transparent; text-align: left; cursor: pointer; font: inherit; }.achieve-action { position:absolute; right:12px; top:13px; min-height:32px; border:1px solid var(--line); border-radius:6px; color:var(--text); background:var(--surface-raised); }
   .word-row:last-child { border-bottom: 0; }.word-row:hover { background: var(--surface-raised, #272934); }.word-row:focus-visible { outline: 2px solid #9aa5ff; outline-offset: -2px; }
   .glyph { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 6px; color: #b8c0ff; background: rgba(117,132,239,.16); font-weight: 700; }
   .word { display: grid; gap: 3px; }.word small, .metadata { color: var(--muted, #9195a4); font-size: 11px; }

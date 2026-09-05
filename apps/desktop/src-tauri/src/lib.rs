@@ -139,6 +139,33 @@ fn start_review_scheduler(
     });
 }
 
+#[cfg(target_os = "windows")]
+fn start_lifecycle_scheduler(app: tauri::AppHandle) {
+    use tauri_plugin_notification::NotificationExt;
+    std::thread::spawn(move || {
+        loop {
+            std::thread::sleep(std::time::Duration::from_secs(24 * 60 * 60));
+            if let Ok(result) = app
+                .state::<bootstrap::AppState>()
+                .application()
+                .run_lifecycle_sweep(chrono::Utc::now())
+                && result.achieved_count + result.purged_count > 0
+            {
+                let _ = app
+                    .notification()
+                    .builder()
+                    .title("Vocab Collector")
+                    .body(format!(
+                        "{} words moved to Achieved; {} expired words deleted.",
+                        result.achieved_count, result.purged_count
+                    ))
+                    .show();
+                let _ = app.emit("library-changed", ());
+            }
+        }
+    });
+}
+
 pub fn run() {
     let shortcut_gate = Arc::new(vocab_capture::PressGate::default());
     let builder = tauri::Builder::default().plugin(
@@ -266,6 +293,7 @@ pub fn run() {
                     status.notification_error = review_time_error;
                     runtime.replace(status);
                 }
+                let _ = state.application().run_lifecycle_sweep(chrono::Utc::now());
                 app.manage(state);
                 app.manage(scheduler.clone());
                 app.manage(runtime.clone());
@@ -300,6 +328,7 @@ pub fn run() {
                     window.hide()?;
                 }
                 start_review_scheduler(app.handle().clone(), scheduler, runtime);
+                start_lifecycle_scheduler(app.handle().clone());
             }
             #[cfg(not(target_os = "windows"))]
             {
@@ -329,6 +358,11 @@ pub fn run() {
             library::undo_capture,
             library::get_today,
             library::list_words,
+            library::list_achieved_words,
+            library::achieve_word,
+            library::unachieve_words,
+            library::delete_achieved_words,
+            library::run_lifecycle_sweep,
             library::get_word,
             library::submit_review,
             library::get_review_session_insight,
