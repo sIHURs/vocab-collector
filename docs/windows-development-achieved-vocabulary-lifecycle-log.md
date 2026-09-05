@@ -47,3 +47,46 @@
 
 - Ticket 02 starts from persisted Achieved items and adds complete filtered
   selection, atomic batch Unachieve, and confirmed permanent purge.
+
+## 2026-09-05 - Ticket 02: Batch management and permanent purge
+
+### Implemented
+
+- Added deadline-ordered Achieved search, filtered select-all, batch
+  Unachieve, short-lived Undo, and confirmed permanent deletion.
+- Added atomic SQLite batch validation and mutation.
+- Added compact lifetime archive counters before deleting item-level Encounter
+  and Review history.
+- Prevented a repeated capture from silently adding an Encounter to a still
+  Achieved Vocabulary Item.
+
+### Key design decisions
+
+- Every selected ID is validated before any batch write.
+- Permanent deletion and lifetime aggregation share one transaction.
+- The UI confirmation names the selected count and irrecoverable history loss.
+
+### Main files
+
+- `crates/storage/src/lib.rs`
+- `crates/application/src/lib.rs`
+- `apps/desktop/src-tauri/src/commands/library.rs`
+- `ui/src/lib/backend.ts`
+- `ui/src/windows/WindowsApp.svelte`
+
+### Tests and results
+
+- Application batch lifecycle test: PASS.
+- Focused `WindowsApp.test.ts`: PASS, 25 tests.
+- Shared Rust suite: PASS.
+- Full UI suite before the focused addition: PASS, 77 tests.
+
+### Not yet verified
+
+- Native confirmation focus, forced-colors rendering, and physical SQLite file
+  size are not verified on a Windows 11 physical machine.
+
+### Next ticket starting point
+
+- Ticket 03 can invoke the same transition and purge primitives from the
+  opt-in automatic lifecycle sweep.

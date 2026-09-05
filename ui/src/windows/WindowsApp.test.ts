@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/svelte";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { DemoBackend, type Backend } from "../lib/backend";
 import type { Settings } from "../lib/types";
 import WindowsApp from "./WindowsApp.svelte";
@@ -521,5 +521,34 @@ describe("Windows main presentation", () => {
     expect(screen.getByLabelText("Launch at login")).not.toBeChecked();
     expect(container.querySelector(".windows-shell")).toHaveAttribute("data-appearance", "light");
     expect(screen.getByRole("status")).toHaveTextContent("Settings saved");
+  });
+
+  it("selects the filtered Achieved list and runs batch Unachieve or confirmed deletion", async () => {
+    const api = new DemoBackend(false);
+    let achieved = [
+      { id: "one", displayForm: "achieve", translation: "erreichen", encounterCount: 2, achievedAt: "2026-09-01T00:00:00Z", deleteAfter: "2026-10-01T00:00:00Z" },
+      { id: "two", displayForm: "durable", translation: "beständig", encounterCount: 1, achievedAt: "2026-09-02T00:00:00Z", deleteAfter: "2026-10-02T00:00:00Z" },
+    ];
+    const unachieve = vi.fn(async (ids: string[]) => { achieved = achieved.filter((word) => !ids.includes(word.id)); return ids.length; });
+    const remove = vi.fn(async (ids: string[]) => { achieved = achieved.filter((word) => !ids.includes(word.id)); return ids.length; });
+    api.listAchievedWords = async () => achieved;
+    api.unachieveWords = unachieve;
+    api.deleteAchievedWords = remove;
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(WindowsApp, { api });
+    await screen.findByText("No captures yet");
+
+    await fireEvent.click(screen.getByRole("button", { name: "Vocabulary" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Achieved (2)" }));
+    await fireEvent.input(screen.getByLabelText("Search vocabulary"), { target: { value: "achieve" } });
+    await fireEvent.click(screen.getByLabelText("Select all filtered Achieved vocabulary"));
+    expect(screen.getByText("1 selected")).toBeVisible();
+    await fireEvent.click(screen.getByRole("button", { name: "Unachieve" }));
+    expect(unachieve).toHaveBeenCalledWith(["one"]);
+
+    await fireEvent.input(await screen.findByLabelText("Search vocabulary"), { target: { value: "" } });
+    await fireEvent.click(screen.getByLabelText("Select durable"));
+    await fireEvent.click(screen.getByRole("button", { name: "Delete permanently" }));
+    expect(remove).toHaveBeenCalledWith(["two"]);
   });
 });
