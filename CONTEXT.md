@@ -55,3 +55,15 @@ _Avoid_: Quiz, test
 **Review Insight**:
 A short explanation or actionable suggestion derived from completed reviews and encounter history. It appears only after an answer is revealed and never substitutes for a review rating.
 _Avoid_: Hint, score, AI explanation
+
+**Mastered Vocabulary Item**:
+A vocabulary item whose current learning status indicates mastery. Mastery makes the item eligible for Achieve but does not itself remove or delete the item.
+_Avoid_: Achieved item, completed item
+
+**Achieved Vocabulary Item**:
+A Mastered Vocabulary Item that the user has intentionally placed in a temporary, reviewable list before permanent deletion. The intent may be expressed directly for one or more items or granted in advance through the automatic Achieve setting.
+_Avoid_: Mastered item, deleted item, trash item
+
+**Unachieve**:
+The user decision that returns an Achieved Vocabulary Item to Mastered status before permanent deletion.
+_Avoid_: Restore to learning, undo review
