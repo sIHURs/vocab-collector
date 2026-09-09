@@ -39,6 +39,18 @@ pub struct ReviewState {
     pub lapse_count: u32,
 }
 
+impl ReviewState {
+    pub fn initial(due_at: DateTime<Utc>) -> Self {
+        Self {
+            difficulty: 5.0,
+            stability: 1.0,
+            due_at,
+            last_reviewed_at: None,
+            lapse_count: 0,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Word {

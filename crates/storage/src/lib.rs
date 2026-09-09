@@ -19,6 +19,7 @@ use vocab_domain::{
 
 mod capture_undo;
 mod identity;
+mod references;
 mod translations;
 
 const MIGRATION_001: &str = r#"
@@ -334,23 +335,11 @@ impl SqliteStore {
             mastered_at: None,
             achieved_at: None,
             delete_after: None,
-            review_state: Some(ReviewState {
-                difficulty: 5.0,
-                stability: 1.0,
-                due_at: input.captured_at,
-                last_reviewed_at: None,
-                lapse_count: 0,
-            }),
+            review_state: Some(ReviewState::initial(input.captured_at)),
         });
         if word.is_achieved() {
             word.unmaster(input.captured_at, WordStatus::Learning);
-            word.review_state = Some(ReviewState {
-                difficulty: 5.0,
-                stability: 1.0,
-                due_at: input.captured_at,
-                last_reviewed_at: None,
-                lapse_count: 0,
-            });
+            word.review_state = Some(ReviewState::initial(input.captured_at));
         }
         if !is_existing_word {
             insert_word(&transaction, &key, &word)?;

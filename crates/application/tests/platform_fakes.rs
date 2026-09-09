@@ -548,3 +548,74 @@ fn operation_translation_failure_can_save_without_translation() {
     assert_eq!(application.list_words().unwrap().len(), 1);
     assert_eq!(calls.load(Ordering::SeqCst), 1);
 }
+
+#[test]
+fn selection_and_confirmed_ocr_recapture_share_identity_and_complete_undo() {
+    use vocab_domain::{WordRepository, WordStatus};
+    for origin in [CaptureOrigin::Accessibility, CaptureOrigin::Ocr] {
+        let store = Arc::new(SqliteStore::open_in_memory().unwrap());
+        let app = Arc::new(AppService::new(store.clone(), Uuid::now_v7()));
+        let workflow = PlatformCaptureWorkflow::new(
+            app.clone(),
+            platform_services(
+                Ok(candidate("robust")),
+                Arc::new(UnavailableTranslationProvider),
+            ),
+        );
+        let first_request = workflow.start_request();
+        workflow
+            .set_candidate(first_request, candidate("robust"))
+            .unwrap();
+        workflow
+            .correct(
+                first_request,
+                "robust".into(),
+                "Original context.".into(),
+                Some("stark".into()),
+            )
+            .unwrap();
+        let first = workflow.save(first_request, false, captured_at()).unwrap();
+        let mut word = WordRepository::get(store.as_ref(), first.word_id)
+            .unwrap()
+            .unwrap();
+        word.enter_mastered(Utc::now());
+        WordRepository::save(store.as_ref(), &word).unwrap();
+        app.achieve_word(word.id, Utc::now()).unwrap();
+        let mut settings = app.get_settings().unwrap();
+        settings.target_language = "zh-Hans".into();
+        app.update_settings(settings).unwrap();
+        let request = workflow.start_request();
+        let mut next = candidate("robust");
+        next.origin = origin;
+        workflow.set_candidate(request, next).unwrap();
+        if origin == CaptureOrigin::Ocr {
+            assert!(workflow.save(request, true, Utc::now()).is_err());
+            workflow.confirm_ocr(request).unwrap();
+        }
+        workflow
+            .correct(
+                request,
+                "robust".into(),
+                "New context.".into(),
+                Some("稳健的".into()),
+            )
+            .unwrap();
+        let found = workflow
+            .find_achieved_capture(request, Utc::now())
+            .unwrap()
+            .unwrap();
+        assert_eq!(found.word_id, first.word_id);
+        let saved = workflow
+            .restore_achieved_and_save(request, found.word_id, false, Utc::now())
+            .unwrap();
+        assert_eq!(saved.word_id, first.word_id);
+        assert_eq!(app.get_word(first.word_id).unwrap().translations.len(), 2);
+        assert_eq!(
+            app.get_word(first.word_id).unwrap().item.status,
+            WordStatus::Learning
+        );
+        workflow.undo(request, saved.encounter_id).unwrap();
+        assert_eq!(app.list_achieved_words().unwrap().len(), 1);
+        assert_eq!(app.get_word(first.word_id).unwrap().encounters.len(), 1);
+    }
+}

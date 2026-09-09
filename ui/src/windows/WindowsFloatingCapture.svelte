@@ -116,11 +116,9 @@
     try {
       const conflict = await captureBackend.findAchieved(requestId);
       if (!mounted || requestId !== activeRequest) return;
-      if (conflict) {
-        achievedConflict = conflict;
-        return;
-      }
-      const result = await captureBackend.save(requestId, !translation.trim());
+      const result = conflict
+        ? await captureBackend.restoreAchievedAndSave(requestId, conflict.wordId, !translation.trim())
+        : await captureBackend.save(requestId, !translation.trim());
       if (!mounted || requestId !== activeRequest) return;
       saved = result;
       editing = false;

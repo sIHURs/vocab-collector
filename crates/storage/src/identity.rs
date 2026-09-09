@@ -150,21 +150,21 @@ pub(super) fn merge(tx: &Connection, mut words: Vec<Word>) -> Result<Word, Repos
     let mut survivor = words[0].clone();
     apply_state(&mut survivor, &words);
     for removed in words.iter().skip(1) {
-        for table in ["encounters", "review_logs", "translation_history"] {
-            tx.execute(
-                &format!("UPDATE {table} SET word_id=?1 WHERE word_id=?2"),
-                params![survivor.id.to_string(), removed.id.to_string()],
-            )
-            .map_err(repo_error)?;
+        for (table, key) in [
+            ("encounters", "id"),
+            ("review_logs", "id"),
+            ("translation_history", "event_id"),
+        ] {
+            for mut reference in references::collect(tx, table, key, removed.id)? {
+                reference.word_id = survivor.id.to_string();
+                references::remap(tx, table, key, &reference)?;
+            }
         }
-        tx.execute("UPDATE review_logs SET result_payload=json_set(result_payload,'$.wordId',?1) WHERE word_id=?1 AND result_payload IS NOT NULL", [survivor.id.to_string()]).map_err(repo_error)?;
         tx.execute(
             "DELETE FROM outbox WHERE entity_type='word' AND entity_id=?1",
             [removed.id.to_string()],
         )
         .map_err(repo_error)?;
-        tx.execute("UPDATE outbox SET payload=json_set(payload,'$.wordId',?1)
-            WHERE entity_type IN ('encounter','review_log') AND operation='upsert' AND json_extract(payload,'$.wordId')=?2", params![survivor.id.to_string(),removed.id.to_string()]).map_err(repo_error)?;
         tx.execute("DELETE FROM words WHERE id=?1", [removed.id.to_string()])
             .map_err(repo_error)?;
     }

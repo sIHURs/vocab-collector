@@ -107,6 +107,20 @@ describe("Windows floating capture presentation", () => {
     expect(mocks.save).toHaveBeenCalledWith("translated-request", false);
   });
 
+  it("saves with one click when Achieved is discovered by the final lookup", async () => {
+    render(WindowsFloatingCapture, { captureBackend });
+    await waitFor(() => expect(mocks.ready).toBeTypeOf("function"));
+    mocks.ready?.({ requestId: "late-achieved", candidate: { selectedText: "nuance", sentence: "A useful nuance.", origin: "accessibility" } });
+    const save = await screen.findByRole("button", { name: /Save capture|Save without translation/ });
+    await waitFor(() => expect(save).toBeEnabled());
+    await waitFor(() => expect(mocks.findAchieved).toHaveBeenCalled());
+    mocks.findAchieved.mockResolvedValue({ wordId: "word-1", displayForm: "nuance", achievedAt: "2026-09-01", deleteAfter: "2026-10-01" });
+    await fireEvent.click(save);
+    expect(await screen.findByText("Saved")).toBeVisible();
+    expect(mocks.restoreAchievedAndSave).toHaveBeenCalledTimes(1);
+    expect(mocks.save).not.toHaveBeenCalled();
+  });
+
   it("keeps an Achieved capture in the same window until the user returns it to Learning", async () => {
     mocks.findAchieved.mockResolvedValue({ wordId: "word-1", displayForm: "nuance", achievedAt: "2026-09-01T00:00:00Z", deleteAfter: "2026-10-01T00:00:00Z" });
     render(WindowsFloatingCapture, { captureBackend });

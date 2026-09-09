@@ -55,8 +55,10 @@
       if (achievedConflict && api.restoreAchievedAndCapture) savedCard = await api.restoreAchievedAndCapture(achievedConflict.wordId, input);
       else {
         const match = await api.findAchievedCapture?.(input);
-        if (match) { achievedConflict = match; return; }
-        savedCard = await api.capture(input);
+        if (match) {
+          if (!api.restoreAchievedAndCapture) throw new Error("Achieved capture is unavailable");
+          savedCard = await api.restoreAchievedAndCapture(match.wordId, input);
+        } else savedCard = await api.capture(input);
       }
     } catch (cause) { error = String(cause); return; }
     captureInput = { selectedText: "", translation: "", sentence: "", sourceApp: "Browser" };

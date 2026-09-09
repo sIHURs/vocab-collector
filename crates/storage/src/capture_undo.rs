@@ -1,12 +1,13 @@
+use super::references::WordReference;
 use super::*;
 use serde::Deserialize;
 
 #[derive(Serialize, Deserialize)]
 pub(super) struct BeforeCapture {
     words: Vec<Word>,
-    encounters: Vec<(String, String)>,
-    reviews: Vec<(String, String)>,
-    translations: Vec<(String, String)>,
+    encounters: Vec<WordReference>,
+    reviews: Vec<WordReference>,
+    translations: Vec<WordReference>,
 }
 
 pub(super) fn migrate(connection: &Connection) -> Result<(), RepositoryError> {
@@ -33,21 +34,10 @@ pub(super) fn before(
     input: &CaptureRecord,
 ) -> Result<BeforeCapture, RepositoryError> {
     let words = identity::candidates(connection, input)?;
-    let references = |table: &str, key: &str| -> Result<Vec<(String, String)>, RepositoryError> {
+    let references = |table: &str, key: &str| -> Result<Vec<WordReference>, RepositoryError> {
         let mut result = Vec::new();
         for word in &words {
-            let mut statement = connection
-                .prepare(&format!(
-                    "SELECT {key},word_id FROM {table} WHERE word_id=?1"
-                ))
-                .map_err(repo_error)?;
-            result.extend(
-                statement
-                    .query_map([word.id.to_string()], |r| Ok((r.get(0)?, r.get(1)?)))
-                    .map_err(repo_error)?
-                    .collect::<Result<Vec<_>, _>>()
-                    .map_err(repo_error)?,
-            );
+            result.extend(references::collect(connection, table, key, word.id)?);
         }
         Ok(result)
     };
@@ -147,21 +137,11 @@ pub(super) fn restore(
             ("review_logs", "id", before.reviews),
             ("translation_history", "event_id", before.translations),
         ] {
-            for (id, word_id) in refs {
-                connection
-                    .execute(
-                        &format!("UPDATE {table} SET word_id=?1 WHERE {key}=?2"),
-                        params![word_id, id],
-                    )
-                    .map_err(repo_error)?;
-                if table == "review_logs" {
-                    connection.execute("UPDATE review_logs SET result_payload=json_set(result_payload,'$.wordId',?1) WHERE id=?2 AND result_payload IS NOT NULL",params![word_id,id]).map_err(repo_error)?;
-                }
-                if table != "translation_history" {
-                    connection.execute("UPDATE outbox SET payload=json_set(payload,'$.wordId',?1) WHERE entity_id=?2 AND operation='upsert'",params![word_id,id]).map_err(repo_error)?;
-                }
+            for reference in refs {
+                references::remap(connection, table, key, &reference)?;
             }
         }
+
         for word in &before.words {
             enqueue(connection, "word", word.id, "upsert", word, now)?;
         }

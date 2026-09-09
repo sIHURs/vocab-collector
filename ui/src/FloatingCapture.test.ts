@@ -482,6 +482,22 @@ describe("floating capture request freshness", () => {
     expect(screen.queryByRole("button", { name: "Allow Accessibility" })).not.toBeInTheDocument();
   });
 
+  it("keeps translation retry available for an Achieved item without restoring automatically", async () => {
+    mocks.invoke.mockImplementation(async (command: string) => {
+      if (command === "get_settings") return { sourceLanguage: "en", targetLanguage: "de" };
+      if (command === "translate_text") throw { code: "translation_failed", message: "Provider failed" };
+      if (command === "find_achieved_native_capture") return { wordId: "word-robust", displayForm: "robust", achievedAt: "2026-09-01", deleteAfter: "2026-10-01" };
+    });
+    render(FloatingCapture);
+    await waitFor(() => expect(mocks.handlers.has("capture-ready")).toBe(true));
+    mocks.handlers.get("capture-ready")?.({ payload: { requestId: "retry-achieved", candidate: candidate("robust") } });
+    expect(await screen.findByText(/Already learned/)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Save without translation" })).toBeVisible();
+    await fireEvent.click(screen.getByRole("button", { name: "Retry translation" }));
+    await waitFor(() => expect(mocks.invoke.mock.calls.filter(([command]) => command === "translate_text")).toHaveLength(2));
+    expect(mocks.invoke.mock.calls.some(([command]) => command === "restore_achieved_and_save_native_capture")).toBe(false);
+  });
+
   it("offers save without translation and retry for translation_unavailable", async () => {
     mocks.invoke.mockImplementation((command: string) => {
       if (command === "get_settings") return Promise.resolve({ sourceLanguage: "en", targetLanguage: "de" });

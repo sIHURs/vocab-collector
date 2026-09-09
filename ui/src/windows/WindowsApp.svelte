@@ -216,10 +216,9 @@
       const input = { ...captureInput, translation: captureInput.translation.trim() || undefined, captureOrigin: "manual" as const };
       const conflict = await api.findAchievedCapture?.(input);
       if (conflict) {
-        achievedCaptureConflict = conflict;
-        return;
-      }
-      savedCard = await api.capture(input);
+        if (!api.restoreAchievedAndCapture) throw new Error("Achieved capture is unavailable");
+        savedCard = await api.restoreAchievedAndCapture(conflict.wordId, input);
+      } else savedCard = await api.capture(input);
       closeCapture();
       await refresh();
       reviewComplete = false;

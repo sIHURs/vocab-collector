@@ -124,7 +124,7 @@
         const match = await invoke<AchievedCaptureConflict | null>("find_achieved_native_capture", { requestId });
         if (!isActiveRequest(requestId)) return;
         achievedConflict = match;
-        if (!achievedConflict) await persist(requestId, false);
+        if (!achievedConflict) await persist(requestId, false, false);
       }
     } catch (cause) {
       if (isActiveRequest(requestId)) failure = asCaptureFailure(cause);
@@ -133,13 +133,13 @@
     }
   }
 
-  async function persist(requestId = activeRequest, withoutTranslation = false) {
+  async function persist(requestId = activeRequest, withoutTranslation = false, explicitSave = true) {
     if (!isActiveRequest(requestId)) return;
     try {
       if (!achievedConflict) {
         const match = await invoke<AchievedCaptureConflict | null>("find_achieved_native_capture", { requestId });
         if (!isActiveRequest(requestId)) return;
-        if (match) { achievedConflict = match; return; }
+        if (match) { achievedConflict = match; if (!explicitSave) return; }
       }
       const nextSaved = achievedConflict
         ? await invoke<CaptureCard>("restore_achieved_and_save_native_capture", { requestId, wordId: achievedConflict.wordId, withoutTranslation })
@@ -243,7 +243,7 @@
     {:else if saved}<Button variant="outline" onclick={undo}>Undo</Button>
     {:else if candidate}
       {#if ocrNeedsConfirmation}<Button onclick={() => candidate && accept({ requestId: activeRequest, candidate }, true)}>Use this text</Button>
-      {:else if achievedConflict}<Button disabled={saving} onclick={() => persist(activeRequest, Boolean(translationFailure))}>{translationFailure ? "Save without translation" : "Save capture"}</Button>
+      {:else if achievedConflict}{#if translationFailure}<Button variant="outline" disabled={saving} onclick={() => candidate && accept({ requestId: activeRequest, candidate })}>Retry translation</Button>{/if}<Button disabled={saving} onclick={() => persist(activeRequest, Boolean(translationFailure))}>{translationFailure ? "Save without translation" : "Save capture"}</Button>
       {:else if translationFailure && (translationFailure.code === "translation_unavailable" || translationFailure.code === "translation_failed")}<Button variant="outline" onclick={() => candidate && accept({ requestId: activeRequest, candidate })}>Retry translation</Button><Button onclick={() => persist(activeRequest, true)}>Save without translation</Button>{/if}
     {/if}
   </footer>
