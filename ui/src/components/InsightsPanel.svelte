@@ -21,7 +21,7 @@
     <div class="metrics">{#each [['Captured', insight?.lifetimeVocabularyCount], ['Reviewed', insight?.lifetimeReviewCount], ['Due', due]] as [label, value]}
       <Card.Root><Card.Header><Card.Title>{label}</Card.Title></Card.Header><Card.Content><strong class="metric">{value ?? 'Unavailable'}</strong></Card.Content></Card.Root>
     {/each}</div>
-    {#if insight}<dl><div><dt>Encounters saved</dt><dd>{insight.lifetimeEncounterCount}</dd></div><div><dt>Remembered</dt><dd>{insight.lifetimeRememberedCount}</dd></div><div><dt>Forgot</dt><dd>{insight.lifetimeForgottenCount}</dd></div><div><dt>Currently achieved</dt><dd>{insight.currentAchievedCount}</dd></div></dl>
+    {#if insight}<dl><div><dt>Total saves</dt><dd>{insight.lifetimeEncounterCount}</dd></div><div><dt>Remembered</dt><dd>{insight.lifetimeRememberedCount}</dd></div><div><dt>Forgot</dt><dd>{insight.lifetimeForgottenCount}</dd></div><div><dt>Currently achieved</dt><dd>{insight.currentAchievedCount}</dd></div></dl>
     {#if !insight.lifetimeRatingBreakdownComplete}<p>Remembered and Forgot totals exclude anonymous review history deleted before this app version.</p>{/if}
     {:else}<p>All-time history is unavailable. No totals have been assumed.</p>{/if}
   </section>

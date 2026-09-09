@@ -11,13 +11,13 @@
 
 <Table.Root aria-label="Vocabulary">
   <Table.Header><Table.Row>
-    <Table.Head>Word</Table.Head><Table.Head>Translation</Table.Head><Table.Head>Status</Table.Head><Table.Head>Encounters</Table.Head><Table.Head>Last Seen</Table.Head>
+    <Table.Head>Word</Table.Head><Table.Head>Translation</Table.Head><Table.Head>Status</Table.Head><Table.Head>Times saved</Table.Head><Table.Head>Last saved</Table.Head>
     {#if words.some(word => word.status === 'mastered')}<Table.Head><span class="sr-only">Actions</span></Table.Head>{/if}
   </Table.Row></Table.Header>
   <Table.Body>
     {#each words as word (word.id)}
       <Table.Row onclick={(event) => { if (!(event.target as HTMLElement).closest('button')) { const trigger = event.currentTarget.querySelector('button'); if (trigger) onSelect(word.id, trigger); } }}>
-        <Table.Cell><button class="word-link" aria-label={`${word.displayForm}, ${word.encounterCount} encounter${word.encounterCount === 1 ? '' : 's'}`} onclick={(event) => onSelect(word.id, event.currentTarget)}>{word.displayForm}</button></Table.Cell>
+        <Table.Cell><button class="word-link" aria-label={`${word.displayForm}, Saved ${word.encounterCount} time${word.encounterCount === 1 ? '' : 's'}`} onclick={(event) => onSelect(word.id, event.currentTarget)}>{word.displayForm}</button></Table.Cell>
         <Table.Cell><span class="translation">{word.translation ?? 'No translation'}</span></Table.Cell>
         <Table.Cell><Badge variant="secondary"><span class="status">{word.status}</span></Badge></Table.Cell>
         <Table.Cell>{word.encounterCount}</Table.Cell>

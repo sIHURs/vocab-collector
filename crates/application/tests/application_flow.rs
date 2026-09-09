@@ -482,6 +482,54 @@ fn legacy_chinese_language_codes_are_normalized_at_the_application_boundary() {
 }
 
 #[test]
+fn recent_captures_show_latest_encounters_first_before_limiting() {
+    let store = Arc::new(SqliteStore::open_in_memory().unwrap());
+    let service = AppService::new(store.clone(), Uuid::now_v7());
+    let now = Utc.with_ymd_and_hms(2026, 8, 25, 12, 0, 0).unwrap();
+    for (word, minutes) in [("older", 0), ("newest", 2), ("middle", 1)] {
+        let mut input = request(word, "translation");
+        input.captured_at = now + Duration::minutes(minutes);
+        service.capture(input).unwrap();
+    }
+    let mut settings = service.get_settings().unwrap();
+    settings.recent_captures_limit = 2;
+    service.update_settings(settings).unwrap();
+    let today = service.get_today(now).unwrap();
+    assert_eq!(
+        today
+            .recent_captures
+            .iter()
+            .map(|word| word.display_form.as_str())
+            .collect::<Vec<_>>(),
+        vec!["newest", "middle"]
+    );
+
+    let mut repeated = request("older", "translation");
+    repeated.captured_at = now + Duration::minutes(3);
+    service.capture(repeated).unwrap();
+    let today = service.get_today(now).unwrap();
+    assert_eq!(today.recent_captures[0].display_form, "older");
+    assert_eq!(today.recent_captures[1].display_form, "newest");
+}
+
+#[test]
+fn undo_last_capture_removes_word_from_lists_and_review_until_recaptured() {
+    let store = Arc::new(SqliteStore::open_in_memory().unwrap());
+    let service = AppService::new(store, Uuid::now_v7());
+    let saved = service.capture(request("insert", "translation")).unwrap();
+    service.undo_capture(saved.encounter_id).unwrap();
+    let now = Utc.with_ymd_and_hms(2026, 8, 26, 12, 0, 0).unwrap();
+    assert!(service.list_words().unwrap().is_empty());
+    let today = service.get_today(now).unwrap();
+    assert!(today.recent_captures.is_empty());
+    assert!(today.review_queue.is_empty());
+    assert_eq!(today.total_due_count, 0);
+    service.capture(request("insert", "translation")).unwrap();
+    assert_eq!(service.list_words().unwrap()[0].encounter_count, 1);
+    assert_eq!(service.get_today(now).unwrap().total_due_count, 1);
+}
+
+#[test]
 fn recent_captures_use_the_configured_limit() {
     let store = Arc::new(SqliteStore::open_in_memory().unwrap());
     let service = AppService::new(store.clone(), Uuid::now_v7());

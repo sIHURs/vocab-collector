@@ -330,7 +330,7 @@ describe("Windows floating capture presentation", () => {
 
     expect(mocks.apply).toHaveBeenCalledWith("no-context", { selectedText: "nuance", sentence: "" });
     expect(mocks.save).toHaveBeenCalledWith("no-context", true);
-    expect(await screen.findByText("First Encounter saved")).toBeInTheDocument();
+    expect(await screen.findByText("Saved for the first time")).toBeInTheDocument();
   });
 
   it("ignores a save completion after a newer request arrives", async () => {

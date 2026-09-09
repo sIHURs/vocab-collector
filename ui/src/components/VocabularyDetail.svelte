@@ -17,9 +17,9 @@
       <div class="detail-heading"><span>Vocabulary detail</span><button bind:this={closeButton} class="close" aria-label="Close vocabulary detail" onclick={onclose}><X size={18} /></button></div>
       <Sheet.Title>{detail.item.displayForm}</Sheet.Title>
       <Sheet.Description>{detail.item.translation ?? 'No translation'}</Sheet.Description>
-      <div class="detail-status"><Badge variant="secondary"><span class="status">{detail.item.status}</span></Badge><span>{detail.item.encounterCount} encounter{detail.item.encounterCount === 1 ? '' : 's'}</span></div>
+      <div class="detail-status"><Badge variant="secondary"><span class="status">{detail.item.status}</span></Badge><span>Saved {detail.item.encounterCount} time{detail.item.encounterCount === 1 ? '' : 's'}</span></div>
       {#if detail.item.status === 'mastered'}<div><Button variant="destructiveOutline" onclick={onachieve}>Achieve</Button></div>{/if}
-      <section class="timeline" aria-label="Encounter contexts"><h3>Contexts</h3>
+      <section class="timeline" aria-label="Capture history"><h3>Capture history</h3>
         {#each detail.encounters as encounter (encounter.id)}
           <article><p>{encounter.sentence}</p><small>{[encounter.sourceApp, encounter.sourceTitle, encounter.sourceUrl].filter(Boolean).join(' · ') || 'Manual entry'}</small></article>
         {/each}

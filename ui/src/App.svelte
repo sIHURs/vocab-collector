@@ -109,12 +109,12 @@
           {#each today?.recentCaptures ?? [] as word}
             <button class="word-row" onclick={() => showDetail(word.id)}><span class="word-glyph">{word.displayForm.slice(0, 1).toUpperCase()}</span>
               <span class="word-copy"><strong>{word.displayForm}</strong><small>{word.translation ?? "Translation unavailable"}</small></span>
-              <span class="source">{word.encounterCount} encounter{word.encounterCount === 1 ? "" : "s"}</span><time>{relative(word.lastSeenAt)}</time><span class="chevron">›</span></button>
+              <span class="source">Saved {word.encounterCount} time{word.encounterCount === 1 ? "" : "s"}</span><time>{relative(word.lastSeenAt)}</time><span class="chevron">›</span></button>
           {:else}<div class="empty">Capture a word to begin your collection.</div>{/each}
         </div>
       {:else if route === "Vocabulary"}
         <div class="list-tools"><label class="search"><span>⌕</span><input aria-label="Search vocabulary" bind:value={search} placeholder="Search words or translations" /></label><span>{filteredWords.length} words</span></div>
-        <div class="table panel"><div class="table-head"><span>Word</span><span>Translation</span><span>Status</span><span>Encounters</span><span>Last seen</span></div>
+        <div class="table panel"><div class="table-head"><span>Word</span><span>Translation</span><span>Status</span><span>Times saved</span><span>Last saved</span></div>
           {#each filteredWords as word}<button class="table-row" onclick={() => showDetail(word.id)}><strong>{word.displayForm}</strong><span>{word.translation ?? "—"}</span><span class="status-pill">{word.status}</span><span>{word.encounterCount}</span><span>{relative(word.lastSeenAt)}</span></button>{/each}
         </div>
       {:else if route === "Progress"}
@@ -133,7 +133,7 @@
 
 {#if captureOpen}
   <div class="floating-card capture-card" role="dialog" aria-label="Quick capture"><div class="float-header"><span><i class="status-dot"></i> Quick capture</span><button aria-label="Close capture" onclick={() => { captureOpen = false; savedCard = null; }}>×</button></div>
-    {#if savedCard}<div class="saved-state"><span class="saved-check">✓</span><div><span class="eyebrow">Saved · Undo</span><h2>{savedCard.displayForm}</h2><strong>{savedCard.translation ?? "Translation unavailable"}</strong><p>“{savedCard.context}”</p><small>{savedCard.isExistingWord ? `Seen ${savedCard.encounterCount} times · New context saved` : "Added to your review queue"}</small></div></div><button class="text-button undo" onclick={undoSaved}>Undo</button>
+    {#if savedCard}<div class="saved-state"><span class="saved-check">✓</span><div><span class="eyebrow">Saved · Undo</span><h2>{savedCard.displayForm}</h2><strong>{savedCard.translation ?? "Translation unavailable"}</strong><p>“{savedCard.context}”</p><small>{savedCard.isExistingWord ? `Saved ${savedCard.encounterCount} times · New context saved` : "Added to your review queue"}</small></div></div><button class="text-button undo" onclick={undoSaved}>Undo</button>
     {:else}<form onsubmit={(event) => { event.preventDefault(); saveCapture(); }}><label>Word<input bind:value={captureInput.selectedText} placeholder="Selected word" /></label><label>Translation<input bind:value={captureInput.translation} placeholder="Automatic or manual" /></label><label>Context<textarea bind:value={captureInput.sentence} placeholder="Sentence around the word"></textarea></label><div class="form-actions"><span>Auto-saves locally</span><button class="primary" type="submit">Save word</button></div></form>{/if}
   </div>
 {/if}
@@ -143,5 +143,5 @@
 {/if}
 
 {#if selectedDetail}
-  <div class="detail-drawer"><button class="drawer-close" aria-label="Close word detail" onclick={() => (selectedDetail = null)}>×</button><span class="eyebrow">Word detail</span><h2>{selectedDetail.item.displayForm}</h2><strong class="detail-translation">{selectedDetail.item.translation ?? "No translation"}</strong><span class="status-pill">{selectedDetail.item.status}</span><div class="timeline"><h3>Contexts · {selectedDetail.encounters.length}</h3>{#each selectedDetail.encounters as encounter}<article><i></i><p>“{encounter.sentence}”</p><small>{encounter.sourceApp ?? "Unknown source"} · {relative(encounter.capturedAt)}</small></article>{/each}</div></div>
+  <div class="detail-drawer"><button class="drawer-close" aria-label="Close word detail" onclick={() => (selectedDetail = null)}>×</button><span class="eyebrow">Word detail</span><h2>{selectedDetail.item.displayForm}</h2><strong class="detail-translation">{selectedDetail.item.translation ?? "No translation"}</strong><span class="status-pill">{selectedDetail.item.status}</span><div class="timeline"><h3>Capture history · {selectedDetail.encounters.length}</h3>{#each selectedDetail.encounters as encounter}<article><i></i><p>“{encounter.sentence}”</p><small>{encounter.sourceApp ?? "Unknown source"} · {relative(encounter.capturedAt)}</small></article>{/each}</div></div>
 {/if}

@@ -165,7 +165,9 @@ export class DemoBackend implements Backend {
     for (const word of this.words) {
       word.encounters = word.encounters.filter((encounter) => encounter.id !== encounterId);
       word.item.encounterCount = word.encounters.length;
+      if (word.encounters.length) word.item.lastSeenAt = word.encounters[0].capturedAt;
     }
+    this.words = this.words.filter((word) => word.encounters.length > 0);
   }
 
   async getToday(): Promise<TodayView> {
@@ -177,7 +179,9 @@ export class DemoBackend implements Backend {
       reviewQueue: due.map((word) => ({ wordId: word.item.id,
         displayForm: word.item.displayForm, translation: word.item.translation,
         context: word.encounters[0]?.sentence })),
-      recentCaptures: this.words.map((word) => ({ ...word.item })).slice(0, this.settings.recentCapturesLimit),
+      recentCaptures: this.words.map((word) => ({ ...word.item }))
+        .sort((a, b) => Date.parse(b.lastSeenAt) - Date.parse(a.lastSeenAt))
+        .slice(0, this.settings.recentCapturesLimit),
       settings: { ...this.settings },
     };
   }

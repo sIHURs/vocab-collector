@@ -340,7 +340,7 @@
     {#if saved}
       <Badge variant="secondary">Saved</Badge><h1>{saved.displayForm}</h1>
       <p class="translation">{saved.translation ?? "Saved without translation"}</p><p class="context">{saved.context}</p>
-      <small>{saved.isExistingWord ? `Seen ${saved.encounterCount} times · New Encounter saved` : "First Encounter saved"}</small>
+      <small>{saved.isExistingWord ? `Saved ${saved.encounterCount} times · New context saved` : "Saved for the first time"}</small>
       <CaptureSource app={candidate?.sourceApp} title={candidate?.sourceTitle} url={candidate?.sourceUrl} />
     {:else if candidate}
       <small>{ocrNeedsConfirmation ? "Confirm OCR text" : editing ? "Editing" : "Captured"}</small>
@@ -357,7 +357,7 @@
         {:else if !translationAvailable}<p>Automatic translation is unavailable. You can add a translation manually.</p>{/if}
         <p class="context">“{sentence}”</p><CaptureSource app={candidate.sourceApp} title={candidate.sourceTitle} url={candidate.sourceUrl} />
         {#if translationStale}<Alert.Root role="status"><Alert.Title>Vocabulary changed</Alert.Title><Alert.Description>Vocabulary changed. The translation may no longer match.</Alert.Description></Alert.Root>{/if}
-        {#if achievedConflict}<Alert.Root role="status"><Alert.Title>Return to Learning?</Alert.Title><Alert.Description>This Vocabulary Item is Achieved. Return it to Learning and save this Encounter?</Alert.Description></Alert.Root>{/if}
+        {#if achievedConflict}<Alert.Root role="status"><Alert.Title>Return to Learning?</Alert.Title><Alert.Description>This Vocabulary Item is Achieved. Return it to Learning and save this context?</Alert.Description></Alert.Root>{/if}
       {/if}
     {:else if !ocrOffer && !error}<p>Ready to capture selected text.</p>{/if}
   </section>

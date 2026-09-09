@@ -173,7 +173,8 @@ describe("Windows main presentation", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Undo capture failed");
     expect(saved).toBeVisible();
     await fireEvent.click(within(saved).getByRole("button", { name: "Undo" }));
-    await screen.findByRole("button", { name: "context, 0 encounters" });
+    await screen.findByText("No captures yet");
+    expect(screen.queryByRole("button", { name: "context, Saved 0 times" })).not.toBeInTheDocument();
     expect(api.undoCapture).toHaveBeenCalledTimes(2);
   });
 
@@ -183,7 +184,7 @@ describe("Windows main presentation", () => {
     render(WindowsApp, { api });
     await screen.findByText("serendipity");
     await fireEvent.click(screen.getByRole("button", { name: "Vocabulary" }));
-    await fireEvent.click(screen.getByRole("button", { name: "serendipity, 1 encounter" }));
+    await fireEvent.click(screen.getByRole("button", { name: "serendipity, Saved 1 time" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Detail unavailable");
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(screen.getByRole("table", { name: "Vocabulary" })).toBeVisible();
@@ -195,7 +196,7 @@ describe("Windows main presentation", () => {
     await fireEvent.click(screen.getByRole("button", { name: "Vocabulary" }));
     const table = screen.getByRole("table", { name: "Vocabulary" });
     expect(within(table).getByRole("columnheader", { name: "Translation" })).toBeVisible();
-    const word = within(table).getByRole("button", { name: "serendipity, 1 encounter" });
+    const word = within(table).getByRole("button", { name: "serendipity, Saved 1 time" });
     await fireEvent.click(word);
     const close = await screen.findByRole("button", { name: "Close vocabulary detail" });
     expect(close).toHaveFocus();
@@ -259,7 +260,7 @@ describe("Windows main presentation", () => {
 
     await saveManualCapture("lucid", "Her second example was lucid too.");
     const saved = await screen.findByRole("dialog", { name: "Capture saved" });
-    expect(within(saved).getByText("2 encounters")).toBeVisible();
+    expect(within(saved).getByText("Saved 2 times")).toBeVisible();
 
     await fireEvent.click(screen.getByRole("button", { name: "Vocabulary" }));
     expect(screen.getAllByRole("button", { name: /lucid/i })).toHaveLength(1);
@@ -270,7 +271,7 @@ describe("Windows main presentation", () => {
     expect(within(detail).getByText("Her second example was lucid too.")).toBeVisible();
 
     await fireEvent.click(within(saved).getByRole("button", { name: "Undo" }));
-    expect(await within(detail).findByText(/1 encounter/)).toBeVisible();
+    expect(await within(detail).findByText(/Saved 1 time/)).toBeVisible();
     expect(screen.queryByText("Her second example was lucid too.")).toBeNull();
   });
 
@@ -389,7 +390,7 @@ describe("Windows main presentation", () => {
     await fireEvent.click(await screen.findByRole("button", { name: "Start review (3)" }));
     await revealAndRate("Forgot");
 
-    expect(await screen.findByText("Encountered 4 times")).toBeVisible();
+    expect(await screen.findByText("Saved 4 times")).toBeVisible();
     expect(screen.getByText(/repeatedly forgotten/i)).toBeVisible();
     expect(screen.getByRole("button", { name: "Review contexts" })).toBeVisible();
   });
@@ -544,26 +545,101 @@ describe("Windows main presentation", () => {
     await fireEvent.change(screen.getByLabelText("Source language"), { target: { value: "fr" } });
     await fireEvent.change(screen.getByLabelText("Translate into"), { target: { value: "es" } });
     await fireEvent.input(screen.getByLabelText("Daily limit"), { target: { value: "4" } });
+    await fireEvent.blur(screen.getByLabelText("Daily limit"));
     await fireEvent.input(screen.getByLabelText("Recent captures"), { target: { value: "12" } });
+    await fireEvent.blur(screen.getByLabelText("Recent captures"));
     await fireEvent.change(screen.getByLabelText("Keep achieved words for"), { target: { value: "60" } });
     await fireEvent.click(screen.getByLabelText("Automatically achieve Mastered words after 30 days"));
     await fireEvent.input(screen.getByLabelText("Selection Capture shortcut"), { target: { value: "Control+Shift+W" } });
+    await fireEvent.blur(screen.getByLabelText("Selection Capture shortcut"));
     await fireEvent.input(screen.getByLabelText("Region OCR Capture shortcut"), { target: { value: "Control+Shift+O" } });
+    await fireEvent.blur(screen.getByLabelText("Region OCR Capture shortcut"));
     await fireEvent.change(screen.getByLabelText("Theme"), { target: { value: "light" } });
     await fireEvent.click(screen.getByLabelText("Reduce motion"));
-    await fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
+    await waitFor(() => expect(screen.getByText("Settings saved")).toBeVisible());
 
-    expect(await screen.findByRole("status")).toHaveTextContent("Settings saved");
-    expect(api.updates).toEqual([{
+    expect(await screen.findByText("Settings saved")).toBeVisible();
+    expect(api.updates.at(-1)).toEqual({
       sourceLanguage: "fr", targetLanguage: "es", reviewTime: "18:00", dailyLimit: 4,
       recentCapturesLimit: 12,
       selectionCaptureShortcut: "Control+Shift+W", regionOcrCaptureShortcut: "Control+Shift+O", launchAtLogin: false, appearance: "light",
       reducedMotion: true, automaticAchieveEnabled: true, achievedRetentionDays: 60,
-    }]);
+    });
     expect(screen.getByLabelText("Selection Capture shortcut")).toHaveValue("Control+Shift+W");
     expect(screen.getByLabelText("Region OCR Capture shortcut")).toHaveValue("Control+Shift+O");
     expect(container.querySelector(".windows-shell")).toHaveAttribute("data-appearance", "light");
     expect(container.querySelector(".windows-shell")).toHaveAttribute("data-reduced-motion", "true");
+  });
+
+  it("validates incomplete inputs independently of immediate settings", async () => {
+    const api = new TrackingSettingsBackend(false);
+    render(WindowsApp, { api });
+    await screen.findByText("No captures yet");
+    await fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    expect(api.updates).toHaveLength(0);
+    expect(screen.queryByRole("button", { name: "Save settings" })).toBeNull();
+    const limit = screen.getByLabelText("Daily limit");
+    const initial = (await api.getSettings()).dailyLimit;
+    await fireEvent.input(limit, { target: { value: "" } });
+    await fireEvent.blur(limit);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Enter a whole number");
+    await fireEvent.change(screen.getByLabelText("Theme"), { target: { value: "dark" } });
+    await waitFor(() => expect(api.updates.at(-1)?.appearance).toBe("dark"));
+    expect(api.updates.at(-1)?.dailyLimit).toBe(initial);
+    expect(limit).toHaveValue(null);
+    await fireEvent.input(limit, { target: { value: "7" } });
+    expect(api.updates.at(-1)?.dailyLimit).toBe(initial);
+    limit.focus();
+    await fireEvent.keyDown(limit, { key: "Enter" });
+    await waitFor(() => expect(api.updates.at(-1)?.dailyLimit).toBe(7));
+  });
+
+  it("queues rapid edits without overwriting unfinished input after navigation", async () => {
+    const api = new TrackingSettingsBackend(false);
+    const original = api.applyWindowsSettings.bind(api);
+    let release!: () => void;
+    let calls = 0;
+    api.applyWindowsSettings = async (settings) => {
+      calls++;
+      if (calls === 1) await new Promise<void>((resolve) => { release = resolve; });
+      return original(settings);
+    };
+    render(WindowsApp, { api });
+    await screen.findByText("No captures yet");
+    await fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    const limit = screen.getByLabelText("Daily limit");
+    await fireEvent.input(limit, { target: { value: "4" } });
+    await fireEvent.blur(limit);
+    await fireEvent.change(screen.getByLabelText("Theme"), { target: { value: "light" } });
+    await fireEvent.change(screen.getByLabelText("Theme"), { target: { value: "dark" } });
+    await fireEvent.input(limit, { target: { value: "8" } });
+    expect(calls).toBe(1);
+    await fireEvent.click(screen.getByRole("button", { name: "Today" }));
+    release();
+    await waitFor(() => expect(api.updates.at(-1)).toMatchObject({ dailyLimit: 4, appearance: "dark" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    expect(screen.getByLabelText("Daily limit")).toHaveValue(8);
+    expect(screen.getByLabelText("Theme")).toHaveValue("dark");
+    expect(calls).toBe(2);
+  });
+
+  it("retries failed changes and reads them back in a new window", async () => {
+    const api = new TrackingSettingsBackend(false);
+    const update = api.updateSettings.bind(api);
+    api.updateSettings = async () => { throw new Error("Disk unavailable"); };
+    const view = render(WindowsApp, { api });
+    await screen.findByText("No captures yet");
+    await fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    await fireEvent.change(screen.getByLabelText("Theme"), { target: { value: "dark" } });
+    expect(await screen.findByRole("alert")).toHaveTextContent("Disk unavailable");
+    api.updateSettings = update;
+    await fireEvent.click(screen.getByRole("button", { name: "Retry saving" }));
+    await waitFor(() => expect(screen.getByText("Settings saved")).toBeVisible());
+    view.unmount();
+    render(WindowsApp, { api });
+    await screen.findByText("No captures yet");
+    await fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    expect(screen.getByLabelText("Theme")).toHaveValue("dark");
   });
 
   it("offers automatic source detection but requires an explicit target", async () => {
@@ -581,9 +657,9 @@ describe("Windows main presentation", () => {
 
     await fireEvent.change(source, { target: { value: "auto" } });
     await fireEvent.change(target, { target: { value: "zh-Hant" } });
-    await fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
+    await waitFor(() => expect(screen.getByText("Settings saved")).toBeVisible());
 
-    expect(api.updates[0]).toMatchObject({ sourceLanguage: "auto", targetLanguage: "zh-Hant" });
+    expect(api.updates.at(-1)).toMatchObject({ sourceLanguage: "auto", targetLanguage: "zh-Hant" });
   });
 
   it("keeps saved visual preferences active when a settings save fails", async () => {
@@ -595,7 +671,7 @@ describe("Windows main presentation", () => {
     await fireEvent.click(screen.getByRole("button", { name: "Settings" }));
     await fireEvent.change(screen.getByLabelText("Theme"), { target: { value: "light" } });
     await fireEvent.click(screen.getByLabelText("Reduce motion"));
-    await fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
+
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not save settings");
     expect(container.querySelector(".windows-shell")).toHaveAttribute("data-appearance", "system");
@@ -609,11 +685,26 @@ describe("Windows main presentation", () => {
 
     await fireEvent.click(screen.getByRole("button", { name: "Settings" }));
     await fireEvent.change(screen.getByLabelText("Theme"), { target: { value: "light" } });
-    await fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
+    await fireEvent.input(screen.getByLabelText("Daily limit"), { target: { value: "4" } });
+    await fireEvent.blur(screen.getByLabelText("Daily limit"));
+    await waitFor(() => expect(screen.getByText("Settings saved")).toBeVisible());
 
-    expect(await screen.findByRole("status")).toHaveTextContent("Settings saved");
+    expect(await screen.findByText("Settings saved")).toBeVisible();
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not refresh Today");
     expect(container.querySelector(".windows-shell")).toHaveAttribute("data-appearance", "light");
+  });
+
+  it("reports a successful theme save despite retained system errors", async () => {
+    const api = new PartiallyFailingSystemSettingsBackend(false);
+    render(WindowsApp, { api });
+    await screen.findByText("No captures yet");
+    await fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    await fireEvent.change(screen.getByLabelText("Theme"), { target: { value: "dark" } });
+    expect(await screen.findByText("Settings saved")).toBeVisible();
+    expect(screen.queryByText("Some settings could not be applied")).toBeNull();
+    expect(screen.getByText("Shortcut unavailable")).toBeVisible();
+    expect(screen.getByText("Startup registration failed")).toBeVisible();
+    expect(screen.getByText("Notification schedule failed")).toBeVisible();
   });
 
   it("shows per-setting system failures while preserving unrelated saved values", async () => {
@@ -623,10 +714,11 @@ describe("Windows main presentation", () => {
 
     await fireEvent.click(screen.getByRole("button", { name: "Settings" }));
     await fireEvent.input(screen.getByLabelText("Review time"), { target: { value: "08:30" } });
+    await fireEvent.blur(screen.getByLabelText("Review time"));
     await fireEvent.input(screen.getByLabelText("Selection Capture shortcut"), { target: { value: "Control+Shift+W" } });
+    await fireEvent.blur(screen.getByLabelText("Selection Capture shortcut"));
     await fireEvent.click(screen.getByLabelText("Launch at login"));
-    await fireEvent.change(screen.getByLabelText("Theme"), { target: { value: "light" } });
-    await fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
+    await waitFor(() => expect(screen.getByText("Some settings could not be applied")).toBeVisible());
 
     expect(await screen.findByText("Shortcut unavailable")).toBeVisible();
     expect(screen.getByText("Startup registration failed")).toBeVisible();
@@ -634,8 +726,10 @@ describe("Windows main presentation", () => {
     expect(screen.getByLabelText("Review time")).toHaveValue("18:00");
     expect(screen.getByLabelText("Selection Capture shortcut")).toHaveValue("Alt+Shift+V");
     expect(screen.getByLabelText("Launch at login")).not.toBeChecked();
+    await fireEvent.change(screen.getByLabelText("Theme"), { target: { value: "light" } });
+    expect(await screen.findByText("Settings saved")).toBeVisible();
     expect(container.querySelector(".windows-shell")).toHaveAttribute("data-appearance", "light");
-    expect(screen.getByRole("status")).toHaveTextContent("Settings saved");
+    expect(screen.getByText("Shortcut unavailable")).toBeVisible();
   });
 
   it("selects the filtered Achieved list and runs batch Unachieve or confirmed deletion", async () => {

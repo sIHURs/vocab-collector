@@ -16,3 +16,4 @@ platform/macos/native/.build/
 .env.*
 !.env.example
 .env.local
+notes-todo.md

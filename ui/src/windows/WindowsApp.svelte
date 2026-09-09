@@ -90,8 +90,7 @@
   let appliedSettings: Settings | null = null;
   let settingsSaving = false;
   let settingsError = "";
-  let settingsSaved = false;
-  let settingsSavedTimer: ReturnType<typeof setTimeout> | undefined;
+  let pendingSettings: Partial<Settings> = {};
   let initialLoadComplete = false;
   let systemStatus: SystemSettingsStatus = {};
   let captureTrigger: HTMLElement | null = null;
@@ -103,6 +102,7 @@
 
   const savedToastId = crypto.randomUUID();
   const unachievedToastId = crypto.randomUUID();
+  const settingsToastId = crypto.randomUUID();
   const notificationHostId = crypto.randomUUID();
   $: if (savedCard) toast.custom(UndoNotification, {
     id: savedToastId, toasterId: notificationHostId, duration: Infinity, dismissible: false,
@@ -112,7 +112,7 @@
     id: unachievedToastId, toasterId: notificationHostId, duration: Infinity, dismissible: false,
     componentProps: { title: lastUnachievedIds.length + " Unachieved", description: "Returned to Mastered", label: "Vocabulary Unachieved", dismissLabel: "Dismiss Unachieve result", onundo: undoUnachieve, ondismiss: () => { lastUnachievedIds = []; } },
   }); else toast.dismiss(unachievedToastId);
-  onDestroy(() => { toast.dismiss(savedToastId); toast.dismiss(unachievedToastId); });
+  onDestroy(() => { toast.dismiss(savedToastId); toast.dismiss(unachievedToastId); toast.dismiss(settingsToastId); });
 
   $: if (appliedSettings) applyAppearance(appliedSettings);
   $: visibleWords = words.filter((word) => vocabularyView === "active" ? word.status !== "mastered" : word.status === "mastered");
@@ -140,8 +140,10 @@
       today = nextToday;
       words = nextWords;
       achievedWords = nextAchievedWords;
-      settingsDraft = { ...nextSettings };
-      appliedSettings = { ...nextSettings };
+      if (!settingsDraft) {
+        settingsDraft = { ...nextSettings };
+        appliedSettings = { ...nextSettings };
+      }
       globalInsight = nextGlobalInsight;
       if (api.getWindowsSettingsStatus) systemStatus = await api.getWindowsSettingsStatus();
       if (selectedDetail) selectedDetail = await api.getWord(selectedDetail.item.id);
@@ -431,42 +433,75 @@
   const attentionLabel = (wordId: string) =>
     reviewSessionCards.find((card) => card.wordId === wordId)?.displayForm ?? "Vocabulary Item";
 
+  function commitSettings(patch: Partial<Settings>) {
+    pendingSettings = { ...pendingSettings, ...patch };
+    void saveSettings();
+  }
+
   async function saveSettings() {
-    if (!settingsDraft || settingsSaving) return;
-    clearTimeout(settingsSavedTimer);
+    if (!settingsDraft || !appliedSettings || settingsSaving) return;
     settingsSaving = true;
     settingsError = "";
-    settingsSaved = false;
-    error = "";
-    const candidate = {
-      ...settingsDraft,
-      dailyLimit: Number(settingsDraft.dailyLimit),
-      recentCapturesLimit: Number(settingsDraft.recentCapturesLimit),
-    };
+    let refreshToday = false;
+    let savedChanges = false;
+    const failedChanges = new Set<keyof Settings>();
+    toast.dismiss(settingsToastId);
     try {
-      let persisted: Settings;
-      if (api.applyWindowsSettings) {
-        const result = await api.applyWindowsSettings(candidate);
-        persisted = result.settings;
-        systemStatus = {
-          selectionShortcutError: result.selectionShortcutError,
-          regionOcrShortcutError: result.regionOcrShortcutError,
-          autostartError: result.autostartError,
-          notificationError: result.notificationError,
-        };
-      } else {
-        await api.updateSettings(candidate);
-        persisted = await api.getSettings();
-        systemStatus = {};
+      while (Object.keys(pendingSettings).length) {
+        const patch = pendingSettings;
+        pendingSettings = {};
+        const before = appliedSettings;
+        const candidate = { ...before, ...patch };
+        if (JSON.stringify(candidate) === JSON.stringify(before)) continue;
+        try {
+          let persisted: Settings;
+          if (api.applyWindowsSettings) {
+            const result = await api.applyWindowsSettings(candidate);
+            persisted = result.settings;
+            systemStatus = {
+              selectionShortcutError: result.selectionShortcutError,
+              regionOcrShortcutError: result.regionOcrShortcutError,
+              autostartError: result.autostartError,
+              notificationError: result.notificationError,
+            };
+          } else {
+            await api.updateSettings(candidate);
+            persisted = await api.getSettings();
+            systemStatus = {};
+          }
+          // Runtime status includes historical errors. Judge this save by the
+          // requested system changes and the values the backend actually applied.
+          for (const key of ["selectionCaptureShortcut", "regionOcrCaptureShortcut", "launchAtLogin", "reviewTime"] as const) {
+            if (candidate[key] !== before[key]) {
+              if (persisted[key] !== candidate[key]) failedChanges.add(key);
+              else failedChanges.delete(key);
+            }
+          }
+          // Only reconcile submitted fields that have not been edited again.
+          for (const key of Object.keys(patch) as (keyof Settings)[]) {
+            if (!(key in pendingSettings) && settingsDraft[key] === candidate[key]) {
+              settingsDraft = { ...settingsDraft, [key]: persisted[key] };
+            }
+          }
+          appliedSettings = { ...persisted };
+          savedChanges = true;
+          refreshToday ||= before.dailyLimit !== persisted.dailyLimit || before.recentCapturesLimit !== persisted.recentCapturesLimit;
+        } catch (cause) {
+          pendingSettings = { ...patch, ...pendingSettings };
+          settingsError = cause instanceof Error ? cause.message : String(cause);
+          break;
+        }
       }
-      settingsDraft = { ...persisted };
-      appliedSettings = { ...persisted };
-      settingsSaved = true;
-      settingsSavedTimer = setTimeout(() => { settingsSaved = false; }, 1200);
+      if (!settingsError && savedChanges) {
+        const options = { id: settingsToastId, toasterId: notificationHostId, duration: 2000 };
+        if (failedChanges.size) toast.warning("Some settings could not be applied", options);
+        else toast.success("Settings saved", options);
+      }
+    } finally { settingsSaving = false; }
+    if (refreshToday) {
       try { today = await api.getToday(); }
       catch (cause) { error = cause instanceof Error ? cause.message : String(cause); }
-    } catch (cause) { settingsError = cause instanceof Error ? cause.message : String(cause); }
-    finally { settingsSaving = false; }
+    }
   }
 
   async function selectRoute(item: Route) {
@@ -496,7 +531,7 @@
     vocabularyPageInput = String(vocabularyPage);
   }
 
-  const encounterLabel = (count: number) => `${count} encounter${count === 1 ? "" : "s"}`;
+  const encounterLabel = (count: number) => `Saved ${count} time${count === 1 ? "" : "s"}`;
   onMount(() => {
     let mounted = true;
     let unlisten: (() => void) | undefined;
@@ -521,7 +556,7 @@
       logRequest += 1;
       clearInterval(dateTimer);
       window.removeEventListener("focus", refreshLogDate);
-      clearTimeout(settingsSavedTimer);
+
       unlisten?.();
       unlistenManualCapture?.();
     };
@@ -552,7 +587,7 @@
         {#if filteredWords.length}<nav class="pagination" aria-label="Vocabulary pages"><button class="secondary" disabled={vocabularyPage === 1} onclick={() => goToVocabularyPage(1)}>First</button><button class="secondary" disabled={vocabularyPage === 1} onclick={() => goToVocabularyPage(vocabularyPage - 1)}>Previous</button><form aria-label="Go to vocabulary page" onsubmit={(event) => { event.preventDefault(); goToVocabularyPage(vocabularyPageInput); }}><label><span>Page</span><input aria-label="Page number" type="number" min="1" max={vocabularyPageCount} bind:value={vocabularyPageInput} onblur={() => goToVocabularyPage(vocabularyPageInput)} /><span>of {vocabularyPageCount}</span></label></form><button class="secondary" disabled={vocabularyPage === vocabularyPageCount} onclick={() => goToVocabularyPage(vocabularyPage + 1)}>Next</button><button class="secondary" disabled={vocabularyPage === vocabularyPageCount} onclick={() => goToVocabularyPage(vocabularyPageCount)}>Last</button></nav>{/if}{/if}
       {:else if route === "Review"}
         {#if reviewOpen && activeReview}
-          <div class="review-card" aria-live="polite" bind:this={reviewCardElement}><div class="review-progress"><span>{reviewIndex + 1} of {today?.reviewQueue.length}</span><Button variant="ghost" size="icon" aria-label="Close review" disabled={reviewSubmitting} onclick={closeReview}>×</Button></div><Progress value={reviewIndex} max={today?.reviewQueue.length ?? 1} aria-label="Review progress" /><span class="eyebrow">Do you remember this word?</span><h2>{activeReview.displayForm}</h2><p>{activeReview.context ?? "No saved context"}</p>{#if reviewResult}<div class="review-translation" role="status"><small>{reviewResult.rating === "remembered" ? "Remembered" : "Forgot"}</small><strong>Next review {new Date(reviewResult.nextDueAt).toLocaleDateString()}</strong><span>{`Encountered ${reviewResult.encounterCount} time${reviewResult.encounterCount === 1 ? "" : "s"}`}</span>{#if reviewResult.repeatedForgetting}<p>This Vocabulary Item has been repeatedly forgotten. Another context or a translation check may help.</p>{/if}</div>{:else if reviewRevealed}<div class="review-translation" role="status"><small>Translation</small><strong>{activeReview.translation ?? "Unavailable"}</strong></div>{/if}{#if reviewError}<div class="dialog-error" role="alert">{reviewError}</div>{/if}<div class="review-actions">{#if reviewResult}{#if reviewResult.repeatedForgetting}<Button variant="outline" onclick={(event) => showDetail(activeReview.wordId, event.currentTarget)}>Review contexts</Button>{/if}<Button onclick={nextReview}>Next</Button>{:else if reviewRevealed}{#if reviewError && reviewSubmissionRating}<Button disabled={reviewSubmitting} onclick={retryReviewSubmission}>Retry {reviewSubmissionRating === "remembered" ? "Remembered" : "Forgot"}</Button>{:else}<Button variant="outline" disabled={reviewSubmitting} onclick={() => rateReview("forgot")}>Forgot</Button><Button disabled={reviewSubmitting} onclick={() => rateReview("remembered")}>Remembered</Button>{/if}{:else}<Button onclick={revealReview}>Show answer</Button>{/if}</div></div>
+          <div class="review-card" aria-live="polite" bind:this={reviewCardElement}><div class="review-progress"><span>{reviewIndex + 1} of {today?.reviewQueue.length}</span><Button variant="ghost" size="icon" aria-label="Close review" disabled={reviewSubmitting} onclick={closeReview}>×</Button></div><Progress value={reviewIndex} max={today?.reviewQueue.length ?? 1} aria-label="Review progress" /><span class="eyebrow">Do you remember this word?</span><h2>{activeReview.displayForm}</h2><p>{activeReview.context ?? "No saved context"}</p>{#if reviewResult}<div class="review-translation" role="status"><small>{reviewResult.rating === "remembered" ? "Remembered" : "Forgot"}</small><strong>Next review {new Date(reviewResult.nextDueAt).toLocaleDateString()}</strong><span>{`Saved ${reviewResult.encounterCount} time${reviewResult.encounterCount === 1 ? "" : "s"}`}</span>{#if reviewResult.repeatedForgetting}<p>This Vocabulary Item has been repeatedly forgotten. Another context or a translation check may help.</p>{/if}</div>{:else if reviewRevealed}<div class="review-translation" role="status"><small>Translation</small><strong>{activeReview.translation ?? "Unavailable"}</strong></div>{/if}{#if reviewError}<div class="dialog-error" role="alert">{reviewError}</div>{/if}<div class="review-actions">{#if reviewResult}{#if reviewResult.repeatedForgetting}<Button variant="outline" onclick={(event) => showDetail(activeReview.wordId, event.currentTarget)}>Review contexts</Button>{/if}<Button onclick={nextReview}>Next</Button>{:else if reviewRevealed}{#if reviewError && reviewSubmissionRating}<Button disabled={reviewSubmitting} onclick={retryReviewSubmission}>Retry {reviewSubmissionRating === "remembered" ? "Remembered" : "Forgot"}</Button>{:else}<Button variant="outline" disabled={reviewSubmitting} onclick={() => rateReview("forgot")}>Forgot</Button><Button disabled={reviewSubmitting} onclick={() => rateReview("remembered")}>Remembered</Button>{/if}{:else}<Button onclick={revealReview}>Show answer</Button>{/if}</div></div>
         {:else if reviewComplete && reviewSessionInsight}
           <div class="state" aria-live="polite"><h2 tabindex="-1" bind:this={reviewCompleteHeading}>Review complete</h2><strong>{reviewSessionInsight.reviewedCount} reviewed</strong><span>{reviewSessionInsight.rememberedCount} remembered · {reviewSessionInsight.forgottenCount} forgot</span><span>Estimated due by the end of tomorrow: {reviewSessionInsight.nextDayDueCount}</span>{#if reviewSessionInsight.attentionWordIds.length}<div><strong>Worth another context</strong>{#each reviewSessionInsight.attentionWordIds as wordId}<span>{attentionLabel(wordId)} may benefit from another context or a translation check.</span>{/each}</div>{/if}<Button onclick={returnToToday}>Back to Today</Button></div>
         {:else if reviewRefreshRequired}
@@ -565,14 +600,14 @@
       {:else if route === "Insights"}
         <InsightsPanel log={vocabularyLog} {logLoading} {logError} onlogretry={loadLog} insight={globalInsight} session={reviewSessionInsight} due={today?.totalDueCount ?? null} error={insightError} onretry={async () => { globalInsight = await loadInsight(); }} />
       {:else if settingsDraft}
-        <SettingsForm bind:settingsDraft {systemStatus} {settingsError} {settingsSaving} onsave={saveSettings} />
+        <SettingsForm bind:settingsDraft {systemStatus} {settingsError} {settingsSaving} oncommit={commitSettings} onretry={saveSettings} />
       {/if}
     </section>
   </main>
 </div>
-{#if settingsSaved}<div class="settings-success settings-toast" role="status">Settings saved</div>{/if}
 
-<Dialog.Root open={captureOpen} onOpenChange={(open) => { if (!open) closeCapture(); }}><Dialog.Content showCloseButton={false} class="manual-capture-content" onInteractOutside={(event) => event.preventDefault()} onOpenAutoFocus={(event) => { event.preventDefault(); captureFirstField?.focus(); }} onCloseAutoFocus={(event) => { event.preventDefault(); captureTrigger?.focus(); }} onkeydown={trapDialogFocus} bind:ref={captureDialog}><form onsubmit={(event) => { event.preventDefault(); achievedCaptureConflict ? restoreCapturedWordToLearning() : saveCapture(); }}><div class="dialog-heading"><div><span class="eyebrow">Manual Capture</span><Dialog.Title>Save a reading context</Dialog.Title></div></div>{#if achievedCaptureConflict}<div class="achieved-capture-notice" role="status"><span>Achieved</span><p>This Vocabulary Item has been Achieved. Return it to Learning and save this Encounter?</p></div>{/if}{#if captureError}<div class="dialog-error" role="alert">{captureError}</div>{/if}<Field.FieldGroup><Field.Field><label>Word or phrase<Input bind:ref={captureFirstField} bind:value={captureInput.selectedText} /></label></Field.Field><Field.Field><label>Translation <small>Optional</small><Input bind:value={captureInput.translation} /></label></Field.Field><Field.Field><label>Context<Textarea bind:value={captureInput.sentence}></Textarea></label></Field.Field></Field.FieldGroup><div class="actions"><Button variant="outline" onclick={closeCapture}>Cancel</Button><Button type="submit" disabled={saving || !captureInput.selectedText.trim() || !captureInput.sentence.trim()}>{saving ? "Saving..." : achievedCaptureConflict ? "Return to Learning" : "Save capture"}</Button></div></form></Dialog.Content></Dialog.Root>
+
+<Dialog.Root open={captureOpen} onOpenChange={(open) => { if (!open) closeCapture(); }}><Dialog.Content showCloseButton={false} class="manual-capture-content" onInteractOutside={(event) => event.preventDefault()} onOpenAutoFocus={(event) => { event.preventDefault(); captureFirstField?.focus(); }} onCloseAutoFocus={(event) => { event.preventDefault(); captureTrigger?.focus(); }} onkeydown={trapDialogFocus} bind:ref={captureDialog}><form onsubmit={(event) => { event.preventDefault(); achievedCaptureConflict ? restoreCapturedWordToLearning() : saveCapture(); }}><div class="dialog-heading"><div><span class="eyebrow">Manual Capture</span><Dialog.Title>Save a reading context</Dialog.Title></div></div>{#if achievedCaptureConflict}<div class="achieved-capture-notice" role="status"><span>Achieved</span><p>This Vocabulary Item has been Achieved. Return it to Learning and save this context?</p></div>{/if}{#if captureError}<div class="dialog-error" role="alert">{captureError}</div>{/if}<Field.FieldGroup><Field.Field><label>Word or phrase<Input bind:ref={captureFirstField} bind:value={captureInput.selectedText} /></label></Field.Field><Field.Field><label>Translation <small>Optional</small><Input bind:value={captureInput.translation} /></label></Field.Field><Field.Field><label>Context<Textarea bind:value={captureInput.sentence}></Textarea></label></Field.Field></Field.FieldGroup><div class="actions"><Button variant="outline" onclick={closeCapture}>Cancel</Button><Button type="submit" disabled={saving || !captureInput.selectedText.trim() || !captureInput.sentence.trim()}>{saving ? "Saving..." : achievedCaptureConflict ? "Return to Learning" : "Save capture"}</Button></div></form></Dialog.Content></Dialog.Root>
 
 <Toaster id={notificationHostId} position="bottom-right" />
 
@@ -607,8 +642,6 @@
   .dialog-error { padding: 9px 10px; border: 1px solid var(--destructive); border-radius: 6px; color: var(--destructive); background: var(--card); font-size:0.75rem; }
   .achieved-capture-notice { padding: 10px; border: 1px solid var(--warning); border-radius: 6px; background: rgba(196, 145, 46, .1); }.achieved-capture-notice span { display: inline-block; padding: 2px 7px; border-radius: 999px; color: var(--warning); background: var(--card); font-size:0.625rem; font-weight: 700; text-transform: uppercase; }.achieved-capture-notice p { margin: 7px 0 0; color: var(--text); font-size:0.75rem; }
 
-  .settings-toast { position:fixed; top:18px; left:50%; transform:translateX(-50%); color:var(--success); background:var(--card); border:1px solid var(--success); border-radius:10px; padding:10px 16px; }
-  @keyframes settings-toast-out { to { opacity: 0; transform: translate(-50%, -6px); } }
 
   .windows-presentation[data-reduced-motion="true"], .windows-presentation[data-reduced-motion="true"] * { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
   .review-card { width:100%; max-width: 620px; margin: 24px auto; padding: 28px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }.review-progress { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; color: var(--muted-foreground); font-size:0.6875rem; }.review-card h2 { overflow-wrap:anywhere; margin: 10px 0; font-size:2.25rem; }.review-card > p { font-size:1.125rem; overflow-wrap:anywhere; color: var(--muted-foreground); line-height: 1.6; }.review-translation { display: grid; gap: 5px; margin: 22px 0; padding: 14px; border-radius: 7px; background: var(--muted); }.review-translation small { color: var(--muted-foreground); }.review-translation strong { color: var(--foreground); font-size:1rem; }.review-actions { display: flex; flex-wrap:wrap; justify-content:flex-end; gap: 10px; margin-top: 18px; }

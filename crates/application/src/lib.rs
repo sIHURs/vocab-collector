@@ -170,7 +170,7 @@ impl AppService {
     pub fn get_today(&self, now: DateTime<Utc>) -> Result<TodayView, ApplicationError> {
         let mut settings = SettingsRepository::get(self.store.as_ref())?;
         settings.normalize_languages();
-        let words = self.store.list()?;
+        let words = self.words_with_captures()?;
         let due = build_review_queue(words.iter(), now, usize::MAX);
         let total_due_count = due.len();
         let planned = due
@@ -194,11 +194,9 @@ impl AppService {
                 })
             })
             .collect::<Result<Vec<_>, RepositoryError>>()?;
-        let recent_captures = self
-            .list_words()?
-            .into_iter()
-            .take(settings.recent_captures_limit)
-            .collect();
+        let mut recent_captures = self.list_words()?;
+        recent_captures.sort_by_key(|word| std::cmp::Reverse(word.last_seen_at));
+        recent_captures.truncate(settings.recent_captures_limit);
         let planned_review_count = review_queue.len();
         Ok(TodayView {
             total_due_count,
@@ -211,9 +209,18 @@ impl AppService {
         })
     }
 
+    fn words_with_captures(&self) -> Result<Vec<vocab_domain::Word>, ApplicationError> {
+        let mut words = Vec::new();
+        for word in self.store.list()? {
+            if !self.store.list_for_word(word.id)?.is_empty() {
+                words.push(word);
+            }
+        }
+        Ok(words)
+    }
+
     pub fn list_words(&self) -> Result<Vec<WordListItem>, ApplicationError> {
-        self.store
-            .list()?
+        self.words_with_captures()?
             .into_iter()
             .filter(|word| !word.is_achieved())
             .map(|word| {
@@ -258,9 +265,7 @@ impl AppService {
         &self,
         now: DateTime<Utc>,
     ) -> Result<Vec<AchievedWordListItem>, ApplicationError> {
-        let mut items = self
-            .store
-            .list()?
+        let mut items = self.words_with_captures()?
             .into_iter()
             .filter(|word| word.is_achieved())
             .map(|word| self.achieved_list_item(word, now))
@@ -478,7 +483,7 @@ impl AppService {
         submission_ids: &[Uuid],
         next_day_end: DateTime<Utc>,
     ) -> Result<ReviewSessionInsight, ApplicationError> {
-        let words = self.store.list()?;
+        let words = self.words_with_captures()?;
         let requested: HashSet<_> = submission_ids.iter().copied().collect();
         let mut results = Vec::new();
         let mut seen = HashSet::new();
