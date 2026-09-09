@@ -1,5 +1,5 @@
 use chrono::Utc;
-use tauri::State;
+use tauri::{AppHandle, Emitter, State};
 use uuid::Uuid;
 use vocab_application::CaptureRequest;
 use vocab_domain::{
@@ -178,9 +178,15 @@ pub fn get_settings(state: State<'_, AppState>) -> Result<UserSettings, String> 
 }
 
 #[tauri::command]
-pub fn update_settings(state: State<'_, AppState>, settings: UserSettings) -> Result<(), String> {
+pub fn update_settings(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    settings: UserSettings,
+) -> Result<(), String> {
     state
         .application()
         .update_settings(settings)
-        .map_err(|error| error.to_string())
+        .map_err(|error| error.to_string())?;
+    let _ = app.emit("settings-changed", ());
+    Ok(())
 }

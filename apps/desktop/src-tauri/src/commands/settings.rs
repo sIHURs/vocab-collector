@@ -1,4 +1,4 @@
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Emitter, State};
 use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
 use vocab_domain::UserSettings;
@@ -6,8 +6,8 @@ use vocab_domain::UserSettings;
 use crate::{
     bootstrap::AppState,
     system_settings::{
-        ReviewScheduler, SettingsApplyResult, SettingsEffects, SystemSettingsRuntime,
-        SystemSettingsStatus, apply_settings_transaction, merge_attempted_status,
+        apply_settings_transaction, merge_attempted_status, ReviewScheduler, SettingsApplyResult,
+        SettingsEffects, SystemSettingsRuntime, SystemSettingsStatus,
     },
 };
 
@@ -97,6 +97,7 @@ pub fn apply_windows_settings(
         autostart_error: result.autostart_error.clone(),
         notification_error: result.notification_error.clone(),
     });
+    let _ = app.emit("settings-changed", ());
     Ok(result)
 }
 

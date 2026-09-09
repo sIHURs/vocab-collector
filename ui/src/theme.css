@@ -1,0 +1,150 @@
+/* Paper's approved semantic roles. The UI components consume these aliases. */
+@layer base { * { border-color:var(--border); } }
+@custom-variant dark {
+  &:where(:root[data-appearance=dark], :root[data-appearance=dark] *) { @slot; }
+  @media(prefers-color-scheme:dark) {
+    &:where(:root:not([data-appearance=light]):not([data-appearance=dark]), :root:not([data-appearance=light]):not([data-appearance=dark]) *) { @slot; }
+  }
+}
+@theme inline {
+--color-background:var(--background);
+--color-foreground:var(--foreground);
+--color-card:var(--card);
+--color-card-foreground:var(--card-foreground);
+--color-popover:var(--popover);
+--color-popover-foreground:var(--popover-foreground);
+--color-primary:var(--primary);
+--color-primary-foreground:var(--primary-foreground);
+--color-secondary:var(--secondary);
+--color-secondary-foreground:var(--secondary-foreground);
+--color-muted:var(--muted);
+--color-muted-foreground:var(--muted-foreground);
+--color-accent:var(--accent);
+--color-accent-foreground:var(--accent-foreground);
+--color-destructive:var(--destructive);
+--color-destructive-foreground:var(--destructive-foreground);
+--color-border:var(--border);
+--color-input:var(--input);
+--color-ring:var(--ring);
+--color-success:var(--success);
+--color-success-foreground:var(--success-foreground);
+--color-warning:var(--warning);
+--color-warning-foreground:var(--warning-foreground);
+--color-sidebar:var(--sidebar);
+--color-sidebar-foreground:var(--sidebar-foreground);
+--color-sidebar-accent:var(--sidebar-accent);
+--color-sidebar-accent-foreground:var(--sidebar-accent-foreground);
+--font-sans:Inter, "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+--text-sm:0.875rem;
+--text-base:0.875rem;
+--text-xs:0.75rem;
+--radius-sm:6px; --radius-md:10px; --radius-lg:14px;
+}
+:root { --background:#FFFFFF;
+--foreground:#171717;
+--card:#F7F7F7;
+--card-foreground:#171717;
+--popover:#FFFFFF;
+--popover-foreground:#171717;
+--primary:#262626;
+--primary-foreground:#FAFAFA;
+--secondary:#F0F0F0;
+--secondary-foreground:#262626;
+--muted:#F5F5F5;
+--muted-foreground:#666666;
+--accent:#E8EFF3;
+--accent-foreground:#3D5C70;
+--destructive:#B64949;
+--destructive-foreground:#FFFFFF;
+--border:#E3E3E3;
+--input:#898989;
+--ring:#4F7085;
+--success:#38664B;
+--success-foreground:#FFFFFF;
+--warning:#80591E;
+--warning-foreground:#FFFFFF;
+--sidebar:#F7F7F7;
+--sidebar-foreground:#262626;
+--sidebar-accent:#E8EFF3;
+--sidebar-accent-foreground:#3D5C70;
+--font-sans:Inter, "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+--radius:10px; --radius-sm:6px; --radius-md:10px; --radius-lg:14px;
+--shadow-floating:0 4px 12px #00000022; --shadow-dialog:0 20px 64px #00000030;
+--space-1:4px;
+--space-2:8px;
+--space-3:12px;
+--space-4:16px;
+--space-5:20px;
+--space-6:24px;
+--space-7:28px;
+--space-8:32px;
+color-scheme:light;
+}
+:root[data-appearance=dark] { --background:#171717;
+--foreground:#FAFAFA;
+--card:#202020;
+--card-foreground:#FAFAFA;
+--popover:#171717;
+--popover-foreground:#FAFAFA;
+--primary:#E5E5E5;
+--primary-foreground:#171717;
+--secondary:#303030;
+--secondary-foreground:#FAFAFA;
+--muted:#262626;
+--muted-foreground:#A1A1A1;
+--accent:#27343D;
+--accent-foreground:#B9D0DE;
+--destructive:#E89696;
+--destructive-foreground:#171717;
+--border:#363636;
+--input:#777777;
+--ring:#87A8BB;
+--success:#9BC4AA;
+--success-foreground:#171717;
+--warning:#D9B878;
+--warning-foreground:#171717;
+--sidebar:#171717;
+--sidebar-foreground:#E5E5E5;
+--sidebar-accent:#27343D;
+--sidebar-accent-foreground:#D4E3EC; color-scheme:dark; }
+@media(prefers-color-scheme:dark) { :root:where(:not([data-appearance=light]):not([data-appearance=dark])) { --background:#171717;
+--foreground:#FAFAFA;
+--card:#202020;
+--card-foreground:#FAFAFA;
+--popover:#171717;
+--popover-foreground:#FAFAFA;
+--primary:#E5E5E5;
+--primary-foreground:#171717;
+--secondary:#303030;
+--secondary-foreground:#FAFAFA;
+--muted:#262626;
+--muted-foreground:#A1A1A1;
+--accent:#27343D;
+--accent-foreground:#B9D0DE;
+--destructive:#E89696;
+--destructive-foreground:#171717;
+--border:#363636;
+--input:#777777;
+--ring:#87A8BB;
+--success:#9BC4AA;
+--success-foreground:#171717;
+--warning:#D9B878;
+--warning-foreground:#171717;
+--sidebar:#171717;
+--sidebar-foreground:#E5E5E5;
+--sidebar-accent:#27343D;
+--sidebar-accent-foreground:#D4E3EC; color-scheme:dark; } }
+:root {
+--bg:var(--background); --page:var(--background); --surface:var(--card);
+--surface-raised:var(--secondary); --field:var(--card); --text:var(--foreground);
+--line:var(--border); --panel:var(--card); --panel-raised:var(--secondary); --accent-soft:var(--accent);
+font-family:var(--font-sans); color:var(--foreground); background:var(--background);
+}
+button, input, textarea, select { font:inherit; }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible { outline:2px solid var(--ring); outline-offset:2px; }
+[data-slot=button] { line-height:1.45; border-radius:var(--radius-md); }
+[data-slot=input], [data-slot=native-select] { background:var(--card); border-radius:var(--radius-md); }
+:root[data-window=ocr-overlay], :root[data-window=ocr-overlay] body, :root[data-window=ocr-overlay] #app { min-width:0; min-height:0; background:transparent; }
+@media(prefers-reduced-motion:reduce) { *, *::before, *::after { animation-duration:0.01ms!important; transition-duration:0.01ms!important; scroll-behavior:auto!important; } }
+:root[data-reduced-motion=true] *, :root[data-reduced-motion=true] *::before, :root[data-reduced-motion=true] *::after { animation-duration:0.01ms!important; transition-duration:0.01ms!important; scroll-behavior:auto!important; }
+@media(forced-colors:active) { :root, :root[data-appearance] { --background:Canvas; --foreground:CanvasText; --card:Canvas; --card-foreground:CanvasText; --popover:Canvas; --popover-foreground:CanvasText; --primary:ButtonText; --primary-foreground:ButtonFace; --secondary:Canvas; --secondary-foreground:CanvasText; --muted:Canvas; --muted-foreground:CanvasText; --accent:Highlight; --accent-foreground:HighlightText; --border:CanvasText; --input:ButtonText; --ring:Highlight; --destructive:CanvasText; --success:CanvasText; --warning:CanvasText; --sidebar:Canvas; } button { border:1px solid ButtonText; } }

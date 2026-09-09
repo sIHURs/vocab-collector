@@ -1,5 +1,7 @@
 {
   "compilerOptions": {
+    "baseUrl": ".",
+    "paths": { "$lib": ["./src/lib"], "$lib/*": ["./src/lib/*"] },
     "target": "ES2022",
     "useDefineForClassFields": true,
     "module": "ESNext",

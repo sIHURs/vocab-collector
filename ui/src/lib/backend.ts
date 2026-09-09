@@ -28,6 +28,7 @@ export interface Backend {
   applyWindowsSettings?(settings: Settings): Promise<SettingsApplyResult>;
   getWindowsSettingsStatus?(): Promise<SystemSettingsStatus>;
   listenLibraryChanged?(handler: () => void): Promise<() => void>;
+  listenSettingsChanged?(handler: () => void): Promise<() => void>;
   listenOpenManualCapture?(handler: () => void): Promise<() => void>;
   getPlatformCapabilities(): Promise<PlatformCapabilities>;
 }
@@ -301,6 +302,7 @@ class TauriBackend implements Backend {
   listenLibraryChanged(handler: () => void) {
     return listen("library-changed", handler);
   }
+  listenSettingsChanged(handler: () => void) { return listen("settings-changed", handler); }
   listenOpenManualCapture(handler: () => void) {
     return listen("open-manual-capture", handler);
   }

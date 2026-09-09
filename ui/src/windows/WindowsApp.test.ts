@@ -93,13 +93,124 @@ async function revealAndRate(rating: "Forgot" | "Remembered") {
 }
 
 describe("Windows main presentation", () => {
+  it("keeps Manual Capture drafts after save and Achieved-restore failures", async () => {
+    const api = new DemoBackend(false);
+    api.capture = vi.fn().mockRejectedValue(new Error("Save failed"));
+    render(WindowsApp, { api });
+    await screen.findByText("No captures yet");
+    await saveManualCapture("draft", "Keep this complete context.");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Save failed");
+    expect(screen.getByLabelText("Word or phrase")).toHaveValue("draft");
+    expect(screen.getByLabelText("Context")).toHaveValue("Keep this complete context.");
+    api.findAchievedCapture = async () => ({ wordId: "draft", displayForm: "draft", achievedAt: "2026-09-01T00:00:00Z", deleteAfter: "2026-10-01T00:00:00Z" });
+    api.restoreAchievedAndCapture = vi.fn().mockRejectedValue(new Error("Return failed"));
+    await fireEvent.click(screen.getByRole("button", { name: "Save capture" }));
+    await fireEvent.click(await screen.findByRole("button", { name: "Return to Learning" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Return failed");
+    expect(screen.getByLabelText("Context")).toHaveValue("Keep this complete context.");
+  });
+
+  it("keeps native Achieve confirmation and shows the resulting Achieved list", async () => {
+    const api = new DemoBackend(true);
+    const words = (await api.listWords()).map(word => ({ ...word, status: "mastered" as const }));
+    api.listWords = async () => words;
+    api.achieveWord = vi.fn().mockResolvedValue(undefined);
+    const confirmation = vi.spyOn(window, "confirm").mockReturnValueOnce(false).mockReturnValueOnce(true);
+    render(WindowsApp, { api });
+    await screen.findByText("serendipity");
+    await fireEvent.click(screen.getByRole("button", { name: "Vocabulary" }));
+    await fireEvent.click(screen.getByRole("tab", { name: "Mastered" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Achieve serendipity" }));
+    expect(api.achieveWord).not.toHaveBeenCalled();
+    expect(confirmation).toHaveBeenLastCalledWith(expect.stringMatching(/^Achieve serendipity\? It will be permanently deleted on .+\.$/));
+    await fireEvent.click(screen.getByRole("button", { name: "Achieve serendipity" }));
+    await screen.findByText("No Achieved vocabulary");
+    expect(api.achieveWord).toHaveBeenCalledWith(words.find(word => word.displayForm === "serendipity")!.id);
+    expect(screen.getByRole("tab", { name: "Achieved (0)" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("keeps cross-filter Achieved selections and makes failed bulk actions retryable", async () => {
+    const api = new DemoBackend(false);
+    const items = ["one", "two"].map((id) => ({ id, lemma: `lemma-${id}`, displayForm: id, translation: "中文 · Beständigkeit", encounterCount: 1, achievedAt: "2026-09-01T00:00:00Z", deleteAfter: "2026-10-01T00:00:00Z", remainingDays: 20, urgency: "normal" as const }));
+    let achieved = [...items];
+    api.listAchievedWords = async () => achieved;
+    const unachieve = vi.fn().mockRejectedValueOnce(new Error("Unachieve failed")).mockImplementation(async (ids: string[]) => { achieved = achieved.filter(item => !ids.includes(item.id)); return ids.length; });
+    const achieve = vi.fn().mockRejectedValueOnce(new Error("Undo failed")).mockImplementation(async (id: string) => { achieved.push(items.find(item => item.id === id)!); });
+    api.unachieveWords = unachieve;
+    api.achieveWord = achieve;
+    render(WindowsApp, { api });
+    await screen.findByText("No captures yet");
+    await fireEvent.click(screen.getByRole("button", { name: "Vocabulary" }));
+    await fireEvent.click(screen.getByRole("tab", { name: "Achieved (2)" }));
+    await fireEvent.input(screen.getByLabelText("Search vocabulary"), { target: { value: "LEMMA-one " } });
+    await fireEvent.click(screen.getByLabelText("Select all filtered Achieved vocabulary"));
+    await fireEvent.input(screen.getByLabelText("Search vocabulary"), { target: { value: "two" } });
+    await fireEvent.click(screen.getByLabelText("Select all filtered Achieved vocabulary"));
+    expect(screen.getByText("2 selected")).toBeVisible();
+    await fireEvent.click(screen.getByRole("button", { name: "Unachieve" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Unachieve failed");
+    expect(screen.getByText("2 selected")).toBeVisible();
+    await fireEvent.click(screen.getByRole("button", { name: "Unachieve" }));
+    expect(unachieve).toHaveBeenLastCalledWith(["one", "two"]);
+    const result = await screen.findByRole("dialog", { name: "Vocabulary Unachieved" });
+    await fireEvent.click(within(result).getByRole("button", { name: "Undo" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Undo failed");
+    expect(result).toBeVisible();
+    await fireEvent.click(within(result).getByRole("button", { name: "Undo" }));
+    await screen.findByRole("tab", { name: "Achieved (2)" });
+    expect(achieve.mock.calls.slice(-2)).toEqual([["one"], ["two"]]);
+  });
+
+  it("keeps a saved Capture's Undo available after a failed undo", async () => {
+    const api = new DemoBackend(false);
+    const undo = api.undoCapture.bind(api);
+    api.undoCapture = vi.fn().mockRejectedValueOnce(new Error("Undo capture failed")).mockImplementation(undo);
+    render(WindowsApp, { api });
+    await screen.findByText("No captures yet");
+    await saveManualCapture("context", "Context remains available.");
+    const saved = await screen.findByRole("dialog", { name: "Capture saved" });
+    await fireEvent.click(within(saved).getByRole("button", { name: "Undo" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Undo capture failed");
+    expect(saved).toBeVisible();
+    await fireEvent.click(within(saved).getByRole("button", { name: "Undo" }));
+    await screen.findByRole("button", { name: "context, 0 encounters" });
+    expect(api.undoCapture).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the page available when the Encounter detail request fails", async () => {
+    const api = new DemoBackend(true);
+    api.getWord = vi.fn().mockRejectedValue(new Error("Detail unavailable"));
+    render(WindowsApp, { api });
+    await screen.findByText("serendipity");
+    await fireEvent.click(screen.getByRole("button", { name: "Vocabulary" }));
+    await fireEvent.click(screen.getByRole("button", { name: "serendipity, 1 encounter" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Detail unavailable");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByRole("table", { name: "Vocabulary" })).toBeVisible();
+  });
+
+  it("opens Encounter details from a semantic Vocabulary table and restores keyboard focus", async () => {
+    render(WindowsApp, { api: new DemoBackend(true) });
+    await screen.findByText("serendipity");
+    await fireEvent.click(screen.getByRole("button", { name: "Vocabulary" }));
+    const table = screen.getByRole("table", { name: "Vocabulary" });
+    expect(within(table).getByRole("columnheader", { name: "Translation" })).toBeVisible();
+    const word = within(table).getByRole("button", { name: "serendipity, 1 encounter" });
+    await fireEvent.click(word);
+    const close = await screen.findByRole("button", { name: "Close vocabulary detail" });
+    expect(close).toHaveFocus();
+    await fireEvent.keyDown(close, { key: "Tab", shiftKey: true });
+    expect(close).toHaveFocus();
+    await fireEvent.keyDown(window, { key: "Escape" });
+    expect(word).toHaveFocus();
+  });
   it("provides Windows navigation without the static Progress view", async () => {
     render(WindowsApp, { api: new DemoBackend(false) });
 
     expect(await screen.findByRole("heading", { level: 1, name: "Today" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Today" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Vocabulary" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Review" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Insights" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Settings" })).toBeVisible();
     expect(screen.queryByText("Progress")).toBeNull();
   });
@@ -119,7 +230,8 @@ describe("Windows main presentation", () => {
   it("keeps keyboard focus inside Manual Capture", async () => {
     render(WindowsApp, { api: new DemoBackend(false) });
     await fireEvent.click((await screen.findAllByRole("button", { name: "Manual capture" }))[0]);
-    const close = screen.getByRole("button", { name: "Close manual capture" });
+    expect(screen.queryByRole("button", { name: "Close manual capture" })).toBeNull();
+    const close = screen.getByLabelText("Word or phrase");
     close.focus();
 
     await fireEvent.keyDown(close, { key: "Tab", shiftKey: true });
@@ -248,7 +360,7 @@ describe("Windows main presentation", () => {
     expect(api.ratings.map(({ rating }) => rating)).toEqual(["forgot", "remembered", "remembered"]);
 
     await fireEvent.click(screen.getByRole("button", { name: "Today" }));
-    expect(await screen.findByText("Review queue is clear")).toBeVisible();
+    expect(await screen.findByText("Nothing due")).toBeVisible();
   });
 
   it("requires revealing the answer before a Review can be rated", async () => {
@@ -286,7 +398,7 @@ describe("Windows main presentation", () => {
     render(WindowsApp, { api: new DemoBackend(false) });
     await screen.findByText("No captures yet");
 
-    await fireEvent.click(screen.getByRole("button", { name: "Review" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Today" }));
     expect(screen.getByText("Nothing due")).toBeVisible();
   });
 
@@ -541,7 +653,7 @@ describe("Windows main presentation", () => {
     await screen.findByText("No captures yet");
 
     await fireEvent.click(screen.getByRole("button", { name: "Vocabulary" }));
-    await fireEvent.click(screen.getByRole("button", { name: "Achieved (2)" }));
+    await fireEvent.click(screen.getByRole("tab", { name: "Achieved (2)" }));
     await fireEvent.input(screen.getByLabelText("Search vocabulary"), { target: { value: "achieve" } });
     await fireEvent.click(screen.getByLabelText("Select all filtered Achieved vocabulary"));
     expect(screen.getByText("1 selected")).toBeVisible();
@@ -571,7 +683,7 @@ describe("Windows main presentation", () => {
     expect(await screen.findByRole("dialog", { name: "Capture saved" })).toBeVisible();
   });
 
-  it("shows archived-aware lifetime Insight on Review", async () => {
+  it("shows archived-aware lifetime Insight on Insights", async () => {
     const api = new DemoBackend(false);
     api.getGlobalInsight = async () => ({
       currentVocabularyCount: 12, currentAchievedCount: 3,
@@ -581,7 +693,7 @@ describe("Windows main presentation", () => {
     });
     render(WindowsApp, { api });
     await screen.findByText("No captures yet");
-    await fireEvent.click(screen.getByRole("button", { name: "Review" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Insights" }));
 
     const insight = screen.getByRole("region", { name: "All-time progress" });
     expect(within(insight).getByText("35")).toBeVisible();
@@ -596,7 +708,7 @@ describe("Windows main presentation", () => {
     render(WindowsApp, { api });
     await screen.findByText("No captures yet");
     await fireEvent.click(screen.getByRole("button", { name: "Vocabulary" }));
-    await fireEvent.click(screen.getByRole("button", { name: "Achieved (1)" }));
+    await fireEvent.click(screen.getByRole("tab", { name: "Achieved (1)" }));
 
     expect(screen.getByText(`Achieved ${new Date(achievedAt).toLocaleDateString()}`)).toBeVisible();
   });

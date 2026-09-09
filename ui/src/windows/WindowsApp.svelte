@@ -1,12 +1,31 @@
 <script lang="ts">
-  import { onMount, tick } from "svelte";
+  import { onMount, onDestroy, tick } from "svelte";
   import { createBackend, type Backend } from "../lib/backend";
   import type { AchievedCaptureConflict, AchievedWordListItem, CaptureCard, GlobalInsight, ReviewCard, ReviewRating, ReviewResult, ReviewSessionInsight, Settings, SystemSettingsStatus, TodayView, WordDetail, WordListItem } from "../lib/types";
+  import { Button } from '$lib/components/ui/button';
+  import { Input } from '$lib/components/ui/input';
+  import { Textarea } from '$lib/components/ui/textarea';
+  import * as Dialog from '$lib/components/ui/dialog';
+  import * as Field from '$lib/components/ui/field';
+  import * as Tabs from '$lib/components/ui/tabs';
+  import { toast } from 'svelte-sonner';
+  import { Toaster } from '$lib/components/ui/sonner';
+  import UndoNotification from '../components/UndoNotification.svelte';
+  import Plus from '@lucide/svelte/icons/plus';
+  import SettingsForm from '../components/SettingsForm.svelte';
+  import VocabularyTable from '../components/VocabularyTable.svelte';
+  import VocabularyDetail from '../components/VocabularyDetail.svelte';
+  import { applyAppearance } from '../lib/appearance';
+  import CalendarDays from '@lucide/svelte/icons/calendar-days';
+  import BookOpen from '@lucide/svelte/icons/book-open';
+  import ChartNoAxesColumn from '@lucide/svelte/icons/chart-no-axes-column';
+  import SettingsIcon from '@lucide/svelte/icons/settings';
+  import Monitor from '@lucide/svelte/icons/monitor';
   import WindowsWordRow from "./WindowsWordRow.svelte";
 
-  type Route = "Today" | "Vocabulary" | "Review" | "Settings";
+  type Route = "Today" | "Vocabulary" | "Review" | "Insights" | "Settings";
   export let api: Backend = createBackend();
-  const navigation: Route[] = ["Today", "Vocabulary", "Review", "Settings"];
+  const navigation = [{ title: "Today", icon: CalendarDays }, { title: "Vocabulary", icon: BookOpen }, { title: "Insights", icon: ChartNoAxesColumn }, { title: "Settings", icon: SettingsIcon }] as const;
   let route: Route = "Today";
   let today: TodayView | null = null;
   let words: WordListItem[] = [];
@@ -53,13 +72,26 @@
   let initialLoadComplete = false;
   let systemStatus: SystemSettingsStatus = {};
   let captureTrigger: HTMLElement | null = null;
-  let captureFirstField: HTMLInputElement;
-  let captureDialog: HTMLElement;
+  let captureFirstField: HTMLInputElement | null = null;
+  let captureDialog: HTMLDivElement | null = null;
   let detailTrigger: HTMLElement | null = null;
-  let detailCloseButton: HTMLButtonElement;
   let reviewCardElement: HTMLElement;
   let reviewCompleteHeading: HTMLHeadingElement;
 
+  const savedToastId = crypto.randomUUID();
+  const unachievedToastId = crypto.randomUUID();
+  const notificationHostId = crypto.randomUUID();
+  $: if (savedCard) toast.custom(UndoNotification, {
+    id: savedToastId, toasterId: notificationHostId, duration: Infinity, dismissible: false,
+    componentProps: { title: savedCard.displayForm, description: encounterLabel(savedCard.encounterCount), label: "Capture saved", dismissLabel: "Dismiss saved capture", onundo: undoSaved, ondismiss: () => { savedCard = null; } },
+  }); else toast.dismiss(savedToastId);
+  $: if (lastUnachievedIds.length) toast.custom(UndoNotification, {
+    id: unachievedToastId, toasterId: notificationHostId, duration: Infinity, dismissible: false,
+    componentProps: { title: lastUnachievedIds.length + " Unachieved", description: "Returned to Mastered", label: "Vocabulary Unachieved", dismissLabel: "Dismiss Unachieve result", onundo: undoUnachieve, ondismiss: () => { lastUnachievedIds = []; } },
+  }); else toast.dismiss(unachievedToastId);
+  onDestroy(() => { toast.dismiss(savedToastId); toast.dismiss(unachievedToastId); });
+
+  $: if (appliedSettings) applyAppearance(appliedSettings);
   $: visibleWords = words.filter((word) => vocabularyView === "active" ? word.status !== "mastered" : word.status === "mastered");
   $: filteredWords = visibleWords.filter((word) => `${word.displayForm} ${word.translation ?? ""}`.toLowerCase().includes(search.trim().toLowerCase()));
   $: filteredAchievedWords = achievedWords.filter((word) => `${word.displayForm} ${word.lemma} ${word.translation ?? ""}`.toLowerCase().includes(search.trim().toLowerCase()));
@@ -106,7 +138,7 @@
   }
 
   function trapDialogFocus(event: KeyboardEvent) {
-    if (event.key !== "Tab") return;
+    if (event.key !== "Tab" || !captureDialog) return;
     const focusable = [...captureDialog.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), [tabindex]:not([tabindex="-1"])')];
     const first = focusable[0];
     const last = focusable.at(-1);
@@ -132,7 +164,7 @@
   }
 
   async function saveCapture() {
-    if (!captureInput.selectedText.trim() || !captureInput.sentence.trim()) return;
+    if (saving || !captureInput.selectedText.trim() || !captureInput.sentence.trim()) return;
     saving = true;
     captureError = "";
     try {
@@ -151,7 +183,7 @@
   }
 
   async function restoreCapturedWordToLearning() {
-    if (!achievedCaptureConflict || !api.restoreAchievedAndCapture) return;
+    if (saving || !achievedCaptureConflict || !api.restoreAchievedAndCapture) return;
     saving = true;
     captureError = "";
     try {
@@ -170,7 +202,6 @@
     try {
       selectedDetail = await api.getWord(wordId);
       await tick();
-      detailCloseButton?.focus();
     }
     catch (cause) { error = cause instanceof Error ? cause.message : String(cause); }
   }
@@ -462,24 +493,24 @@
 <div class="windows-presentation" data-settings-ready={initialLoadComplete} data-appearance={appliedSettings?.appearance ?? "system"} data-reduced-motion={appliedSettings?.reducedMotion ?? false}>
 <div class="windows-shell" data-presentation="windows-main" data-appearance={appliedSettings?.appearance ?? "system"} data-reduced-motion={appliedSettings?.reducedMotion ?? false}>
   <aside>
-    <div class="brand"><span aria-hidden="true">V</span><strong>Vocab Collector</strong></div>
-    <nav aria-label="Main navigation">{#each navigation as item}<button class:active={route === item} aria-current={route === item ? "page" : undefined} onclick={() => selectRoute(item)}>{item}</button>{/each}</nav>
-    <div class="local-status"><i aria-hidden="true"></i><span>Local mode</span></div>
+    <div class="brand"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24"><path d="M3 4h6l3 5 3-5h6l-9 17Z M6 4l6 11 6-11" fill="none" stroke="currentColor" stroke-width="1.6" /></svg><strong>Vocab Collector</strong></div>
+    <nav aria-label="Main navigation">{#each navigation as item}<button class:active={route === item.title || (route === "Review" && item.title === "Today")} aria-current={route === item.title || (route === "Review" && item.title === "Today") ? "page" : undefined} onclick={() => selectRoute(item.title)}><svelte:component this={item.icon} size={18} aria-hidden="true" />{item.title}</button>{/each}</nav>
+    <div class="local-status"><Monitor size={16} aria-hidden="true" /><span>Local mode</span></div>
   </aside>
   <main>
-    <header><div><h1 id="windows-page-title">{route}</h1><p>{route === "Today" ? "Your words, ready when you are" : "Vocab Collector for Windows"}</p></div><button class="primary" onclick={openCapture}>Manual capture</button></header>
+    <header><div><h1 id="windows-page-title">{route}</h1><p>{route === "Today" ? "Your words, ready when you are" : route === "Settings" ? "Make Vocab Collector fit your reading." : route === "Vocabulary" ? "Every word, with the context you found it in." : "Vocab Collector for Windows"}</p></div>{#if route === "Today" || route === "Vocabulary" || route === "Insights"}<Button aria-label="Manual capture" size="icon" onclick={openCapture}><Plus /></Button>{/if}</header>
     <section aria-labelledby="windows-page-title" aria-busy={loading}>
       {#if error}<div class="error" role="alert"><span>{error}</span><button onclick={retryError}>Try again</button></div>{/if}
       {#if loading}
         <div class="state" role="status">Loading your vocabulary...</div>
       {:else if route === "Today"}
-        <div class="summary"><div><span>Today's plan</span><strong>{today?.plannedReviewCount ?? 0}</strong><small>{today?.plannedReviewCount ? `${today.totalDueCount} total due · About ${today?.estimatedMinutes ?? 0} minute${today?.estimatedMinutes === 1 ? "" : "s"}` : "Review queue is clear"}</small>{#if today?.plannedReviewCount}<button class="primary" onclick={startReview}>Start review ({today.plannedReviewCount})</button>{/if}</div><div><span>Recent captures</span><strong>{today?.recentCaptures.length ?? 0}</strong><small>Stored locally</small></div></div>
+        <div class="summary"><div><span>Today's plan</span><strong>{today?.plannedReviewCount ?? 0}</strong><small>{today?.plannedReviewCount ? `${today.totalDueCount} total due · About ${today?.estimatedMinutes ?? 0} minute${today?.estimatedMinutes === 1 ? "" : "s"}` : "Nothing due"}</small>{#if today?.plannedReviewCount}<button class="primary" onclick={startReview}>Start review ({today.plannedReviewCount})</button>{/if}</div><div><span>Recent captures</span><strong>{today?.recentCaptures.length ?? 0}</strong><small>Stored locally</small></div></div>
         <div class="section-heading"><h2>Recent captures</h2><p>New contexts appear here immediately after saving.</p></div>
         <div class="list recent-captures-list">{#each today?.recentCaptures ?? [] as word}<WindowsWordRow {word} onSelect={showDetail} />{:else}<div class="state"><strong>No captures yet</strong><span>Use Manual capture to save your first reading context.</span><button class="primary" onclick={openCapture}>Manual capture</button></div>{/each}</div>
       {:else if route === "Vocabulary"}
-        <div class="vocabulary-tabs" role="tablist" aria-label="Vocabulary views"><button class:active={vocabularyView === "active"} onclick={() => { vocabularyView = "active"; updateSearch(""); }}>Active</button><button class:active={vocabularyView === "mastered"} onclick={() => { vocabularyView = "mastered"; updateSearch(""); }}>Mastered</button><button class:active={vocabularyView === "achieved"} onclick={() => { vocabularyView = "achieved"; updateSearch(""); }}>Achieved ({achievedWords.length})</button></div>
-        <div class="tools"><label><span>Search</span><input aria-label="Search vocabulary" value={search} oninput={(event) => updateSearch(event.currentTarget.value)} placeholder="Word or translation" /></label><span>{vocabularyView === "achieved" ? filteredAchievedWords.length : filteredWords.length} items</span></div>
-        {#if vocabularyView === "achieved"}<div class="list vocabulary-list">{#if filteredAchievedWords.length}<label class="select-all"><input type="checkbox" aria-label="Select all filtered Achieved vocabulary" checked={allFilteredAchievedSelected} onchange={(event) => toggleAllAchieved(event.currentTarget.checked)} /> Select all filtered</label>{/if}{#each filteredAchievedWords as word}<label class:urgent={word.urgency === "urgent"} class:warning={word.urgency === "warning"} class="achieved-row"><input type="checkbox" aria-label={`Select ${word.displayForm}`} checked={selectedAchievedIds.has(word.id)} onchange={(event) => toggleAchieved(word.id, event.currentTarget.checked)} /><span><strong>{word.displayForm}</strong><small>{word.translation ?? "No translation"}</small><small>Achieved {new Date(word.achievedAt).toLocaleDateString()}</small></span><span>{word.remainingDays} days remaining · Deletes {new Date(word.deleteAfter).toLocaleDateString()}</span></label>{:else}<div class="state"><strong>No Achieved vocabulary</strong><span>Mastered words you Achieve will wait here before deletion.</span></div>{/each}</div>{#if selectedAchievedIds.size}<div class="bulk-actions"><strong>{selectedAchievedIds.size} selected</strong><button class="secondary" onclick={unachieveSelected}>Unachieve</button><button class="danger" onclick={deleteSelectedAchieved}>Delete permanently</button></div>{/if}{:else}<div class="list vocabulary-list">{#each pagedWords as word}<WindowsWordRow {word} onSelect={showDetail} onAchieve={achieveWordFromRow} />{:else}{#if visibleWords.length}<div class="state"><strong>No matching vocabulary</strong><span>Try a different word or translation.</span></div>{:else}<div class="state"><strong>No {vocabularyView} vocabulary</strong><span>Vocabulary Items in this state will appear here.</span></div>{/if}{/each}</div>
+        <Tabs.Root value={vocabularyView} onValueChange={(value) => { vocabularyView = value as typeof vocabularyView; updateSearch(""); }}><Tabs.List aria-label="Vocabulary views"><Tabs.Trigger value="active">Active</Tabs.Trigger><Tabs.Trigger value="mastered">Mastered</Tabs.Trigger><Tabs.Trigger value="achieved">Achieved ({achievedWords.length})</Tabs.Trigger></Tabs.List></Tabs.Root>
+        <div class="tools"><label><span>Search</span><Input aria-label="Search vocabulary" value={search} oninput={(event) => updateSearch(event.currentTarget.value)} placeholder="Word or translation" /></label><span>{vocabularyView === "achieved" ? filteredAchievedWords.length : filteredWords.length} items</span></div>
+        {#if vocabularyView === "achieved"}<div class="list vocabulary-list">{#if filteredAchievedWords.length}<label class="select-all"><input type="checkbox" aria-label="Select all filtered Achieved vocabulary" checked={allFilteredAchievedSelected} onchange={(event) => toggleAllAchieved(event.currentTarget.checked)} /> Select all filtered</label>{/if}{#each filteredAchievedWords as word}<label class:urgent={word.urgency === "urgent"} class:warning={word.urgency === "warning"} class="achieved-row"><input type="checkbox" aria-label={`Select ${word.displayForm}`} checked={selectedAchievedIds.has(word.id)} onchange={(event) => toggleAchieved(word.id, event.currentTarget.checked)} /><span><strong>{word.displayForm}</strong><small>{word.translation ?? "No translation"}</small><small>Achieved {new Date(word.achievedAt).toLocaleDateString()}</small></span><span>{word.remainingDays} days remaining · Deletes {new Date(word.deleteAfter).toLocaleDateString()}</span></label>{:else}<div class="state"><strong>{achievedWords.length ? "No matching vocabulary" : "No Achieved vocabulary"}</strong><span>{achievedWords.length ? "Try a different word or translation." : "Mastered words you Achieve will wait here before deletion."}</span></div>{/each}</div>{#if selectedAchievedIds.size}<div class="bulk-actions"><strong>{selectedAchievedIds.size} selected</strong><Button variant="outline" onclick={unachieveSelected}>Unachieve</Button><Button variant="destructiveOutline" onclick={deleteSelectedAchieved}>Delete permanently</Button></div>{/if}{:else}<div class="list vocabulary-list">{#if pagedWords.length}<VocabularyTable words={pagedWords} onSelect={showDetail} onAchieve={achieveWordFromRow} />{:else}{#if visibleWords.length}<div class="state"><strong>No matching vocabulary</strong><span>Try a different word or translation.</span></div>{:else}<div class="state"><strong>No {vocabularyView} vocabulary</strong><span>Vocabulary Items in this state will appear here.</span></div>{/if}{/if}</div>
         {#if filteredWords.length}<nav class="pagination" aria-label="Vocabulary pages"><button class="secondary" disabled={vocabularyPage === 1} onclick={() => goToVocabularyPage(1)}>First</button><button class="secondary" disabled={vocabularyPage === 1} onclick={() => goToVocabularyPage(vocabularyPage - 1)}>Previous</button><form aria-label="Go to vocabulary page" onsubmit={(event) => { event.preventDefault(); goToVocabularyPage(vocabularyPageInput); }}><label><span>Page</span><input aria-label="Page number" type="number" min="1" max={vocabularyPageCount} bind:value={vocabularyPageInput} onblur={() => goToVocabularyPage(vocabularyPageInput)} /><span>of {vocabularyPageCount}</span></label></form><button class="secondary" disabled={vocabularyPage === vocabularyPageCount} onclick={() => goToVocabularyPage(vocabularyPage + 1)}>Next</button><button class="secondary" disabled={vocabularyPage === vocabularyPageCount} onclick={() => goToVocabularyPage(vocabularyPageCount)}>Last</button></nav>{/if}{/if}
       {:else if route === "Review"}
         {#if reviewOpen && activeReview}
@@ -493,96 +524,83 @@
         {:else}
           <div class="state"><strong>Nothing due</strong><span>Your review queue is clear for today.</span></div>
         {/if}
-        {#if !reviewOpen && globalInsight}
+      {:else if route === "Insights"}
+        {#if globalInsight}
           <div class="section-heading"><h2>All-time progress</h2><p>Includes anonymous totals retained after permanent deletion.</p></div>
           <div class="insight-grid" role="region" aria-label="All-time progress"><div><span>Vocabulary encountered</span><strong>{globalInsight.lifetimeVocabularyCount}</strong></div><div><span>Encounters saved</span><strong>{globalInsight.lifetimeEncounterCount}</strong></div><div><span>Reviews completed</span><strong>{globalInsight.lifetimeReviewCount}</strong></div><div><span>Remembered</span><strong>{globalInsight.lifetimeRememberedCount}</strong></div><div><span>Forgot</span><strong>{globalInsight.lifetimeForgottenCount}</strong></div><div><span>Currently achieved</span><strong>{globalInsight.currentAchievedCount}</strong></div></div>
           {#if !globalInsight.lifetimeRatingBreakdownComplete}<p class="insight-coverage">Remembered and Forgot totals exclude anonymous review history deleted before this app version.</p>{/if}
         {/if}
+
       {:else if settingsDraft}
-        <form class="settings" onsubmit={(event) => { event.preventDefault(); saveSettings(); }}>
-          {#if settingsError}<div class="dialog-error settings-message" role="alert">{settingsError}</div>{/if}
-          <div class="settings-grid">
-            <fieldset><legend>Languages</legend><p>Used for capture and translation.</p>
-              <label>Source language<select bind:value={settingsDraft.sourceLanguage}><option value="auto">Auto detect</option><option value="en">English</option><option value="de">German</option><option value="fr">French</option><option value="es">Spanish</option><option value="zh-Hans">Chinese (Simplified)</option><option value="zh-Hant">Chinese (Traditional)</option></select></label>
-              <label>Translate into<select bind:value={settingsDraft.targetLanguage}><option value="en">English</option><option value="de">German</option><option value="fr">French</option><option value="es">Spanish</option><option value="zh-Hans">Chinese (Simplified)</option><option value="zh-Hant">Chinese (Traditional)</option></select></label>
-            </fieldset>
-            <fieldset><legend>Review</legend><p>Set the size of your daily session.</p>
-              <label>Review time<input type="time" bind:value={settingsDraft.reviewTime} /></label>
-              {#if systemStatus.notificationError}<small class="field-error" role="alert">{systemStatus.notificationError}</small>{/if}
-              <label>Daily limit<input type="number" min="1" max="50" bind:value={settingsDraft.dailyLimit} /></label>
-              <label>Recent captures<input type="number" min="1" max="100" bind:value={settingsDraft.recentCapturesLimit} /></label>
-              <label>Keep achieved words for<select bind:value={settingsDraft.achievedRetentionDays}><option value={10}>10 days</option><option value={20}>20 days</option><option value={30}>30 days</option><option value={60}>60 days</option></select></label>
-              <small>Retention changes apply only to words Achieved after you save this setting.</small>
-              <label class="toggle-row"><span><strong>Automatically achieve Mastered words</strong><small>After 30 uninterrupted days; manual Achieve remains available</small></span><input aria-label="Automatically achieve Mastered words after 30 days" type="checkbox" bind:checked={settingsDraft.automaticAchieveEnabled} /></label>
-            </fieldset>
-            <fieldset><legend>Capture shortcuts</legend><p>Selection Capture is recommended. Leave a shortcut blank to disable it.</p>
-              <label>Selection Capture · Recommended<input aria-label="Selection Capture shortcut" bind:value={settingsDraft.selectionCaptureShortcut} /></label>
-              {#if systemStatus.selectionShortcutError}<small class="field-error" role="alert">{systemStatus.selectionShortcutError}</small>{/if}
-              <label>Region OCR Capture<input aria-label="Region OCR Capture shortcut" bind:value={settingsDraft.regionOcrCaptureShortcut} /></label>
-              {#if systemStatus.regionOcrShortcutError}<small class="field-error" role="alert">{systemStatus.regionOcrShortcutError}</small>{/if}
-              <label class="toggle-row"><span><strong>Launch at login</strong><small>Start hidden and remain available in the system tray</small></span><input aria-label="Launch at login" type="checkbox" bind:checked={settingsDraft.launchAtLogin} /></label>
-              {#if systemStatus.autostartError}<small class="field-error" role="alert">{systemStatus.autostartError}</small>{/if}
-            </fieldset>
-            <fieldset><legend>Appearance</legend><p>Visual preferences apply after a successful save.</p>
-              <label>Theme<select bind:value={settingsDraft.appearance}><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
-              <label class="toggle-row"><span><strong>Reduce motion</strong><small>Minimize non-essential interface motion</small></span><input aria-label="Reduce motion" type="checkbox" bind:checked={settingsDraft.reducedMotion} /></label>
-            </fieldset>
-          </div>
-          <div class="settings-actions"><button class="primary" disabled={settingsSaving}>{settingsSaving ? "Saving..." : "Save settings"}</button></div>
-        </form>
+        <SettingsForm bind:settingsDraft {systemStatus} {settingsError} {settingsSaving} onsave={saveSettings} />
       {/if}
     </section>
   </main>
 </div>
 {#if settingsSaved}<div class="settings-success settings-toast" role="status">Settings saved</div>{/if}
 
-{#if captureOpen}<div class="backdrop"><div bind:this={captureDialog} class="dialog" role="dialog" tabindex="-1" aria-modal="true" aria-labelledby="manual-capture-title" onkeydown={trapDialogFocus}><form onsubmit={(event) => { event.preventDefault(); achievedCaptureConflict ? restoreCapturedWordToLearning() : saveCapture(); }}><div class="dialog-heading"><div><span class="eyebrow">Manual Capture</span><h2 id="manual-capture-title">Save a reading context</h2></div><button type="button" class="icon" aria-label="Close manual capture" onclick={closeCapture}>×</button></div>{#if achievedCaptureConflict}<div class="achieved-capture-notice" role="status"><span>Achieved</span><p>This Vocabulary Item has been Achieved. Return it to Learning and save this Encounter?</p></div>{/if}{#if captureError}<div class="dialog-error" role="alert">{captureError}</div>{/if}<label>Word or phrase<input bind:this={captureFirstField} bind:value={captureInput.selectedText} /></label><label>Translation <small>Optional</small><input bind:value={captureInput.translation} /></label><label>Context<textarea bind:value={captureInput.sentence}></textarea></label><div class="actions"><button type="button" class="secondary" onclick={closeCapture}>Cancel</button><button class="primary" disabled={saving || !captureInput.selectedText.trim() || !captureInput.sentence.trim()}>{saving ? "Saving..." : achievedCaptureConflict ? "Return to Learning" : "Save capture"}</button></div></form></div></div>{/if}
+<Dialog.Root open={captureOpen} onOpenChange={(open) => { if (!open) closeCapture(); }}><Dialog.Content showCloseButton={false} class="manual-capture-content" onInteractOutside={(event) => event.preventDefault()} onOpenAutoFocus={(event) => { event.preventDefault(); captureFirstField?.focus(); }} onCloseAutoFocus={(event) => { event.preventDefault(); captureTrigger?.focus(); }} onkeydown={trapDialogFocus} bind:ref={captureDialog}><form onsubmit={(event) => { event.preventDefault(); achievedCaptureConflict ? restoreCapturedWordToLearning() : saveCapture(); }}><div class="dialog-heading"><div><span class="eyebrow">Manual Capture</span><Dialog.Title>Save a reading context</Dialog.Title></div></div>{#if achievedCaptureConflict}<div class="achieved-capture-notice" role="status"><span>Achieved</span><p>This Vocabulary Item has been Achieved. Return it to Learning and save this Encounter?</p></div>{/if}{#if captureError}<div class="dialog-error" role="alert">{captureError}</div>{/if}<Field.FieldGroup><Field.Field><label>Word or phrase<Input bind:ref={captureFirstField} bind:value={captureInput.selectedText} /></label></Field.Field><Field.Field><label>Translation <small>Optional</small><Input bind:value={captureInput.translation} /></label></Field.Field><Field.Field><label>Context<Textarea bind:value={captureInput.sentence}></Textarea></label></Field.Field></Field.FieldGroup><div class="actions"><Button variant="outline" onclick={closeCapture}>Cancel</Button><Button type="submit" disabled={saving || !captureInput.selectedText.trim() || !captureInput.sentence.trim()}>{saving ? "Saving..." : achievedCaptureConflict ? "Return to Learning" : "Save capture"}</Button></div></form></Dialog.Content></Dialog.Root>
 
-{#if savedCard}<div class="toast" role="dialog" aria-label="Capture saved"><span class="saved-mark" aria-hidden="true">✓</span><div><strong>{savedCard.displayForm}</strong><span>{encounterLabel(savedCard.encounterCount)}</span></div><button onclick={undoSaved}>Undo</button><button class="icon" aria-label="Dismiss saved capture" onclick={() => (savedCard = null)}>×</button></div>{/if}
-{#if lastUnachievedIds.length}<div class="toast" role="status"><span class="saved-mark" aria-hidden="true">✓</span><div><strong>{lastUnachievedIds.length} Unachieved</strong><span>Returned to Mastered</span></div><button onclick={undoUnachieve}>Undo</button><button class="icon" aria-label="Dismiss Unachieve result" onclick={() => (lastUnachievedIds = [])}>×</button></div>{/if}
+<Toaster id={notificationHostId} position="bottom-right" />
 
-{#if selectedDetail}<div class="drawer" role="dialog" aria-modal="true" aria-labelledby="vocabulary-detail-title"><button bind:this={detailCloseButton} class="icon close" aria-label="Close vocabulary detail" onclick={closeDetail}>×</button><span class="eyebrow">Vocabulary detail</span><h2 id="vocabulary-detail-title">{selectedDetail.item.displayForm}</h2><strong class="translation">{selectedDetail.item.translation ?? "No translation"}</strong><span class="count">{selectedDetail.item.status} · {encounterLabel(selectedDetail.item.encounterCount)}</span>{#if selectedDetail.item.status === "mastered"}<button class="primary drawer-action" onclick={achieveSelectedWord}>Achieve</button>{/if}<div class="timeline"><h3>Contexts</h3>{#each selectedDetail.encounters as encounter}<article><p>{encounter.sentence}</p><small>{[encounter.sourceApp, encounter.sourceTitle, encounter.sourceUrl].filter(Boolean).join(" · ") || "Manual entry"}</small></article>{/each}</div></div>{/if}
+<VocabularyDetail detail={selectedDetail} trigger={detailTrigger} onclose={closeDetail} onachieve={achieveSelectedWord} />
 </div>
 
 <style>
   :global(html), :global(body), :global(#app) { min-width: 100%; min-height: 100%; margin: 0; }
   :global(body) { background: transparent; } :global(*) { box-sizing: border-box; }
-  button, input, select, textarea { font: inherit; } button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid #9aa5ff; outline-offset: 2px; }
-  .windows-presentation { --page: #15161c; --sidebar: #191a21; --surface: #20212a; --surface-raised: #262832; --field: #181920; --text: #eeeef3; --muted: #9195a4; --line: #30323d; min-height: 100vh; color: var(--text); background: var(--page); font: 14px "Segoe UI Variable", "Segoe UI", sans-serif; }
-  .windows-presentation[data-appearance="light"] { --page: #f5f6fa; --sidebar: #eceef4; --surface: #fff; --surface-raised: #f1f2f7; --field: #fff; --text: #20212a; --muted: #606474; --line: #d6d9e2; }
+  button, input { font: inherit; } button:focus-visible, input:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  .windows-presentation { min-height:100vh; color:var(--foreground); background:var(--background); font:0.875rem/1.45 var(--font-sans); }
   .windows-presentation[data-settings-ready="false"] { visibility: hidden; }
   .windows-shell { min-height: 100vh; display: grid; grid-template-columns: 220px minmax(0, 1fr); color: var(--text); background: var(--page); }
   aside { display: flex; flex-direction: column; padding: 18px 12px 14px; border-right: 1px solid var(--line); background: var(--sidebar); }
-  .brand { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 0 8px 18px; }.brand > span { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 6px; background: #7584ef; color: #fff; font-weight: 700; }.brand strong { font-size: 13px; }
-  nav { display: grid; gap: 3px; } nav button { min-height: 36px; padding: 0 10px; border: 0; border-radius: 6px; color: var(--muted); background: transparent; text-align: left; cursor: pointer; } nav button:hover, nav button.active { color: var(--text); background: var(--surface-raised); }
-  .local-status { display: flex; align-items: center; gap: 8px; margin-top: auto; padding: 10px 8px; color: var(--muted); font-size: 12px; }.local-status i { width: 7px; height: 7px; border-radius: 50%; background: #78c8a7; }
-  main { min-width: 0; } header { display: flex; align-items: center; justify-content: space-between; height: 86px; padding: 0 28px; border-bottom: 1px solid var(--line); } h1, h2, h3, p { margin: 0; } h1 { font-size: 22px; } header p { margin-top: 5px; color: var(--muted); font-size: 12px; } section { min-height: calc(100vh - 87px); padding: 26px 28px; }
-  .primary, .secondary { min-height: 34px; padding: 0 14px; border-radius: 6px; border: 1px solid transparent; cursor: pointer; }.primary { color: #fff; background: #7584ef; }.primary:disabled { opacity: .45; cursor: default; }.secondary { color: var(--text); border-color: var(--line); background: var(--surface-raised); }
-  .summary { display: grid; grid-template-columns: repeat(2, minmax(0, 190px)); gap: 12px; }.summary div { display: grid; gap: 8px; padding: 18px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); }.summary span, .summary small { color: var(--muted); font-size: 12px; }.summary strong { font-size: 26px; }
-  .section-heading { margin: 24px 0 10px; }.section-heading h2 { font-size: 15px; }.section-heading p { margin-top: 4px; color: var(--muted); font-size: 11px; }
+  .brand { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 0 8px 18px; }.brand strong { font-size:0.8125rem; }
+  nav { display: grid; gap: 3px; } nav button { min-height: 36px; padding: 0 10px; border: 0; border-radius: 6px; color: var(--muted-foreground); background: transparent; text-align: left; cursor: pointer; } nav button:hover, nav button.active { color: var(--text); background: var(--surface-raised); }
+  .local-status { display: flex; align-items: center; gap: 8px; margin-top: auto; padding: 10px 8px; color: var(--muted-foreground); font-size:0.75rem; }
+  main { min-width: 0; } header { display: flex; align-items: center; justify-content: space-between; height: 86px; padding: 0 28px; border-bottom: 1px solid var(--line); } h1, h2, p { margin: 0; } h1 { font-size:1.375rem; } header p { margin-top: 5px; color: var(--muted-foreground); font-size:0.75rem; } section { min-height: calc(100vh - 87px); padding: 26px 28px; }
+  .primary, .secondary { min-height: 34px; padding: 0 14px; border-radius: 6px; border: 1px solid transparent; cursor: pointer; }.primary { color: var(--primary-foreground); background: var(--primary); box-shadow:none; }.primary:disabled { opacity: .45; cursor: default; }.secondary { color: var(--text); border-color: var(--line); background: var(--surface-raised); }
+  .summary { display: grid; grid-template-columns: repeat(2, minmax(0, 190px)); gap: 12px; }.summary div { display: grid; gap: 8px; padding: 18px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); }.summary span, .summary small { color: var(--muted-foreground); font-size:0.75rem; }.summary strong { font-size:1.625rem; }
+  .section-heading { margin: 24px 0 10px; }.section-heading h2 { font-size:0.9375rem; }.section-heading p { margin-top: 4px; color: var(--muted-foreground); font-size:0.6875rem; }
   .list { overflow: hidden; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); }
   .recent-captures-list { max-height: min(55vh, 540px); overflow-y: auto; scrollbar-gutter: stable; }
   .vocabulary-list { max-height: calc(100vh - 244px); overflow-y: auto; scrollbar-gutter: stable; }
-  .pagination { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 12px; color: var(--muted); font-size: 12px; }
+  .vocabulary-list :global([data-slot=table-container]) { overflow:visible; }
+  .pagination { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 12px; color: var(--muted-foreground); font-size:0.75rem; }
   .pagination form, .pagination label { display: flex; align-items: center; gap: 6px; }.pagination input { width: 54px; height: 32px; padding: 0 6px; border: 1px solid var(--line); border-radius: 5px; color: var(--text); background: var(--field); text-align: center; }
-  .state { min-height: 220px; display: grid; place-content: center; justify-items: center; gap: 8px; color: var(--muted); text-align: center; }.state strong { color: var(--text); font-size: 16px; }.state .primary { margin-top: 8px; }
-  .tools { display: flex; align-items: end; justify-content: space-between; margin-bottom: 12px; color: var(--muted); font-size: 11px; }.tools label { display: grid; gap: 6px; }.tools input { width: 310px; height: 34px; padding: 0 10px; border: 1px solid var(--line); border-radius: 6px; color: var(--text); background: var(--surface); }
-  .vocabulary-tabs { display:flex; gap:6px; margin-bottom:14px; }.vocabulary-tabs button { padding:7px 12px; border:1px solid var(--line); border-radius:6px; color:var(--muted); background:transparent; }.vocabulary-tabs button.active { color:var(--text); background:var(--surface-raised); }.select-all,.achieved-row { display:grid; align-items:center; gap:12px; padding:12px 14px; border-bottom:1px solid var(--line); }.select-all { grid-template-columns:auto 1fr; color:var(--muted); }.achieved-row { grid-template-columns:auto minmax(0,1fr) auto; color:var(--text); }.achieved-row.warning { border-left:3px solid #c79b39; }.achieved-row.urgent { border-left:3px solid #b95862; }.achieved-row span { display:grid; gap:3px; }.achieved-row small { color:var(--muted); }.bulk-actions { position:sticky; bottom:12px; display:flex; justify-content:flex-end; align-items:center; gap:10px; margin-top:12px; padding:12px; border:1px solid var(--line); border-radius:7px; background:var(--surface-raised); }.danger { min-height:34px; padding:0 14px; border:1px solid #914d55; border-radius:6px; color:#fff; background:#8b3945; }.drawer-action { margin-top:16px; }
-  .error { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 14px; padding: 11px 13px; border: 1px solid #724747; border-radius: 6px; color: #f0b4b4; background: #321f24; }.error button { border: 0; color: #cad0ff; background: transparent; cursor: pointer; }
-  .dialog-error { padding: 9px 10px; border: 1px solid #724747; border-radius: 6px; color: #f0b4b4; background: #321f24; font-size: 12px; }
-  .achieved-capture-notice { padding: 10px; border: 1px solid #80652f; border-radius: 6px; background: rgba(196, 145, 46, .1); }.achieved-capture-notice span { display: inline-block; padding: 2px 7px; border-radius: 999px; color: #f1ca78; background: #3a3020; font-size: 10px; font-weight: 700; text-transform: uppercase; }.achieved-capture-notice p { margin: 7px 0 0; color: var(--text); font-size: 12px; }
-  .insight-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }.insight-grid > div { display: grid; gap: 6px; padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }.insight-grid span { color: var(--muted); font-size: 11px; }.insight-grid strong { font-size: 22px; }
-  .settings { max-width: 900px; margin: 0 auto; }.settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }.settings fieldset { min-width: 0; display: grid; align-content: start; gap: 14px; margin: 0; padding: 18px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); }.settings legend { padding: 0; color: var(--text); font-size: 15px; font-weight: 700; }.settings fieldset > p { color: var(--muted); font-size: 11px; }.settings label { display: grid; gap: 6px; color: var(--muted); font-size: 11px; }.settings input:not([type="checkbox"]), .settings select { width: 100%; min-height: 36px; padding: 0 10px; border: 1px solid var(--line); border-radius: 6px; color: var(--text); background: var(--field); }.toggle-row { grid-template-columns: 1fr auto; align-items: center; }.toggle-row span { display: grid; gap: 3px; }.toggle-row strong { color: var(--text); font-size: 12px; }.toggle-row small { color: var(--muted); }.toggle-row input { width: 18px; height: 18px; accent-color: #7584ef; }.settings-actions { display: flex; justify-content: flex-end; margin-top: 14px; }.settings-message { margin-bottom: 12px; }.settings-success { padding: 9px 10px; border: 1px solid #3f755f; border-radius: 6px; color: #28624d; background: #dff4e9; font-size: 12px; }.settings-toast { position: fixed; z-index: 40; top: 18px; left: 50%; width: min(520px, calc(100vw - 32px)); margin: 0; box-shadow: 0 12px 36px rgba(0,0,0,.24); transform: translateX(-50%); animation: settings-toast-out 200ms ease 1s forwards; }
+  .state { min-height: 220px; display: grid; place-content: center; justify-items: center; gap: 8px; color: var(--muted-foreground); text-align: center; }.state strong { color: var(--text); font-size:1rem; }.state .primary { margin-top: 8px; }
+  .tools { margin-top:20px; display: flex; align-items: end; justify-content: space-between; margin-bottom: 12px; color: var(--muted-foreground); font-size:0.6875rem; }.tools label { display: grid; gap: 6px; }.tools :global(input) { width: 310px; height: 34px; padding: 0 10px; border: 1px solid var(--line); border-radius: 6px; color: var(--text); background: var(--surface); }
+  .select-all,.achieved-row { display:grid; align-items:center; gap:12px; padding:12px 14px; border-bottom:1px solid var(--line); }.select-all { grid-template-columns:auto 1fr; color:var(--muted-foreground); }.achieved-row { grid-template-columns:auto minmax(0,1fr) auto; color:var(--text); }.achieved-row.warning { border-left:3px solid var(--warning); }.achieved-row.urgent { border-left:3px solid var(--destructive); }.achieved-row span { display:grid; gap:3px; overflow-wrap:anywhere; }.achieved-row > span:last-child { max-width:210px; font-size:0.75rem; color:var(--muted-foreground); }.achieved-row small { color:var(--muted-foreground); }.bulk-actions { flex-wrap:wrap; position:sticky; bottom:12px; display:flex; justify-content:flex-end; align-items:center; gap:10px; margin-top:12px; padding:12px; border:1px solid var(--line); border-radius:7px; background:var(--surface-raised); }
+  .error { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 14px; padding: 11px 13px; border: 1px solid var(--destructive); border-radius: 6px; color: var(--destructive); background: var(--card); }.error button { border: 0; color: var(--foreground); background: transparent; cursor: pointer; }
+  .dialog-error { padding: 9px 10px; border: 1px solid var(--destructive); border-radius: 6px; color: var(--destructive); background: var(--card); font-size:0.75rem; }
+  .achieved-capture-notice { padding: 10px; border: 1px solid var(--warning); border-radius: 6px; background: rgba(196, 145, 46, .1); }.achieved-capture-notice span { display: inline-block; padding: 2px 7px; border-radius: 999px; color: var(--warning); background: var(--card); font-size:0.625rem; font-weight: 700; text-transform: uppercase; }.achieved-capture-notice p { margin: 7px 0 0; color: var(--text); font-size:0.75rem; }
+  .insight-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }.insight-grid > div { display: grid; gap: 6px; padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }.insight-grid span { color: var(--muted-foreground); font-size:0.6875rem; }.insight-grid strong { font-size:1.375rem; }
+  .settings-toast { position:fixed; top:18px; left:50%; transform:translateX(-50%); color:var(--success); background:var(--card); border:1px solid var(--success); border-radius:10px; padding:10px 16px; }
   @keyframes settings-toast-out { to { opacity: 0; transform: translate(-50%, -6px); } }
-  .field-error { color: #f0b4b4; font-size: 11px; line-height: 1.4; }
+
   .windows-presentation[data-reduced-motion="true"], .windows-presentation[data-reduced-motion="true"] * { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
-  .review-card { max-width: 620px; margin: 24px auto; padding: 28px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }.review-progress { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; color: var(--muted); font-size: 11px; }.review-card h2 { margin: 10px 0; font-size: 30px; }.review-card > p { color: var(--muted); line-height: 1.6; }.review-translation { display: grid; gap: 5px; margin: 22px 0; padding: 14px; border-radius: 7px; background: rgba(117,132,239,.12); }.review-translation small { color: var(--muted); }.review-translation strong { color: #7a86e8; font-size: 16px; }.review-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 18px; }
-  .backdrop { position: fixed; z-index: 30; inset: 0; display: grid; place-items: center; background: rgba(8,9,13,.65); }.dialog { width: min(460px, calc(100vw - 32px)); padding: 20px; border: 1px solid var(--line); border-radius: 8px; color: var(--text); background: var(--surface); box-shadow: 0 24px 70px rgba(0,0,0,.5); }.dialog form { display: grid; gap: 13px; }.dialog-heading { display: flex; justify-content: space-between; }.dialog h2 { margin-top: 5px; font-size: 19px; }.eyebrow { color: #7a86e8; font-size: 10px; font-weight: 700; text-transform: uppercase; }.dialog label { display: grid; gap: 6px; color: var(--muted); font-size: 11px; }.dialog label small { margin-left: 4px; }.dialog input, .dialog textarea { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 6px; color: var(--text); background: var(--field); }.dialog textarea { min-height: 80px; resize: vertical; }.actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
-  .icon { width: 32px; height: 32px; border: 0; color: var(--muted); background: transparent; cursor: pointer; font-size: 20px; }.toast { position: fixed; z-index: 35; right: 22px; bottom: 22px; min-width: 320px; display: grid; grid-template-columns: 28px 1fr auto 32px; gap: 10px; align-items: center; padding: 13px; border: 1px solid var(--line); border-radius: 8px; color: var(--text); background: var(--surface-raised); box-shadow: 0 18px 50px rgba(0,0,0,.45); }.toast > div { display: grid; gap: 2px; }.toast span { color: var(--muted); font-size: 11px; }.toast button:not(.icon) { border: 0; color: #7584ef; background: transparent; cursor: pointer; }.saved-mark { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; color: #78c8a7!important; background: rgba(120,200,167,.14); }
-  .drawer { position: fixed; z-index: 25; top: 0; right: 0; width: min(400px, 100vw); height: 100vh; overflow: auto; padding: 62px 24px 24px; border-left: 1px solid var(--line); color: var(--text); background: var(--surface); box-shadow: -20px 0 60px rgba(0,0,0,.38); }.close { position: absolute; top: 18px; right: 18px; }.drawer h2 { margin: 7px 0 5px; font-size: 27px; }.translation { display: block; color: #7a86e8; }.count { display: block; margin-top: 10px; color: var(--muted); font-size: 11px; }.timeline { margin-top: 28px; }.timeline h3 { color: var(--muted); font-size: 11px; text-transform: uppercase; }.timeline article { margin-top: 12px; padding: 12px; border-left: 2px solid #7584ef; background: var(--surface-raised); }.timeline article p { line-height: 1.5; }.timeline article small { display: block; margin-top: 7px; color: var(--muted); }
-  @media (prefers-color-scheme: light) { .windows-presentation[data-appearance="system"] { --page: #f5f6fa; --sidebar: #eceef4; --surface: #fff; --surface-raised: #f1f2f7; --field: #fff; --text: #20212a; --muted: #606474; --line: #d6d9e2; } }
+  .review-card { max-width: 620px; margin: 24px auto; padding: 28px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }.review-progress { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; color: var(--muted-foreground); font-size:0.6875rem; }.review-card h2 { margin: 10px 0; font-size:1.875rem; }.review-card > p { color: var(--muted-foreground); line-height: 1.6; }.review-translation { display: grid; gap: 5px; margin: 22px 0; padding: 14px; border-radius: 7px; background: rgba(117,132,239,.12); }.review-translation small { color: var(--muted-foreground); }.review-translation strong { color: #7a86e8; font-size:1rem; }.review-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 18px; }
+  .dialog-heading { display: flex; justify-content: space-between; }.eyebrow { color: var(--muted-foreground); font-size:0.75rem; font-weight: 700; text-transform: uppercase; }.actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+  .icon { width: 32px; height: 32px; border: 0; color: var(--muted-foreground); background: transparent; cursor: pointer; font-size:1.25rem; }
+
   @media (prefers-reduced-motion: reduce) { .windows-presentation, .windows-presentation * { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
-  @media (forced-colors: active) { .windows-presentation { --page: Canvas; --sidebar: Canvas; --surface: Canvas; --surface-raised: Canvas; --field: Field; --text: CanvasText; --muted: CanvasText; --line: CanvasText; } .primary, .secondary, :global(.word-row), .dialog, .drawer, .toast { border: 1px solid ButtonText; } }
-  @media (max-width: 760px), (min-resolution: 1.5dppx) and (max-width: 1100px) { .windows-shell { grid-template-columns: 10rem minmax(0,1fr); } header, section { height: auto; min-height: 5.4rem; padding-left: 1.125rem; padding-right: 1.125rem; }.summary, .settings-grid { grid-template-columns: 1fr; } }
-  @media (max-width: 560px) { .windows-shell { display: block; } aside { position: static; } nav { grid-template-columns: repeat(2, minmax(0, 1fr)); } .local-status { margin-top: 0; } header { align-items: flex-start; gap: 1rem; padding-top: 1rem; padding-bottom: 1rem; } section { min-height: auto; } .tools { align-items: stretch; flex-direction: column; gap: .75rem; } .tools input { width: 100%; } .pagination { flex-wrap: wrap; justify-content: center; }.pagination form { order: -1; width: 100%; justify-content: center; }.toast { right: 1rem; bottom: 1rem; left: 1rem; min-width: 0; } }
+  @media (forced-colors: active) { .windows-presentation { --page: Canvas; --sidebar: Canvas; --surface: Canvas; --surface-raised: Canvas; --field: Field; --text: CanvasText; --muted: CanvasText; --line: CanvasText; } .primary, .secondary, :global(.word-row) { border:1px solid ButtonText; } }
+  @media (max-width: 760px), (min-resolution: 1.5dppx) and (max-width: 1100px) { .windows-shell { grid-template-columns: 10rem minmax(0,1fr); } header, section { height: auto; min-height: 5.4rem; padding-left: 1.125rem; padding-right: 1.125rem; }.summary { grid-template-columns: 1fr; } }
+  @media (max-width: 560px) { .windows-shell { display: block; } aside { position: static; } nav { grid-template-columns: repeat(2, minmax(0, 1fr)); } .local-status { margin-top: 0; } header { align-items: flex-start; gap: 1rem; padding-top: 1rem; padding-bottom: 1rem; } section { min-height: auto; } .tools { align-items: stretch; flex-direction: column; gap: .75rem; } .tools :global(input) { width: 100%; } .pagination { flex-wrap: wrap; justify-content: center; }.pagination form { order: -1; width: 100%; justify-content: center; } }
+  .windows-shell { grid-template-columns:184px minmax(0,1fr); height:100vh; overflow:hidden; border-radius:14px; }
+  aside { padding:16px 8px; gap:24px; }
+  .brand { padding:0 8px; min-height:32px; gap:8px; }
+  .brand strong { font-size:0.875rem; }
+  nav button { display:flex; align-items:center; gap:8px; border-radius:10px; }
+  nav button.active { background:var(--accent); color:var(--accent-foreground); }
+  main { overflow:auto; background:var(--background); }
+  header { max-width:856px; margin:0 auto; height:auto; min-height:110px; padding:32px 48px 24px; border:0; }
+  h1 { font-size:1.5rem; line-height:1.2; letter-spacing:-.025em; font-weight:600; }
+  header p { font-size:0.875rem; line-height:1.45; }
+  section { min-height:0; max-width:856px; padding:0 48px 32px; margin:0 auto; }
+  @media(max-width:900px) { header { padding:24px; } section { padding:0 24px 24px; } }
+  :global(.manual-capture-content) { max-width:460px; max-height:calc(100dvh - 32px); overflow:auto; padding:24px; box-shadow:var(--shadow-dialog); }
+  :global(.manual-capture-content form) { display:flex; flex-direction:column; gap:20px; }
+  :global(.manual-capture-content label) { display:flex; flex-direction:column; gap:6px; font-size:0.875rem; }
+  :global(.manual-capture-content textarea) { min-height:96px; }
+  :global(.manual-capture-content [data-slot=dialog-title]) { font-size:1.5rem; line-height:1.2; font-weight:600; margin-top:8px; }
 </style>

@@ -12,6 +12,8 @@ import {
   type PresentationFamily,
 } from "./lib/presentation";
 import "./styles.css";
+import { backend } from "./lib/backend";
+import { connectAppearance } from "./lib/appearance";
 
 function desktopWindow(): DesktopWindow {
   return new URLSearchParams(location.search).get("window") === "capture" ? "capture" : "main";
@@ -36,6 +38,7 @@ async function start() {
     mount(WindowsOcrOverlay, { target: document.getElementById("app")! });
     return;
   }
+  void connectAppearance(backend).then((stop) => window.addEventListener("pagehide", stop, { once: true }));
   const presentation = selectPresentation(desktopWindow(), await presentationFamily());
   const target = document.getElementById("app")!;
 

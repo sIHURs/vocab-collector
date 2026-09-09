@@ -386,25 +386,25 @@
 <style>
   :global(html), :global(body.windows-capture-document), :global(#app) { width: 100%; height: 100%; margin: 0; background: transparent; overflow: hidden; }
   :global(body.windows-capture-document) { min-width: 0; min-height: 0; }
-  .windows-capture { box-sizing: border-box; display: flex; flex-direction: column; width: 100%; height: 100%; padding: 14px 16px; overflow: hidden; border: 1px solid #4b4f60; border-radius: 8px; color: #eeeef3; background: rgba(30, 31, 40, .98); box-shadow: 0 18px 48px rgba(0, 0, 0, .42); font: 14px "Segoe UI Variable", "Segoe UI", sans-serif; }
-  header { display: flex; align-items: center; justify-content: space-between; color: #aaadba; font-size: 12px; cursor: move; user-select: none; }
+  .windows-capture { box-sizing: border-box; display: flex; flex-direction: column; width: 100%; height: 100%; padding: 14px 16px; overflow: hidden; border: 1px solid var(--border); border-radius: 8px; color: var(--foreground); background: var(--card); box-shadow: 0 18px 48px rgba(0, 0, 0, .42); font: 14px "Segoe UI Variable", "Segoe UI", sans-serif; }
+  header { display: flex; align-items: center; justify-content: space-between; color: var(--muted-foreground); font-size: 12px; cursor: move; user-select: none; }
   header span { display: flex; align-items: center; gap: 7px; }
   button { border: 0; color: inherit; background: transparent; cursor: pointer; }
   header button { font-size: 20px; cursor: pointer; }
-  header i { width: 7px; height: 7px; border-radius: 50%; background: #7584ef; }
+  header i { width: 7px; height: 7px; border-radius: 50%; background: var(--primary); }
   .scrollable-content { min-height: 0; padding: 18px 4px 6px; overflow-x: hidden; overflow-y: auto; }
   h1 { margin: 3px 0 4px; font-size: 25px; }
-  p { color: #b9bbc6; line-height: 1.45; }
-  small { color: #858998; }
-  .primary { padding: 8px 12px; border-radius: 7px; background: #6676e8; color: white; }
-  .secondary { padding: 8px 12px; color: #c8cad4; }
-  label { display: block; margin: 5px 0; color: #aaadba; font-size: 11px; }
-  input, textarea { box-sizing: border-box; display: block; width: 100%; margin-top: 2px; padding: 5px 7px; border: 1px solid #55596a; border-radius: 5px; color: #eeeef3; background: #252732; font: inherit; }
+  p { color: var(--muted-foreground); line-height: 1.45; }
+  small { color: var(--muted-foreground); }
+  .primary { padding: 8px 12px; border-radius: 7px; background: var(--primary); color:var(--primary-foreground); }
+  .secondary { padding: 8px 12px; color: var(--foreground); }
+  label { display: block; margin: 5px 0; color: var(--muted-foreground); font-size: 11px; }
+  input, textarea { box-sizing: border-box; display: block; width: 100%; margin-top: 2px; padding: 5px 7px; border: 1px solid var(--input); border-radius: 5px; color: var(--foreground); background: var(--background); font: inherit; }
   textarea { min-height: 42px; resize: vertical; }
   .notice { margin: 8px 0; font-size: 12px; }
-  .status-tag { display: inline-block; margin-bottom: 4px; padding: 3px 7px; border: 1px solid #8b6f3d; border-radius: 999px; color: #f1ca78; background: #3a3020; font-size: 11px; font-weight: 700; }
-  .achieved-prompt { padding: 8px 10px; border-left: 3px solid #d6a84f; background: rgba(214, 168, 79, .1); }
-  button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid #aab3ff; outline-offset: 2px; }
+  .status-tag { display: inline-block; margin-bottom: 4px; padding: 3px 7px; border: 1px solid var(--warning); border-radius: 999px; color: var(--warning); background: var(--card); font-size: 11px; font-weight: 700; }
+  .achieved-prompt { padding: 8px 10px; border-left: 3px solid var(--warning); background: rgba(214, 168, 79, .1); }
+  button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
   @media (forced-colors: active) { .windows-capture { border-color: CanvasText; color: CanvasText; background: Canvas; box-shadow: none; } p, small, label, header { color: CanvasText; } .primary, .secondary, input, textarea { border: 1px solid ButtonText; color: ButtonText; background: ButtonFace; } }
   @media (prefers-reduced-motion: reduce) { .windows-capture, .windows-capture * { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
   @media (max-width: 320px), (min-resolution: 1.5dppx) and (max-width: 520px) { .windows-capture { font-size: 1rem; } .scrollable-content { padding-top: .75rem; } h1 { overflow-wrap: anywhere; font-size: 1.5rem; } .primary, .secondary { min-height: 2.5rem; } }
