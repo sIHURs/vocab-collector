@@ -1,9 +1,10 @@
+import { localDate, logStart, shiftDate } from "./vocabulary-log";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type {
   AchievedCaptureConflict, AchievedWordListItem, CaptureCard, CaptureInput, Encounter, GlobalInsight, PlatformCapabilities, ReviewRating, ReviewResult, ReviewSessionInsight, Settings,
   SettingsApplyResult, SystemSettingsStatus, TodayView,
-  WordDetail, WordListItem,
+  WordDetail, WordListItem, VocabularyLog,
 } from "./types";
 
 export interface Backend {
@@ -22,6 +23,7 @@ export interface Backend {
   submitReview(wordId: string, rating: ReviewRating, submissionId?: string): Promise<ReviewResult>;
   getReviewSessionInsight(submissionIds: string[], nextDayEnd: string): Promise<ReviewSessionInsight>;
   getGlobalInsight?(): Promise<GlobalInsight>;
+  getVocabularyLog?(): Promise<VocabularyLog>;
   getSettings(): Promise<Settings>;
   updateSettings(settings: Settings): Promise<void>;
   replaceShortcut(candidate: string): Promise<Settings>;
@@ -73,6 +75,9 @@ const achievedTiming = (deleteAfter: string) => {
 
 export class DemoBackend implements Backend {
   private words: DemoWord[] = [];
+  private logStarted = localDate();
+  private dailyCounts = new Map<string, number>();
+  private savedDates = new Map<string, string>();
   private settings = { ...defaultSettings };
   private reviewSubmissions = new Map<string, ReviewResult>();
 
@@ -125,6 +130,9 @@ export class DemoBackend implements Backend {
       captureOrigin: input.captureOrigin ?? "manual",
       capturedAt: now, updatedAt: now,
     };
+    const savedDate = localDate();
+    this.savedDates.set(encounter.id, savedDate);
+    this.dailyCounts.set(savedDate, (this.dailyCounts.get(savedDate) ?? 0) + 1);
     detail.encounters.unshift(encounter);
     detail.item.encounterCount = detail.encounters.length;
     detail.item.lastSeenAt = now;
@@ -135,7 +143,25 @@ export class DemoBackend implements Backend {
       isExistingWord: existing };
   }
 
+  async getVocabularyLog(): Promise<VocabularyLog> {
+    const endDate = localDate();
+    const startDate = logStart(endDate);
+    const days: VocabularyLog['days'] = [];
+    for (let date = startDate; date <= endDate; date = shiftDate(date, 1)) {
+      const count = this.dailyCounts.get(date);
+      const coverage = date < this.logStarted ? count == null ? 'unknown' : 'partial' : date === this.logStarted ? 'partial' : 'complete';
+      days.push({ date, count: coverage === 'unknown' ? null : count ?? 0, coverage });
+    }
+    return { startDate, endDate, days };
+  }
+
   async undoCapture(encounterId: string) {
+    if (!this.words.some(word => word.encounters.some(encounter => encounter.id === encounterId))) return;
+    const savedDate = this.savedDates.get(encounterId);
+    if (savedDate) {
+      this.dailyCounts.set(savedDate, Math.max(0, (this.dailyCounts.get(savedDate) ?? 0) - 1));
+      this.savedDates.delete(encounterId);
+    }
     for (const word of this.words) {
       word.encounters = word.encounters.filter((encounter) => encounter.id !== encounterId);
       word.item.encounterCount = word.encounters.length;
@@ -200,6 +226,9 @@ export class DemoBackend implements Backend {
   }
   async deleteAchievedWords(wordIds: string[]): Promise<number> {
     if (wordIds.some((wordId) => !this.words.some((candidate) => candidate.item.id === wordId && candidate.item.achievedAt))) throw new Error("Vocabulary Item is not Achieved");
+    for (const word of this.words.filter(candidate => wordIds.includes(candidate.item.id))) {
+      for (const encounter of word.encounters) this.savedDates.delete(encounter.id);
+    }
     this.words = this.words.filter((candidate) => !wordIds.includes(candidate.item.id));
     return wordIds.length;
   }
@@ -291,6 +320,7 @@ class TauriBackend implements Backend {
   getReviewSessionInsight(submissionIds: string[], nextDayEnd: string) {
     return invoke<ReviewSessionInsight>("get_review_session_insight", { submissionIds, nextDayEnd });
   }
+  getVocabularyLog() { return invoke<VocabularyLog>("get_vocabulary_log"); }
   getGlobalInsight() { return invoke<GlobalInsight>("get_global_insight"); }
   getSettings() { return invoke<Settings>("get_settings"); }
   updateSettings(settings: Settings) { return invoke<void>("update_settings", { settings }); }

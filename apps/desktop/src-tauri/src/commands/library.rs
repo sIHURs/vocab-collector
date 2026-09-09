@@ -190,3 +190,13 @@ pub fn update_settings(
     let _ = app.emit("settings-changed", ());
     Ok(())
 }
+
+#[tauri::command]
+pub fn get_vocabulary_log(
+    state: State<'_, AppState>,
+) -> Result<vocab_domain::VocabularyLog, String> {
+    state
+        .application()
+        .get_vocabulary_log()
+        .map_err(|error| error.to_string())
+}

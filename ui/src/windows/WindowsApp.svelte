@@ -21,7 +21,12 @@
   import ChartNoAxesColumn from '@lucide/svelte/icons/chart-no-axes-column';
   import SettingsIcon from '@lucide/svelte/icons/settings';
   import Monitor from '@lucide/svelte/icons/monitor';
-  import WindowsWordRow from "./WindowsWordRow.svelte";
+  import { localDate } from "../lib/vocabulary-log";
+  import type { VocabularyLog } from "../lib/types";
+  import TodayPanel from '../components/TodayPanel.svelte';
+  import InsightsPanel from '../components/InsightsPanel.svelte';
+  import { Skeleton } from '$lib/components/ui/skeleton';
+  import { Progress } from '$lib/components/ui/progress';
 
   type Route = "Today" | "Vocabulary" | "Review" | "Insights" | "Settings";
   export let api: Backend = createBackend();
@@ -63,6 +68,24 @@
   let reviewSessionCards: ReviewCard[] = [];
   let reviewSessionInsight: ReviewSessionInsight | null = null;
   let globalInsight: GlobalInsight | null = null;
+  let insightError = "";
+  let vocabularyLog: VocabularyLog | null = null;
+  let logLoading = false;
+  let logError = "";
+  let logRequest = 0;
+  let lastLogDate = localDate();
+  async function loadLog() {
+    const request = ++logRequest;
+    logLoading = true;
+    logError = "";
+    try { const result = await api.getVocabularyLog?.() ?? null; if (request === logRequest) vocabularyLog = result; }
+    catch (cause) { if (request === logRequest) logError = cause instanceof Error ? cause.message : String(cause); }
+    finally { if (request === logRequest) logLoading = false; }
+  }
+  function refreshLogDate() {
+    const date = localDate();
+    if (date !== lastLogDate) { lastLogDate = date; void loadLog(); }
+  }
   let settingsDraft: Settings | null = null;
   let appliedSettings: Settings | null = null;
   let settingsSaving = false;
@@ -102,11 +125,18 @@
   $: pagedWords = filteredWords.slice((vocabularyPage - 1) * vocabularyPageSize, vocabularyPage * vocabularyPageSize);
   $: activeReview = today?.reviewQueue[reviewIndex] as ReviewCard | undefined;
 
+  async function loadInsight() {
+    insightError = "";
+    try { return await api.getGlobalInsight?.() ?? null; }
+    catch (cause) { insightError = cause instanceof Error ? cause.message : String(cause); return null; }
+  }
+
   async function refresh() {
     loading = true;
+    void loadLog();
     error = "";
     try {
-      const [nextToday, nextWords, nextAchievedWords, nextSettings, nextGlobalInsight] = await Promise.all([api.getToday(), api.listWords(), api.listAchievedWords?.() ?? Promise.resolve([]), api.getSettings(), api.getGlobalInsight?.() ?? Promise.resolve(null)]);
+      const [nextToday, nextWords, nextAchievedWords, nextSettings, nextGlobalInsight] = await Promise.all([api.getToday(), api.listWords(), api.listAchievedWords?.() ?? Promise.resolve([]), api.getSettings(), loadInsight()]);
       today = nextToday;
       words = nextWords;
       achievedWords = nextAchievedWords;
@@ -196,7 +226,7 @@
     finally { saving = false; }
   }
 
-  async function showDetail(wordId: string, trigger: HTMLButtonElement) {
+  async function showDetail(wordId: string, trigger: HTMLElement) {
     error = "";
     detailTrigger = trigger;
     try {
@@ -264,7 +294,7 @@
   }
 
   async function startReview() {
-    if (!today?.reviewQueue.length || reviewRefreshRequired) return;
+    if (loading || !today?.reviewQueue.length || reviewRefreshRequired) return;
     route = "Review";
     reviewOpen = true;
     reviewComplete = false;
@@ -291,6 +321,7 @@
   async function closeReview() {
     if (reviewSubmitting) return;
     reviewOpen = false;
+    route = "Today";
     reviewRequestVersion += 1;
     reviewPaused = true;
     reviewRevealed = false;
@@ -439,6 +470,10 @@
   }
 
   async function selectRoute(item: Route) {
+    if (route === "Review" && reviewOpen) {
+      if (reviewSubmitting) return;
+      await closeReview();
+    }
     route = item;
     selectedDetail = null;
     if (item === "Settings" && api.getWindowsSettingsStatus) {
@@ -467,6 +502,8 @@
     let unlisten: (() => void) | undefined;
     let unlistenManualCapture: (() => void) | undefined;
     void refresh();
+    const dateTimer = setInterval(refreshLogDate, 30_000);
+    window.addEventListener("focus", refreshLogDate);
     if (api.listenOpenManualCapture) {
       void api.listenOpenManualCapture(() => { void openCapture(); }).then((nextUnlisten) => {
         if (mounted) unlistenManualCapture = nextUnlisten;
@@ -481,6 +518,9 @@
     }
     return () => {
       mounted = false;
+      logRequest += 1;
+      clearInterval(dateTimer);
+      window.removeEventListener("focus", refreshLogDate);
       clearTimeout(settingsSavedTimer);
       unlisten?.();
       unlistenManualCapture?.();
@@ -498,15 +538,13 @@
     <div class="local-status"><Monitor size={16} aria-hidden="true" /><span>Local mode</span></div>
   </aside>
   <main>
-    <header><div><h1 id="windows-page-title">{route}</h1><p>{route === "Today" ? "Your words, ready when you are" : route === "Settings" ? "Make Vocab Collector fit your reading." : route === "Vocabulary" ? "Every word, with the context you found it in." : "Vocab Collector for Windows"}</p></div>{#if route === "Today" || route === "Vocabulary" || route === "Insights"}<Button aria-label="Manual capture" size="icon" onclick={openCapture}><Plus /></Button>{/if}</header>
+    <header><div><h1 id="windows-page-title">{route}</h1><p>{route === "Today" ? "Your words, ready when you are" : route === "Settings" ? "Make Vocab Collector fit your reading." : route === "Vocabulary" ? "Every word, with the context you found it in." : route === "Insights" ? "Your learning, over time." : "One word at a time."}</p></div>{#if route === "Today" || route === "Vocabulary" || route === "Insights"}<Button aria-label="Manual capture" size="icon" onclick={openCapture}><Plus /></Button>{/if}</header>
     <section aria-labelledby="windows-page-title" aria-busy={loading}>
       {#if error}<div class="error" role="alert"><span>{error}</span><button onclick={retryError}>Try again</button></div>{/if}
-      {#if loading}
-        <div class="state" role="status">Loading your vocabulary...</div>
-      {:else if route === "Today"}
-        <div class="summary"><div><span>Today's plan</span><strong>{today?.plannedReviewCount ?? 0}</strong><small>{today?.plannedReviewCount ? `${today.totalDueCount} total due · About ${today?.estimatedMinutes ?? 0} minute${today?.estimatedMinutes === 1 ? "" : "s"}` : "Nothing due"}</small>{#if today?.plannedReviewCount}<button class="primary" onclick={startReview}>Start review ({today.plannedReviewCount})</button>{/if}</div><div><span>Recent captures</span><strong>{today?.recentCaptures.length ?? 0}</strong><small>Stored locally</small></div></div>
-        <div class="section-heading"><h2>Recent captures</h2><p>New contexts appear here immediately after saving.</p></div>
-        <div class="list recent-captures-list">{#each today?.recentCaptures ?? [] as word}<WindowsWordRow {word} onSelect={showDetail} />{:else}<div class="state"><strong>No captures yet</strong><span>Use Manual capture to save your first reading context.</span><button class="primary" onclick={openCapture}>Manual capture</button></div>{/each}</div>
+      {#if route === "Today"}
+        <TodayPanel {today} {loading} paused={reviewPaused} refreshRequired={reviewRefreshRequired} onstart={startReview} onretry={retryReviewRefresh} oncapture={openCapture} ondetail={showDetail} />
+      {:else if loading && !initialLoadComplete}
+        <div role="status">Loading your vocabulary...<Skeleton class="h-40 w-full" /></div>
       {:else if route === "Vocabulary"}
         <Tabs.Root value={vocabularyView} onValueChange={(value) => { vocabularyView = value as typeof vocabularyView; updateSearch(""); }}><Tabs.List aria-label="Vocabulary views"><Tabs.Trigger value="active">Active</Tabs.Trigger><Tabs.Trigger value="mastered">Mastered</Tabs.Trigger><Tabs.Trigger value="achieved">Achieved ({achievedWords.length})</Tabs.Trigger></Tabs.List></Tabs.Root>
         <div class="tools"><label><span>Search</span><Input aria-label="Search vocabulary" value={search} oninput={(event) => updateSearch(event.currentTarget.value)} placeholder="Word or translation" /></label><span>{vocabularyView === "achieved" ? filteredAchievedWords.length : filteredWords.length} items</span></div>
@@ -514,23 +552,18 @@
         {#if filteredWords.length}<nav class="pagination" aria-label="Vocabulary pages"><button class="secondary" disabled={vocabularyPage === 1} onclick={() => goToVocabularyPage(1)}>First</button><button class="secondary" disabled={vocabularyPage === 1} onclick={() => goToVocabularyPage(vocabularyPage - 1)}>Previous</button><form aria-label="Go to vocabulary page" onsubmit={(event) => { event.preventDefault(); goToVocabularyPage(vocabularyPageInput); }}><label><span>Page</span><input aria-label="Page number" type="number" min="1" max={vocabularyPageCount} bind:value={vocabularyPageInput} onblur={() => goToVocabularyPage(vocabularyPageInput)} /><span>of {vocabularyPageCount}</span></label></form><button class="secondary" disabled={vocabularyPage === vocabularyPageCount} onclick={() => goToVocabularyPage(vocabularyPage + 1)}>Next</button><button class="secondary" disabled={vocabularyPage === vocabularyPageCount} onclick={() => goToVocabularyPage(vocabularyPageCount)}>Last</button></nav>{/if}{/if}
       {:else if route === "Review"}
         {#if reviewOpen && activeReview}
-          <div class="review-card" aria-live="polite" bind:this={reviewCardElement}><div class="review-progress"><span>{reviewIndex + 1} of {today?.reviewQueue.length}</span><button class="icon" aria-label="Close review" disabled={reviewSubmitting} onclick={closeReview}>×</button></div><span class="eyebrow">Do you remember this word?</span><h2>{activeReview.displayForm}</h2><p>{activeReview.context ?? "No saved context"}</p>{#if reviewResult}<div class="review-translation" role="status"><small>{reviewResult.rating === "remembered" ? "Remembered" : "Forgot"}</small><strong>Next review {new Date(reviewResult.nextDueAt).toLocaleDateString()}</strong><span>{`Encountered ${reviewResult.encounterCount} time${reviewResult.encounterCount === 1 ? "" : "s"}`}</span>{#if reviewResult.repeatedForgetting}<p>This Vocabulary Item has been repeatedly forgotten. Another context or a translation check may help.</p>{/if}</div>{:else if reviewRevealed}<div class="review-translation" role="status"><small>Translation</small><strong>{activeReview.translation ?? "Unavailable"}</strong></div>{/if}{#if reviewError}<div class="dialog-error" role="alert">{reviewError}</div>{/if}<div class="review-actions">{#if reviewResult}{#if reviewResult.repeatedForgetting}<button class="secondary" onclick={(event) => showDetail(activeReview.wordId, event.currentTarget)}>Review contexts</button>{/if}<button class="primary" onclick={nextReview}>Next</button>{:else if reviewRevealed}{#if reviewError && reviewSubmissionRating}<button class="primary" disabled={reviewSubmitting} onclick={retryReviewSubmission}>Retry {reviewSubmissionRating === "remembered" ? "Remembered" : "Forgot"}</button>{:else}<button class="secondary" disabled={reviewSubmitting} onclick={() => rateReview("forgot")}>Forgot</button><button class="primary" disabled={reviewSubmitting} onclick={() => rateReview("remembered")}>Remembered</button>{/if}{:else}<button class="primary" onclick={revealReview}>Show answer</button>{/if}</div></div>
+          <div class="review-card" aria-live="polite" bind:this={reviewCardElement}><div class="review-progress"><span>{reviewIndex + 1} of {today?.reviewQueue.length}</span><Button variant="ghost" size="icon" aria-label="Close review" disabled={reviewSubmitting} onclick={closeReview}>×</Button></div><Progress value={reviewIndex} max={today?.reviewQueue.length ?? 1} aria-label="Review progress" /><span class="eyebrow">Do you remember this word?</span><h2>{activeReview.displayForm}</h2><p>{activeReview.context ?? "No saved context"}</p>{#if reviewResult}<div class="review-translation" role="status"><small>{reviewResult.rating === "remembered" ? "Remembered" : "Forgot"}</small><strong>Next review {new Date(reviewResult.nextDueAt).toLocaleDateString()}</strong><span>{`Encountered ${reviewResult.encounterCount} time${reviewResult.encounterCount === 1 ? "" : "s"}`}</span>{#if reviewResult.repeatedForgetting}<p>This Vocabulary Item has been repeatedly forgotten. Another context or a translation check may help.</p>{/if}</div>{:else if reviewRevealed}<div class="review-translation" role="status"><small>Translation</small><strong>{activeReview.translation ?? "Unavailable"}</strong></div>{/if}{#if reviewError}<div class="dialog-error" role="alert">{reviewError}</div>{/if}<div class="review-actions">{#if reviewResult}{#if reviewResult.repeatedForgetting}<Button variant="outline" onclick={(event) => showDetail(activeReview.wordId, event.currentTarget)}>Review contexts</Button>{/if}<Button onclick={nextReview}>Next</Button>{:else if reviewRevealed}{#if reviewError && reviewSubmissionRating}<Button disabled={reviewSubmitting} onclick={retryReviewSubmission}>Retry {reviewSubmissionRating === "remembered" ? "Remembered" : "Forgot"}</Button>{:else}<Button variant="outline" disabled={reviewSubmitting} onclick={() => rateReview("forgot")}>Forgot</Button><Button disabled={reviewSubmitting} onclick={() => rateReview("remembered")}>Remembered</Button>{/if}{:else}<Button onclick={revealReview}>Show answer</Button>{/if}</div></div>
         {:else if reviewComplete && reviewSessionInsight}
-          <div class="state" aria-live="polite"><h2 tabindex="-1" bind:this={reviewCompleteHeading}>Review complete</h2><strong>{reviewSessionInsight.reviewedCount} reviewed</strong><span>{reviewSessionInsight.rememberedCount} remembered · {reviewSessionInsight.forgottenCount} forgot</span><span>Estimated due by the end of tomorrow: {reviewSessionInsight.nextDayDueCount}</span>{#if reviewSessionInsight.attentionWordIds.length}<div><strong>Worth another context</strong>{#each reviewSessionInsight.attentionWordIds as wordId}<span>{attentionLabel(wordId)} may benefit from another context or a translation check.</span>{/each}</div>{/if}<button class="primary" onclick={returnToToday}>Back to Today</button></div>
+          <div class="state" aria-live="polite"><h2 tabindex="-1" bind:this={reviewCompleteHeading}>Review complete</h2><strong>{reviewSessionInsight.reviewedCount} reviewed</strong><span>{reviewSessionInsight.rememberedCount} remembered · {reviewSessionInsight.forgottenCount} forgot</span><span>Estimated due by the end of tomorrow: {reviewSessionInsight.nextDayDueCount}</span>{#if reviewSessionInsight.attentionWordIds.length}<div><strong>Worth another context</strong>{#each reviewSessionInsight.attentionWordIds as wordId}<span>{attentionLabel(wordId)} may benefit from another context or a translation check.</span>{/each}</div>{/if}<Button onclick={returnToToday}>Back to Today</Button></div>
         {:else if reviewRefreshRequired}
-          <div class="state"><strong>{reviewCompleting ? "Review saved" : "Review paused"}</strong><span>Refresh Today before continuing so the due queue stays current.</span><button class="primary" onclick={retryReviewRefresh}>Retry Review refresh</button></div>
+          <div class="state"><strong>{reviewCompleting ? "Review saved" : "Review paused"}</strong><span>Refresh Today before continuing so the due queue stays current.</span><Button onclick={retryReviewRefresh}>Retry Review refresh</Button></div>
         {:else if today?.reviewQueue.length}
-          <div class="state"><strong>{reviewPaused ? "Review paused" : `${today.plannedReviewCount} planned · ${today.totalDueCount} total due`}</strong><span>{reviewPaused ? `${today.reviewQueue.length} words remaining.` : `About ${today.estimatedMinutes} minute${today.estimatedMinutes === 1 ? "" : "s"}.`}</span><button class="primary" onclick={startReview}>{reviewPaused ? "Resume review" : "Start review"}</button></div>
+          <div class="state"><strong>{reviewPaused ? "Review paused" : `${today.plannedReviewCount} planned · ${today.totalDueCount} total due`}</strong><span>{reviewPaused ? `${today.reviewQueue.length} words remaining.` : `About ${today.estimatedMinutes} minute${today.estimatedMinutes === 1 ? "" : "s"}.`}</span><Button onclick={startReview}>{reviewPaused ? "Resume review" : "Start review"}</Button></div>
         {:else}
           <div class="state"><strong>Nothing due</strong><span>Your review queue is clear for today.</span></div>
         {/if}
       {:else if route === "Insights"}
-        {#if globalInsight}
-          <div class="section-heading"><h2>All-time progress</h2><p>Includes anonymous totals retained after permanent deletion.</p></div>
-          <div class="insight-grid" role="region" aria-label="All-time progress"><div><span>Vocabulary encountered</span><strong>{globalInsight.lifetimeVocabularyCount}</strong></div><div><span>Encounters saved</span><strong>{globalInsight.lifetimeEncounterCount}</strong></div><div><span>Reviews completed</span><strong>{globalInsight.lifetimeReviewCount}</strong></div><div><span>Remembered</span><strong>{globalInsight.lifetimeRememberedCount}</strong></div><div><span>Forgot</span><strong>{globalInsight.lifetimeForgottenCount}</strong></div><div><span>Currently achieved</span><strong>{globalInsight.currentAchievedCount}</strong></div></div>
-          {#if !globalInsight.lifetimeRatingBreakdownComplete}<p class="insight-coverage">Remembered and Forgot totals exclude anonymous review history deleted before this app version.</p>{/if}
-        {/if}
-
+        <InsightsPanel log={vocabularyLog} {logLoading} {logError} onlogretry={loadLog} insight={globalInsight} session={reviewSessionInsight} due={today?.totalDueCount ?? null} error={insightError} onretry={async () => { globalInsight = await loadInsight(); }} />
       {:else if settingsDraft}
         <SettingsForm bind:settingsDraft {systemStatus} {settingsError} {settingsSaving} onsave={saveSettings} />
       {/if}
@@ -551,40 +584,40 @@
   :global(body) { background: transparent; } :global(*) { box-sizing: border-box; }
   button, input { font: inherit; } button:focus-visible, input:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
   .windows-presentation { min-height:100vh; color:var(--foreground); background:var(--background); font:0.875rem/1.45 var(--font-sans); }
-  .windows-presentation[data-settings-ready="false"] { visibility: hidden; }
+
   .windows-shell { min-height: 100vh; display: grid; grid-template-columns: 220px minmax(0, 1fr); color: var(--text); background: var(--page); }
   aside { display: flex; flex-direction: column; padding: 18px 12px 14px; border-right: 1px solid var(--line); background: var(--sidebar); }
   .brand { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 0 8px 18px; }.brand strong { font-size:0.8125rem; }
   nav { display: grid; gap: 3px; } nav button { min-height: 36px; padding: 0 10px; border: 0; border-radius: 6px; color: var(--muted-foreground); background: transparent; text-align: left; cursor: pointer; } nav button:hover, nav button.active { color: var(--text); background: var(--surface-raised); }
   .local-status { display: flex; align-items: center; gap: 8px; margin-top: auto; padding: 10px 8px; color: var(--muted-foreground); font-size:0.75rem; }
   main { min-width: 0; } header { display: flex; align-items: center; justify-content: space-between; height: 86px; padding: 0 28px; border-bottom: 1px solid var(--line); } h1, h2, p { margin: 0; } h1 { font-size:1.375rem; } header p { margin-top: 5px; color: var(--muted-foreground); font-size:0.75rem; } section { min-height: calc(100vh - 87px); padding: 26px 28px; }
-  .primary, .secondary { min-height: 34px; padding: 0 14px; border-radius: 6px; border: 1px solid transparent; cursor: pointer; }.primary { color: var(--primary-foreground); background: var(--primary); box-shadow:none; }.primary:disabled { opacity: .45; cursor: default; }.secondary { color: var(--text); border-color: var(--line); background: var(--surface-raised); }
-  .summary { display: grid; grid-template-columns: repeat(2, minmax(0, 190px)); gap: 12px; }.summary div { display: grid; gap: 8px; padding: 18px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); }.summary span, .summary small { color: var(--muted-foreground); font-size:0.75rem; }.summary strong { font-size:1.625rem; }
-  .section-heading { margin: 24px 0 10px; }.section-heading h2 { font-size:0.9375rem; }.section-heading p { margin-top: 4px; color: var(--muted-foreground); font-size:0.6875rem; }
+  .secondary { min-height:32px; padding:0 14px; border-radius:10px; cursor:pointer; color: var(--text); border-color: var(--line); background: var(--surface-raised); }
+
+
   .list { overflow: hidden; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); }
-  .recent-captures-list { max-height: min(55vh, 540px); overflow-y: auto; scrollbar-gutter: stable; }
+
   .vocabulary-list { max-height: calc(100vh - 244px); overflow-y: auto; scrollbar-gutter: stable; }
   .vocabulary-list :global([data-slot=table-container]) { overflow:visible; }
   .pagination { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 12px; color: var(--muted-foreground); font-size:0.75rem; }
   .pagination form, .pagination label { display: flex; align-items: center; gap: 6px; }.pagination input { width: 54px; height: 32px; padding: 0 6px; border: 1px solid var(--line); border-radius: 5px; color: var(--text); background: var(--field); text-align: center; }
-  .state { min-height: 220px; display: grid; place-content: center; justify-items: center; gap: 8px; color: var(--muted-foreground); text-align: center; }.state strong { color: var(--text); font-size:1rem; }.state .primary { margin-top: 8px; }
+  .state { min-height: 220px; display: grid; place-content: center; justify-items: center; gap: 8px; color: var(--muted-foreground); text-align: center; }.state strong { color: var(--text); font-size:1rem; }
   .tools { margin-top:20px; display: flex; align-items: end; justify-content: space-between; margin-bottom: 12px; color: var(--muted-foreground); font-size:0.6875rem; }.tools label { display: grid; gap: 6px; }.tools :global(input) { width: 310px; height: 34px; padding: 0 10px; border: 1px solid var(--line); border-radius: 6px; color: var(--text); background: var(--surface); }
   .select-all,.achieved-row { display:grid; align-items:center; gap:12px; padding:12px 14px; border-bottom:1px solid var(--line); }.select-all { grid-template-columns:auto 1fr; color:var(--muted-foreground); }.achieved-row { grid-template-columns:auto minmax(0,1fr) auto; color:var(--text); }.achieved-row.warning { border-left:3px solid var(--warning); }.achieved-row.urgent { border-left:3px solid var(--destructive); }.achieved-row span { display:grid; gap:3px; overflow-wrap:anywhere; }.achieved-row > span:last-child { max-width:210px; font-size:0.75rem; color:var(--muted-foreground); }.achieved-row small { color:var(--muted-foreground); }.bulk-actions { flex-wrap:wrap; position:sticky; bottom:12px; display:flex; justify-content:flex-end; align-items:center; gap:10px; margin-top:12px; padding:12px; border:1px solid var(--line); border-radius:7px; background:var(--surface-raised); }
   .error { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 14px; padding: 11px 13px; border: 1px solid var(--destructive); border-radius: 6px; color: var(--destructive); background: var(--card); }.error button { border: 0; color: var(--foreground); background: transparent; cursor: pointer; }
   .dialog-error { padding: 9px 10px; border: 1px solid var(--destructive); border-radius: 6px; color: var(--destructive); background: var(--card); font-size:0.75rem; }
   .achieved-capture-notice { padding: 10px; border: 1px solid var(--warning); border-radius: 6px; background: rgba(196, 145, 46, .1); }.achieved-capture-notice span { display: inline-block; padding: 2px 7px; border-radius: 999px; color: var(--warning); background: var(--card); font-size:0.625rem; font-weight: 700; text-transform: uppercase; }.achieved-capture-notice p { margin: 7px 0 0; color: var(--text); font-size:0.75rem; }
-  .insight-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }.insight-grid > div { display: grid; gap: 6px; padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }.insight-grid span { color: var(--muted-foreground); font-size:0.6875rem; }.insight-grid strong { font-size:1.375rem; }
+
   .settings-toast { position:fixed; top:18px; left:50%; transform:translateX(-50%); color:var(--success); background:var(--card); border:1px solid var(--success); border-radius:10px; padding:10px 16px; }
   @keyframes settings-toast-out { to { opacity: 0; transform: translate(-50%, -6px); } }
 
   .windows-presentation[data-reduced-motion="true"], .windows-presentation[data-reduced-motion="true"] * { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
-  .review-card { max-width: 620px; margin: 24px auto; padding: 28px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }.review-progress { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; color: var(--muted-foreground); font-size:0.6875rem; }.review-card h2 { margin: 10px 0; font-size:1.875rem; }.review-card > p { color: var(--muted-foreground); line-height: 1.6; }.review-translation { display: grid; gap: 5px; margin: 22px 0; padding: 14px; border-radius: 7px; background: rgba(117,132,239,.12); }.review-translation small { color: var(--muted-foreground); }.review-translation strong { color: #7a86e8; font-size:1rem; }.review-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 18px; }
+  .review-card { width:100%; max-width: 620px; margin: 24px auto; padding: 28px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }.review-progress { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; color: var(--muted-foreground); font-size:0.6875rem; }.review-card h2 { overflow-wrap:anywhere; margin: 10px 0; font-size:2.25rem; }.review-card > p { font-size:1.125rem; overflow-wrap:anywhere; color: var(--muted-foreground); line-height: 1.6; }.review-translation { display: grid; gap: 5px; margin: 22px 0; padding: 14px; border-radius: 7px; background: var(--muted); }.review-translation small { color: var(--muted-foreground); }.review-translation strong { color: var(--foreground); font-size:1rem; }.review-actions { display: flex; flex-wrap:wrap; justify-content:flex-end; gap: 10px; margin-top: 18px; }
   .dialog-heading { display: flex; justify-content: space-between; }.eyebrow { color: var(--muted-foreground); font-size:0.75rem; font-weight: 700; text-transform: uppercase; }.actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
-  .icon { width: 32px; height: 32px; border: 0; color: var(--muted-foreground); background: transparent; cursor: pointer; font-size:1.25rem; }
+
 
   @media (prefers-reduced-motion: reduce) { .windows-presentation, .windows-presentation * { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
-  @media (forced-colors: active) { .windows-presentation { --page: Canvas; --sidebar: Canvas; --surface: Canvas; --surface-raised: Canvas; --field: Field; --text: CanvasText; --muted: CanvasText; --line: CanvasText; } .primary, .secondary, :global(.word-row) { border:1px solid ButtonText; } }
-  @media (max-width: 760px), (min-resolution: 1.5dppx) and (max-width: 1100px) { .windows-shell { grid-template-columns: 10rem minmax(0,1fr); } header, section { height: auto; min-height: 5.4rem; padding-left: 1.125rem; padding-right: 1.125rem; }.summary { grid-template-columns: 1fr; } }
+  @media (forced-colors: active) { .windows-presentation { --page: Canvas; --sidebar: Canvas; --surface: Canvas; --surface-raised: Canvas; --field: Field; --text: CanvasText; --muted: CanvasText; --line: CanvasText; }  }
+  @media (max-width: 760px), (min-resolution: 1.5dppx) and (max-width: 1100px) { .windows-shell { grid-template-columns: 10rem minmax(0,1fr); } header, section { height: auto; min-height: 5.4rem; padding-left: 1.125rem; padding-right: 1.125rem; } }
   @media (max-width: 560px) { .windows-shell { display: block; } aside { position: static; } nav { grid-template-columns: repeat(2, minmax(0, 1fr)); } .local-status { margin-top: 0; } header { align-items: flex-start; gap: 1rem; padding-top: 1rem; padding-bottom: 1rem; } section { min-height: auto; } .tools { align-items: stretch; flex-direction: column; gap: .75rem; } .tools :global(input) { width: 100%; } .pagination { flex-wrap: wrap; justify-content: center; }.pagination form { order: -1; width: 100%; justify-content: center; } }
   .windows-shell { grid-template-columns:184px minmax(0,1fr); height:100vh; overflow:hidden; border-radius:14px; }
   aside { padding:16px 8px; gap:24px; }

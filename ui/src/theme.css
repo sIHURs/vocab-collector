@@ -40,7 +40,8 @@
 --text-xs:0.75rem;
 --radius-sm:6px; --radius-md:10px; --radius-lg:14px;
 }
-:root { --background:#FFFFFF;
+:root { --activity-0:#EBEDF0; --activity-1:#D6E9FF; --activity-2:#9CCBFF; --activity-3:#4A96E0; --activity-4:#1763AB;
+--background:#FFFFFF;
 --foreground:#171717;
 --card:#F7F7F7;
 --card-foreground:#171717;
@@ -80,7 +81,8 @@
 --space-8:32px;
 color-scheme:light;
 }
-:root[data-appearance=dark] { --background:#171717;
+:root[data-appearance=dark] { --activity-0:#262626; --activity-1:#173458; --activity-2:#205C91; --activity-3:#338BD0; --activity-4:#79C0FF;
+--background:#171717;
 --foreground:#FAFAFA;
 --card:#202020;
 --card-foreground:#FAFAFA;
@@ -107,7 +109,8 @@ color-scheme:light;
 --sidebar-foreground:#E5E5E5;
 --sidebar-accent:#27343D;
 --sidebar-accent-foreground:#D4E3EC; color-scheme:dark; }
-@media(prefers-color-scheme:dark) { :root:where(:not([data-appearance=light]):not([data-appearance=dark])) { --background:#171717;
+@media(prefers-color-scheme:dark) { :root:where(:not([data-appearance=light]):not([data-appearance=dark])) { --activity-0:#262626; --activity-1:#173458; --activity-2:#205C91; --activity-3:#338BD0; --activity-4:#79C0FF;
+--background:#171717;
 --foreground:#FAFAFA;
 --card:#202020;
 --card-foreground:#FAFAFA;

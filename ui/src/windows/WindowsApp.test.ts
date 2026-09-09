@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/svelte";
+import { fireEvent, render, screen, within, waitFor } from "@testing-library/svelte";
 import { describe, expect, it, vi } from "vitest";
 import { DemoBackend, type Backend } from "../lib/backend";
 import type { Settings } from "../lib/types";
@@ -344,7 +344,7 @@ describe("Windows main presentation", () => {
     expect(await screen.findByRole("heading", { name: "nuance" })).toBeVisible();
     await fireEvent.click(screen.getByRole("button", { name: "Close review" }));
 
-    expect(screen.getByRole("heading", { level: 1, name: "Review" })).toBeVisible();
+    expect(screen.getByRole("heading", { level: 1, name: "Today" })).toBeVisible();
     expect(await screen.findByText("2 words remaining.")).toBeVisible();
     await fireEvent.click(screen.getByRole("button", { name: "Resume review" }));
     expect(screen.getByRole("heading", { name: "nuance" })).toBeVisible();
@@ -470,7 +470,8 @@ describe("Windows main presentation", () => {
     await fireEvent.click(screen.getByRole("button", { name: "Show answer" }));
     expect(screen.getByText("glücklicher Zufall")).toBeVisible();
     await fireEvent.click(screen.getByRole("button", { name: "Close review" }));
-    await fireEvent.click(await screen.findByRole("button", { name: "Resume review" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Resume review" })).toBeEnabled());
+    await fireEvent.click(screen.getByRole("button", { name: "Resume review" }));
 
     expect(screen.queryByText("glücklicher Zufall")).toBeNull();
     expect(screen.getByRole("button", { name: "Show answer" })).toBeVisible();
@@ -511,7 +512,7 @@ describe("Windows main presentation", () => {
     expect(screen.queryByRole("button", { name: "Resume review" })).toBeNull();
     await fireEvent.click(screen.getByRole("button", { name: "Today" }));
     await fireEvent.click(screen.getByRole("button", { name: "Try again" }));
-    await fireEvent.click(await screen.findByRole("button", { name: "Start review (2)" }));
+    await fireEvent.click(await screen.findByRole("button", { name: "Resume review" }));
     expect(screen.getByRole("heading", { name: "nuance" })).toBeVisible();
   });
 
@@ -711,5 +712,42 @@ describe("Windows main presentation", () => {
     await fireEvent.click(screen.getByRole("tab", { name: "Achieved (1)" }));
 
     expect(screen.getByText(`Achieved ${new Date(achievedAt).toLocaleDateString()}`)).toBeVisible();
+  });
+});
+
+describe("Paper Today and Review", () => {
+  it("returns to Today on close and resumes without revealing the answer", async () => {
+    render(WindowsApp, { api: new DemoBackend(true) });
+    await fireEvent.click(await screen.findByRole("button", { name: "Start review (3)" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Show answer" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Close review" }));
+    expect(await screen.findByRole("heading", { name: "Today" })).toBeVisible();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Resume review" })).toBeEnabled());
+    await fireEvent.click(screen.getByRole("button", { name: "Resume review" }));
+    expect(screen.getByRole("button", { name: "Show answer" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Remembered" })).toBeNull();
+  });
+  it("keeps Today available when optional Insight fails", async () => {
+    const api = new DemoBackend(true);
+    api.getGlobalInsight = async () => { throw new Error("Insight offline"); };
+    render(WindowsApp, { api });
+    expect(await screen.findByRole("button", { name: "Start review (3)" })).toBeVisible();
+    await fireEvent.click(screen.getByRole("button", { name: "Insights" }));
+    expect(await screen.findByText("Insight offline")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Retry Insights" })).toBeVisible();
+  });
+  it("refreshes the log when the local date changes while the window remains open", async () => {
+    const api = new DemoBackend(false);
+    const getLog = vi.spyOn(api, "getVocabularyLog");
+    const view = render(WindowsApp, { api });
+    await screen.findByText("No captures yet");
+    expect(getLog).toHaveBeenCalledOnce();
+    vi.useFakeTimers();
+    try {
+      const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
+      vi.setSystemTime(tomorrow);
+      fireEvent.focus(window);
+      await waitFor(() => expect(getLog).toHaveBeenCalledTimes(2));
+    } finally { view.unmount(); vi.useRealTimers(); }
   });
 });

@@ -75,9 +75,9 @@
 
 <style>
   :global(html), :global(body), :global(#app) { width: 100%; height: 100%; margin: 0; overflow: hidden; background: transparent; }
-  button { position: fixed; inset: 0; width: 100%; height: 100%; padding: 0; border: 0; cursor: crosshair; user-select: none; background: rgba(5, 7, 12, .42); }
-  .instruction { position: fixed; top: 24px; left: 50%; display: grid; gap: 4px; padding: 12px 18px; border: 1px solid rgba(255,255,255,.25); border-radius: 8px; color: white; background: rgba(20,22,30,.92); font: 14px "Segoe UI", sans-serif; text-align: center; transform: translateX(-50%); pointer-events: none; }
-  .instruction span { color: #c8cad4; font-size: 12px; }
-  .selection { position: fixed; box-sizing: border-box; border: 2px solid #8793ff; background: rgba(255,255,255,.08); box-shadow: 0 0 0 9999px rgba(5,7,12,.28); pointer-events: none; }
-  @media (forced-colors: active) { .selection { border-color: Highlight; } .instruction { border-color: CanvasText; color: CanvasText; background: Canvas; } }
+  button { position: fixed; inset: 0; width: 100%; height: 100%; padding: 0; border: 0; border-radius:0; cursor: crosshair; user-select: none; background: rgba(5, 7, 12, .42); }
+  .instruction { position: fixed; top: 24px; left: 50%; display: grid; gap: 4px; padding: 12px 18px; border: 1px solid rgba(255,255,255,.25); border-radius: 10px; color: white; background: rgba(20,22,30,.92); font: .875rem/1.45 var(--font-sans); text-align: center; transform: translateX(-50%); pointer-events: none; }
+  .instruction span { color: #c8cad4; font-size: .75rem; }
+  .selection { position: fixed; box-sizing: border-box; border: 1px solid #FFFFFF; outline: 1px solid #171717; outline-offset: 0; background: rgba(255,255,255,.08); box-shadow: 0 0 0 9999px rgba(5,7,12,.28); pointer-events: none; }
+  @media (forced-colors: active) { .selection { border-color: Highlight; outline-color: CanvasText; forced-color-adjust:none; background:transparent; } .instruction { border-color: CanvasText; color: CanvasText; background: Canvas; } .instruction span { color:CanvasText; } }
 </style>

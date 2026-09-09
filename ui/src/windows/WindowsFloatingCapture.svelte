@@ -1,4 +1,12 @@
 <script lang="ts">
+  import '../native-capture.css';
+  import { Button } from '$lib/components/ui/button';
+  import { Input } from '$lib/components/ui/input';
+  import { Textarea } from '$lib/components/ui/textarea';
+  import { Badge } from '$lib/components/ui/badge';
+  import * as Field from '$lib/components/ui/field';
+  import * as Alert from '$lib/components/ui/alert';
+  import CaptureSource from '../components/CaptureSource.svelte';
   import { onMount } from "svelte";
   import type { AchievedCaptureConflict, CaptureCandidate, CaptureCard } from "../lib/types";
   import {
@@ -9,6 +17,8 @@
 
   export let captureBackend: WindowsCaptureBackend = tauriWindowsCaptureBackend;
   let activeRequest = "";
+  let hovered = false;
+  let focusWithin = false;
   let candidate: CaptureCandidate | null = null;
   let editing = false;
   let selectedText = "";
@@ -50,7 +60,7 @@
 
   function scheduleDismiss(requestId = activeRequest) {
     clearDismissTimer();
-    if (!saved || !mounted || requestId !== activeRequest) return;
+    if (!saved || !mounted || requestId !== activeRequest || hovered || focusWithin) return;
     dismissTimer = setTimeout(() => {
       if (mounted && requestId === activeRequest) void captureBackend.hide(requestId);
     }, 4_000);
@@ -323,89 +333,48 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-<main class="windows-capture" data-presentation="windows-capture" aria-label="Capture" onmouseenter={clearDismissTimer} onmouseleave={() => scheduleDismiss()} onfocusin={clearDismissTimer} onfocusout={() => scheduleDismiss()}>
-  <header data-tauri-drag-region><span data-tauri-drag-region><i aria-hidden="true" data-tauri-drag-region></i>Vocab Collector</span><button aria-label="Cancel capture" onclick={cancel}>×</button></header>
-  <section class="scrollable-content" aria-live="polite" aria-busy={busy || ocrBusy}>
+<main class="windows-capture capture-surface" data-presentation="windows-capture" aria-label="Capture" onmouseenter={() => { hovered = true; clearDismissTimer(); }} onmouseleave={() => { hovered = false; scheduleDismiss(); }} onfocusin={() => { focusWithin = true; clearDismissTimer(); }} onfocusout={(event) => { focusWithin = event.currentTarget.contains(event.relatedTarget as Node | null); if (!focusWithin) scheduleDismiss(); }}>
+  <header data-tauri-drag-region><span data-tauri-drag-region><i aria-hidden="true" data-tauri-drag-region></i>Vocab Collector</span>{#if !ocrNeedsConfirmation && !ocrOffer && !achievedConflict}<Button variant="ghost" size="icon" aria-label="Cancel capture" onclick={cancel}>×</Button>{/if}</header>
+  <section class="capture-body" aria-live="polite" aria-busy={busy || ocrBusy}>
+    {#if error}<Alert.Root variant="destructive"><Alert.Title>Capture needs attention</Alert.Title><Alert.Description>{error}</Alert.Description></Alert.Root>{/if}
     {#if saved}
-      <small>Saved</small>
-      {#if error}<p role="alert">{error}</p>{/if}
-      <h1>{saved.displayForm}</h1>
-      <p>{saved.translation ?? "Saved without translation"}</p>
-      <p>{saved.isExistingWord ? `Seen ${saved.encounterCount} times · New Encounter saved` : "First Encounter saved"}</p>
-      <button class="primary" disabled={busy} onclick={undo}>Undo</button>
+      <Badge variant="secondary">Saved</Badge><h1>{saved.displayForm}</h1>
+      <p class="translation">{saved.translation ?? "Saved without translation"}</p><p class="context">{saved.context}</p>
+      <small>{saved.isExistingWord ? `Seen ${saved.encounterCount} times · New Encounter saved` : "First Encounter saved"}</small>
+      <CaptureSource app={candidate?.sourceApp} title={candidate?.sourceTitle} url={candidate?.sourceUrl} />
     {:else if candidate}
-      <small>{editing ? "Editing" : "Captured"}</small>
-      {#if error}<p role="alert">{error}</p>{/if}
+      <small>{ocrNeedsConfirmation ? "Confirm OCR text" : editing ? "Editing" : "Captured"}</small>
       {#if ocrNeedsConfirmation}
         {#if ocrCandidates.length > 1}<p role="status">识别到多个词，请保留你要收集的词汇。</p>{/if}
-        <label>Vocabulary<input bind:value={selectedText} /></label>
-        <label>Context sentence <small>Optional</small><textarea bind:value={sentence}></textarea></label>
-        <button class="primary" disabled={busy || !selectedText.trim()} onclick={confirmOcrCandidate}>Confirm</button>
-        <button class="secondary" onclick={cancel}>Cancel OCR</button>
+        <Field.FieldGroup><Field.Field><label>Vocabulary<Input bind:value={selectedText} /></label></Field.Field><Field.Field><label>Context sentence <small>Optional</small><Textarea bind:value={sentence} /></label></Field.Field></Field.FieldGroup>
       {:else if editing}
-        <label>Selected text<input aria-label="Selected text" bind:value={selectedText} /></label>
-        <label>Context<textarea aria-label="Context" bind:value={sentence}></textarea></label>
-        <label>Translation <small>Optional</small><input aria-label="Translation (optional)" bind:value={translation} /></label>
-        <button class="primary" disabled={busy || !selectedText.trim()} onclick={applyChanges}>Apply changes</button>
+        <Field.FieldGroup><Field.Field><label>Selected text<Input aria-label="Selected text" bind:value={selectedText} /></label></Field.Field><Field.Field><label>Context<Textarea aria-label="Context" bind:value={sentence} /></label></Field.Field><Field.Field><label>Translation <small>Optional</small><Input aria-label="Translation (optional)" bind:value={translation} /></label></Field.Field></Field.FieldGroup>
       {:else}
-        {#if achievedConflict}
-          <span class="status-tag">Achieved</span>
-        {/if}
+        {#if achievedConflict}<Badge variant="secondary">Achieved</Badge>{/if}
         <h1>{selectedText}</h1>
-        <p>“{sentence}”</p>
-        {#if translation}
-          <p>{translation}</p>
-          <p class="notice">{translationSource} → {translationTarget}</p>
-        {:else if busy && translationAvailable}
-          <p class="notice">Translating…</p>
-        {:else if !translationAvailable}
-          <p class="notice">Automatic translation is unavailable. You can add a translation manually.</p>
-        {/if}
-        {#if translationFailed}<button class="secondary" disabled={busy} onclick={() => translateCandidate(activeRequest, selectedText.trim())}>Retry translation</button>{/if}
-        {#if translationStale}<p class="notice" role="status">Vocabulary changed. The translation may no longer match.</p><button class="secondary" disabled={busy} onclick={() => translateCandidate(activeRequest, selectedText.trim())}>Translate again</button>{/if}
-        {#if achievedConflict}
-          <p class="achieved-prompt" role="status">This Vocabulary Item is Achieved. Return it to Learning and save this Encounter?</p>
-          <button class="primary" disabled={busy} onclick={restoreToLearningAndSave}>Return to Learning</button>
-          <button class="secondary" disabled={busy} onclick={cancel}>Cancel</button>
-        {:else}
-          <button class="primary" disabled={busy} onclick={beginEditing}>Edit capture</button>
-          <button class="secondary" disabled={busy} onclick={save}>Save capture</button>
-        {/if}
+        {#if translation}<p class="translation">{translation}</p><small>{translationSource} → {translationTarget}</small>
+        {:else if busy && translationAvailable}<p>Translating…</p>
+        {:else if !translationAvailable}<p>Automatic translation is unavailable. You can add a translation manually.</p>{/if}
+        <p class="context">“{sentence}”</p><CaptureSource app={candidate.sourceApp} title={candidate.sourceTitle} url={candidate.sourceUrl} />
+        {#if translationStale}<Alert.Root role="status"><Alert.Title>Vocabulary changed</Alert.Title><Alert.Description>Vocabulary changed. The translation may no longer match.</Alert.Description></Alert.Root>{/if}
+        {#if achievedConflict}<Alert.Root role="status"><Alert.Title>Return to Learning?</Alert.Title><Alert.Description>This Vocabulary Item is Achieved. Return it to Learning and save this Encounter?</Alert.Description></Alert.Root>{/if}
       {/if}
-    {:else if ocrOffer}
-      <p role="alert">{error}</p>
-      <button class="primary" disabled={ocrBusy} onclick={startOcr}>{ocrBusy ? "Starting OCR..." : ocrAttempted ? "Try Again" : "Start OCR"}</button>
-      <button class="secondary" onclick={useManualCapture}>Manual Capture</button>
-      <button class="secondary" onclick={cancel}>Cancel</button>
-    {:else}
-      <p>{error || "Ready to capture selected text."}</p>
-    {/if}
+    {:else if !ocrOffer && !error}<p>Ready to capture selected text.</p>{/if}
   </section>
+  <footer aria-label="Capture actions">
+    {#if saved}<Button variant="outline" disabled={busy} onclick={undo}>Undo</Button>
+    {:else if candidate}
+      {#if ocrNeedsConfirmation}<Button variant="outline" onclick={cancel}>Cancel OCR</Button><Button disabled={busy || !selectedText.trim()} onclick={confirmOcrCandidate}>Confirm</Button>
+      {:else if editing}<Button disabled={busy || !selectedText.trim()} onclick={applyChanges}>Apply changes</Button>
+      {:else if achievedConflict}<Button variant="outline" disabled={busy} onclick={cancel}>Cancel</Button><Button disabled={busy} onclick={restoreToLearningAndSave}>Return to Learning</Button>
+      {:else}
+        {#if translationFailed}<Button variant="outline" disabled={busy} onclick={() => translateCandidate(activeRequest, selectedText.trim())}>Retry translation</Button>{/if}
+        {#if translationStale}<Button variant="outline" disabled={busy} onclick={() => translateCandidate(activeRequest, selectedText.trim())}>Translate again</Button>{/if}
+        <Button variant="outline" disabled={busy} onclick={beginEditing}>Edit capture</Button><Button disabled={busy} onclick={save}>{translation.trim() ? 'Save capture' : 'Save without translation'}</Button>
+      {/if}
+    {:else if ocrOffer}<Button variant="outline" onclick={cancel}>Cancel</Button><Button variant="outline" onclick={useManualCapture}>Manual Capture</Button><Button disabled={ocrBusy} onclick={startOcr}>{ocrBusy ? "Starting OCR..." : ocrAttempted ? "Try Again" : "Start OCR"}</Button>{/if}
+  </footer>
 </main>
-
 <style>
-  :global(html), :global(body.windows-capture-document), :global(#app) { width: 100%; height: 100%; margin: 0; background: transparent; overflow: hidden; }
-  :global(body.windows-capture-document) { min-width: 0; min-height: 0; }
-  .windows-capture { box-sizing: border-box; display: flex; flex-direction: column; width: 100%; height: 100%; padding: 14px 16px; overflow: hidden; border: 1px solid var(--border); border-radius: 8px; color: var(--foreground); background: var(--card); box-shadow: 0 18px 48px rgba(0, 0, 0, .42); font: 14px "Segoe UI Variable", "Segoe UI", sans-serif; }
-  header { display: flex; align-items: center; justify-content: space-between; color: var(--muted-foreground); font-size: 12px; cursor: move; user-select: none; }
-  header span { display: flex; align-items: center; gap: 7px; }
-  button { border: 0; color: inherit; background: transparent; cursor: pointer; }
-  header button { font-size: 20px; cursor: pointer; }
-  header i { width: 7px; height: 7px; border-radius: 50%; background: var(--primary); }
-  .scrollable-content { min-height: 0; padding: 18px 4px 6px; overflow-x: hidden; overflow-y: auto; }
-  h1 { margin: 3px 0 4px; font-size: 25px; }
-  p { color: var(--muted-foreground); line-height: 1.45; }
-  small { color: var(--muted-foreground); }
-  .primary { padding: 8px 12px; border-radius: 7px; background: var(--primary); color:var(--primary-foreground); }
-  .secondary { padding: 8px 12px; color: var(--foreground); }
-  label { display: block; margin: 5px 0; color: var(--muted-foreground); font-size: 11px; }
-  input, textarea { box-sizing: border-box; display: block; width: 100%; margin-top: 2px; padding: 5px 7px; border: 1px solid var(--input); border-radius: 5px; color: var(--foreground); background: var(--background); font: inherit; }
-  textarea { min-height: 42px; resize: vertical; }
-  .notice { margin: 8px 0; font-size: 12px; }
-  .status-tag { display: inline-block; margin-bottom: 4px; padding: 3px 7px; border: 1px solid var(--warning); border-radius: 999px; color: var(--warning); background: var(--card); font-size: 11px; font-weight: 700; }
-  .achieved-prompt { padding: 8px 10px; border-left: 3px solid var(--warning); background: rgba(214, 168, 79, .1); }
-  button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
-  @media (forced-colors: active) { .windows-capture { border-color: CanvasText; color: CanvasText; background: Canvas; box-shadow: none; } p, small, label, header { color: CanvasText; } .primary, .secondary, input, textarea { border: 1px solid ButtonText; color: ButtonText; background: ButtonFace; } }
-  @media (prefers-reduced-motion: reduce) { .windows-capture, .windows-capture * { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
-  @media (max-width: 320px), (min-resolution: 1.5dppx) and (max-width: 520px) { .windows-capture { font-size: 1rem; } .scrollable-content { padding-top: .75rem; } h1 { overflow-wrap: anywhere; font-size: 1.5rem; } .primary, .secondary { min-height: 2.5rem; } }
+:global(html),:global(body.windows-capture-document),:global(#app){width:100%;height:100%;margin:0;background:transparent;overflow:hidden}:global(body.windows-capture-document){min-width:0;min-height:0}
 </style>

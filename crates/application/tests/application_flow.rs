@@ -542,3 +542,32 @@ fn unknown_word_detail_is_a_not_found_error() {
 
     assert!(service.get_word(Uuid::now_v7()).is_err());
 }
+
+#[test]
+fn vocabulary_log_query_serializes_real_capture_and_undo_totals() {
+    let store = Arc::new(SqliteStore::open_in_memory().unwrap());
+    let service = AppService::new(store, Uuid::now_v7());
+    for origin in [
+        CaptureOrigin::Manual,
+        CaptureOrigin::Accessibility,
+        CaptureOrigin::Ocr,
+    ] {
+        let mut input = request("log contract", "Protokoll");
+        input.capture_origin = origin;
+        service.capture(input).unwrap();
+    }
+    let saved = service
+        .capture(request("log contract", "Protokoll"))
+        .unwrap();
+    service.undo_capture(saved.encounter_id).unwrap();
+    let log = service.get_vocabulary_log().unwrap();
+    assert_eq!(log.days.last().unwrap().count, Some(3));
+    let wire = serde_json::to_value(log).unwrap();
+    assert!(wire["startDate"].is_string());
+    assert!(wire["endDate"].is_string());
+    assert_eq!(
+        wire["days"].as_array().unwrap().last().unwrap()["coverage"],
+        "partial"
+    );
+    assert!(wire["days"][0]["count"].is_null());
+}

@@ -1,0 +1,21 @@
+<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Capture UI verification</title></head><body><div id="app"></div><script type="module">
+import { mount } from 'svelte';
+import WindowsFloatingCapture from '../windows/WindowsFloatingCapture.svelte';
+import { DemoBackend } from '../lib/backend';
+import '../styles.css';
+const params = new URLSearchParams(location.search);
+document.documentElement.dataset.appearance = params.get('theme') ?? 'light';
+if(params.get('text') === '150') document.documentElement.style.fontSize='24px';
+const api = new DemoBackend(false);
+let input = { selectedText: 'Donaudampfschifffahrtsgesellschaft · 多语言词汇', sentence: '中文上下文。 Ein vollständiger deutscher Beispielsatz mit ausführlicher Herkunft. English context preserves the complete sentence. '.repeat(4), translation:'上下文中的完整释义 · A complete translation with detailed meaning.' };
+const noop = async () => {};
+const backend = {
+listenReady:async handler => { if(params.get('state') !== 'ocr') setTimeout(()=>handler({ requestId:'preview', candidate:{...input,origin:'accessibility',sourceApp:'Reading application',sourceTitle:'A complete source title',sourceUrl:'https://example.com/reading/context'} }),0); return ()=>{}; },
+listenError:async handler=>{ if(params.get('state')==='ocr') setTimeout(()=>handler({requestId:'preview',failure:{code:'empty_selection',message:''}}),0);return()=>{};},listenRegionOcrStart:async()=>()=>{},
+listenOcrCandidate:async handler=>{if(params.get('state')==='ocr') setTimeout(()=>handler({requestId:'preview', candidates:[{text:input.selectedText,bounds:{x:0,y:0,width:10,height:10},confidence:0.9}],ambiguous:false}),0);return()=>{};},
+focus:noop,releaseFocus:noop,close:noop,hide:noop,apply:async(_,next)=>{input=next;},
+save:async()=>api.capture(input),findAchieved:async()=>null,restoreAchievedAndSave:async()=>api.capture(input),undo:async(_,id)=>api.undoCapture(id),recognizeRegion:noop,startRegionOcr:async()=>'preview',openManualCapture:noop,confirmOcr:noop,
+getCapabilities:async()=>({selectionCapture:true,selectionBounds:true,screenshotOcr:true,translation:true,nonActivatingWindow:false}),getSettings:()=>api.getSettings(),translate:async()=>({translatedText:input.translation,sourceLanguage:'en',targetLanguage:'de'})
+};
+mount(WindowsFloatingCapture,{target:document.getElementById('app'),props:{captureBackend:backend}});
+</script></body></html>

@@ -35,3 +35,7 @@ pub trait SettingsRepository: Send + Sync {
     fn get(&self) -> Result<UserSettings, RepositoryError>;
     fn save(&self, settings: &UserSettings) -> Result<(), RepositoryError>;
 }
+
+pub trait VocabularyLogRepository: Send + Sync {
+    fn vocabulary_log(&self) -> Result<crate::VocabularyLog, RepositoryError>;
+}

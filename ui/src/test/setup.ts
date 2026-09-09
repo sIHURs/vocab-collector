@@ -13,3 +13,10 @@ Object.defineProperty(window, "matchMedia", {
     addEventListener() {}, removeEventListener() {}, dispatchEvent() { return true; },
   }),
 });
+
+// jsdom has no layout observer; component resize callbacks are browser-verified.
+globalThis.ResizeObserver = class {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+};

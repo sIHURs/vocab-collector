@@ -102,7 +102,7 @@ describe("Windows floating capture presentation", () => {
     expect(mocks.save).not.toHaveBeenCalled();
     expect(await screen.findByText("Nuance")).toBeVisible();
 
-    await fireEvent.click(screen.getByRole("button", { name: "Save capture" }));
+    await fireEvent.click(screen.getByRole("button", { name: /Save capture|Save without translation/ }));
     expect(mocks.save).toHaveBeenCalledWith("translated-request", false);
   });
 
@@ -112,7 +112,7 @@ describe("Windows floating capture presentation", () => {
     await waitFor(() => expect(mocks.ready).toBeTypeOf("function"));
     mocks.ready?.({ requestId: "achieved-request", candidate: { selectedText: "nuance", sentence: "A useful nuance.", origin: "accessibility" } });
 
-    const save = await screen.findByRole("button", { name: "Save capture" });
+    const save = await screen.findByRole("button", { name: /Save capture|Save without translation/ });
     await waitFor(() => expect(save).toBeEnabled());
     await fireEvent.click(save);
 
@@ -146,14 +146,16 @@ describe("Windows floating capture presentation", () => {
     expect(mocks.startRegionOcr).toHaveBeenCalledTimes(1);
     const suggestion = { text: "serendipity", bounds: { x: 1, y: 2, width: 30, height: 12 }, confidence: 0.91 };
     mocks.ocr?.({ requestId: "ocr-request", candidates: [suggestion], ambiguous: false });
-    expect(screen.queryByRole("button", { name: "Save capture" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Save capture|Save without translation/ })).not.toBeInTheDocument();
     expect(mocks.translate).not.toHaveBeenCalled();
 
+    expect(await screen.findByRole("button", { name: "Cancel OCR" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Cancel capture" })).toBeNull();
     await fireEvent.click(await screen.findByRole("button", { name: "Confirm" }));
     expect(mocks.confirmOcr).toHaveBeenCalledWith("ocr-request", "serendipity", "");
     await waitFor(() => expect(mocks.translate).toHaveBeenCalledTimes(1));
     expect(mocks.translate).toHaveBeenCalledWith("ocr-request", "serendipity", "auto", "de");
-    expect(await screen.findByRole("button", { name: "Save capture" })).toBeVisible();
+    expect(await screen.findByRole("button", { name: /Save capture|Save without translation/ })).toBeVisible();
   });
 
   it("prevents duplicate OCR confirmation while the first confirmation is pending", async () => {
@@ -183,7 +185,7 @@ describe("Windows floating capture presentation", () => {
     expect(screen.queryByText(/secret provider response/i)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Retry translation" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Edit capture" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Save capture" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /Save capture|Save without translation/ })).toBeEnabled();
 
     await fireEvent.click(screen.getByRole("button", { name: "Edit capture" }));
     await fireEvent.input(screen.getByLabelText("Selected text"), { target: { value: "subtlety" } });
@@ -194,7 +196,7 @@ describe("Windows floating capture presentation", () => {
     await waitFor(() => expect(mocks.translate).toHaveBeenLastCalledWith("retry-request", "subtlety", "auto", "de"));
     expect(await screen.findByText("Feinheit")).toBeVisible();
     expect(mocks.save).not.toHaveBeenCalled();
-    await fireEvent.click(screen.getByRole("button", { name: "Save capture" }));
+    await fireEvent.click(screen.getByRole("button", { name: /Save capture|Save without translation/ }));
     expect(mocks.save).toHaveBeenCalledTimes(1);
   });
 
@@ -258,7 +260,7 @@ describe("Windows floating capture presentation", () => {
     await fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
 
     expect(mocks.confirmOcr).toHaveBeenCalledWith("ocr-ambiguous", "heterogeneous", "A heterogeneous system.");
-    expect(await screen.findByRole("button", { name: "Save capture" })).toBeVisible();
+    expect(await screen.findByRole("button", { name: /Save capture|Save without translation/ })).toBeVisible();
   });
 
   it("offers OCR after capabilities resolve when the eligible failure arrived first", async () => {
@@ -296,7 +298,7 @@ describe("Windows floating capture presentation", () => {
     await fireEvent.input(screen.getByLabelText("Context"), { target: { value: "A useful nuance." } });
     await fireEvent.input(screen.getByLabelText("Translation (optional)"), { target: { value: "Feinheit" } });
     await fireEvent.click(screen.getByRole("button", { name: "Apply changes" }));
-    await fireEvent.click(screen.getByRole("button", { name: "Save capture" }));
+    await fireEvent.click(screen.getByRole("button", { name: /Save capture|Save without translation/ }));
 
     expect(mocks.apply).toHaveBeenCalledWith("request-10", { selectedText: "nuance", sentence: "A useful nuance.", translation: "Feinheit" });
     expect(mocks.save).toHaveBeenCalledWith("request-10", false);
@@ -309,7 +311,7 @@ describe("Windows floating capture presentation", () => {
     await waitFor(() => expect(mocks.ready).toBeTypeOf("function"));
     mocks.ready?.({ requestId: "request-plain", candidate: { selectedText: "nuance", sentence: "A useful nuance.", origin: "accessibility" } });
 
-    const saveButton = await screen.findByRole("button", { name: "Save capture" });
+    const saveButton = await screen.findByRole("button", { name: /Save capture|Save without translation/ });
     await waitFor(() => expect(saveButton).toBeEnabled());
     await fireEvent.click(saveButton);
 
@@ -324,7 +326,7 @@ describe("Windows floating capture presentation", () => {
     await fireEvent.input(screen.getByLabelText("Selected text"), { target: { value: "nuance" } });
 
     await fireEvent.click(screen.getByRole("button", { name: "Apply changes" }));
-    await fireEvent.click(screen.getByRole("button", { name: "Save capture" }));
+    await fireEvent.click(screen.getByRole("button", { name: /Save capture|Save without translation/ }));
 
     expect(mocks.apply).toHaveBeenCalledWith("no-context", { selectedText: "nuance", sentence: "" });
     expect(mocks.save).toHaveBeenCalledWith("no-context", true);
@@ -337,7 +339,7 @@ describe("Windows floating capture presentation", () => {
     render(WindowsFloatingCapture, { captureBackend });
     await waitFor(() => expect(mocks.ready).toBeTypeOf("function"));
     mocks.ready?.({ requestId: "old-request", candidate: { selectedText: "old", sentence: "Old context.", origin: "accessibility" } });
-    await fireEvent.click(await screen.findByRole("button", { name: "Save capture" }));
+    await fireEvent.click(await screen.findByRole("button", { name: /Save capture|Save without translation/ }));
     mocks.ready?.({ requestId: "new-request", candidate: { selectedText: "new", sentence: "New context.", origin: "accessibility" } });
 
     finishSave?.({ wordId: "old-word", encounterId: "old-encounter", displayForm: "old", context: "Old context.", encounterCount: 1, isExistingWord: false });
@@ -351,7 +353,7 @@ describe("Windows floating capture presentation", () => {
     const view = render(WindowsFloatingCapture, { captureBackend });
     await waitFor(() => expect(mocks.ready).toBeTypeOf("function"));
     mocks.ready?.({ requestId: "timed-request", candidate: { selectedText: "nuance", sentence: "A useful nuance.", origin: "accessibility" } });
-    const saveButton = await screen.findByRole("button", { name: "Save capture" });
+    const saveButton = await screen.findByRole("button", { name: /Save capture|Save without translation/ });
     await waitFor(() => expect(mocks.getCapabilities).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(view.container.querySelector("section")).toHaveAttribute("aria-busy", "false"));
     await waitFor(() => expect(saveButton).toBeEnabled());
@@ -368,6 +370,32 @@ describe("Windows floating capture presentation", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("keeps the timer paused while either hover or focus remains active", async () => {
+    const view = render(WindowsFloatingCapture, { captureBackend });
+    await waitFor(() => expect(mocks.ready).toBeTypeOf("function"));
+    mocks.ready?.({ requestId: "paused-request", candidate: { selectedText: "nuance", sentence: "A context.", origin: "accessibility" } });
+    const save = await screen.findByRole("button", { name: /Save capture|Save without translation/ });
+    await waitFor(() => expect(save).toBeEnabled());
+    const surface = view.container.querySelector("main")!;
+    await fireEvent.mouseEnter(surface);
+    await fireEvent.click(save);
+    const undo = await screen.findByRole("button", { name: "Undo" });
+    await fireEvent.focusIn(undo);
+    vi.useFakeTimers();
+    try {
+      await fireEvent.mouseLeave(surface);
+      vi.advanceTimersByTime(5000);
+      expect(mocks.hide).not.toHaveBeenCalled();
+      await fireEvent.mouseEnter(surface);
+      await fireEvent.focusOut(undo, { relatedTarget: document.body });
+      vi.advanceTimersByTime(5000);
+      expect(mocks.hide).not.toHaveBeenCalled();
+      await fireEvent.mouseLeave(surface);
+      vi.advanceTimersByTime(4000);
+      expect(mocks.hide).toHaveBeenCalledWith("paused-request");
+    } finally { vi.useRealTimers(); }
   });
 
   it("removes main-window minimum dimensions from the capture document", () => {
@@ -392,7 +420,7 @@ describe("Windows floating capture presentation", () => {
     expect(mocks.focus).toHaveBeenCalled();
 
     await fireEvent.click(screen.getByRole("button", { name: "Apply changes" }));
-    await fireEvent.click(screen.getByRole("button", { name: "Save capture" }));
+    await fireEvent.click(screen.getByRole("button", { name: /Save capture|Save without translation/ }));
     expect(mocks.releaseFocus).not.toHaveBeenCalled();
 
     await fireEvent.click(await screen.findByRole("button", { name: "Cancel capture" }));
@@ -419,7 +447,7 @@ describe("Windows floating capture presentation", () => {
       candidate: { selectedText: "lengthy", sentence: "A ".repeat(500), origin: "accessibility" },
     });
 
-    expect(view.container.querySelector("section")).toHaveClass("scrollable-content");
+    expect(view.container.querySelector("section")).toHaveClass("capture-body");
   });
 
   it("cancels the active request with Escape", async () => {

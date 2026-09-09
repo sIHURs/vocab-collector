@@ -56,6 +56,10 @@ _Avoid_: Quiz, test
 A short explanation or actionable suggestion derived from completed reviews and encounter history. It appears only after an answer is revealed and never substitutes for a review rating.
 _Avoid_: Hint, score, AI explanation
 
+**Vocabulary log**:
+A daily history of successful vocabulary saves that have not been undone, including repeated saves of the same Vocabulary Item. It distinguishes known daily counts from incomplete or unknown history.
+_Avoid_: Unique-word count, review activity, streak
+
 **Mastered Vocabulary Item**:
 A vocabulary item whose current learning status indicates mastery. Mastery makes the item eligible for Achieve but does not itself remove or delete the item.
 _Avoid_: Achieved item, completed item

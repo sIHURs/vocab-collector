@@ -187,3 +187,14 @@ export interface WordDetail {
   partOfSpeech?: string;
   encounters: Encounter[];
 }
+
+export interface VocabularyLogDay {
+  date: string;
+  count: number | null;
+  coverage: 'unknown' | 'partial' | 'complete';
+}
+export interface VocabularyLog {
+  startDate: string;
+  endDate: string;
+  days: VocabularyLogDay[];
+}

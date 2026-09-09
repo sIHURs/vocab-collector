@@ -57,4 +57,16 @@ describe("Region OCR overlay", () => {
     await fireEvent.keyDown(window, { key: "Escape" });
     expect(mocks.invoke).toHaveBeenCalledWith("cancel_region_ocr_capture", { requestId: "cancel-region" });
   });
+  it("normalizes a reverse drag and hides instructions while selecting", async () => {
+    render(WindowsOcrOverlay);
+    await waitFor(() => expect(mocks.ready).toBeTypeOf("function"));
+    mocks.ready?.({ payload: { requestId: "reverse" } });
+    const overlay = screen.getByRole("button", { name: "Region OCR selection" });
+    expect(screen.getByRole("status")).toBeVisible();
+    await fireEvent.mouseDown(overlay, { button: 0, clientX: 120, clientY: 70 });
+    expect(screen.queryByRole("status")).toBeNull();
+    await fireEvent.mouseMove(overlay, { clientX: 20, clientY: 30 });
+    await fireEvent.mouseUp(overlay);
+    expect(mocks.invoke).toHaveBeenCalledWith("capture_ocr_region", { requestId: "reverse", region: { x: 120, y: 80, width: 100, height: 40 } });
+  });
 });

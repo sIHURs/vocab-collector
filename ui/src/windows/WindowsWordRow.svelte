@@ -16,10 +16,5 @@
 </button>{#if word.status === "mastered" && onAchieve}<button class="achieve-action" aria-label={`Achieve ${word.displayForm}`} onclick={() => onAchieve?.(word)}>Achieve</button>{/if}</div>
 
 <style>
-  .word-row-wrap { position:relative; border-bottom:1px solid var(--line, #30323d); }.word-row { width: 100%; min-height: 60px; display: grid; grid-template-columns: 32px minmax(140px, 1fr) 76px 210px 16px; gap: 12px; align-items: center; padding: 8px 90px 8px 14px; border: 0; color: var(--text, #eeeef3); background: transparent; text-align: left; cursor: pointer; font: inherit; }.achieve-action { position:absolute; right:12px; top:13px; min-height:32px; border:1px solid var(--line); border-radius:6px; color:var(--text); background:var(--surface-raised); }
-  .word-row:last-child { border-bottom: 0; }.word-row:hover { background: var(--surface-raised, #272934); }.word-row:focus-visible { outline: 2px solid #9aa5ff; outline-offset: -2px; }
-  .glyph { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 6px; color: #b8c0ff; background: rgba(117,132,239,.16); font-weight: 700; }
-  .word { display: grid; gap: 3px; }.word small, .metadata { color: var(--muted, #9195a4); font-size: 11px; }
-  .status { justify-self: start; padding: 3px 7px; border-radius: 10px; color: #b8c0ff; background: rgba(117,132,239,.16); font-size: 10px; text-transform: capitalize; }
-  @media (max-width: 900px) { .word-row { grid-template-columns: 32px minmax(0,1fr) 90px 16px; }.status { display: none; }.metadata { text-align: right; } }
+.word-row-wrap{border-bottom:1px solid var(--border)}.word-row{width:100%;min-height:70px;display:grid;grid-template-columns:minmax(0,1fr) auto 12px;gap:12px;align-items:center;padding:12px 16px;border:0;background:transparent;color:var(--foreground);font:inherit;text-align:left;cursor:pointer}.word-row:hover{background:var(--accent)}.word-row:focus-visible{outline:2px solid var(--ring);outline-offset:-3px}.word{display:grid;gap:4px;overflow-wrap:anywhere}.word strong{font-weight:500}.word small,.metadata{font-size:.75rem;color:var(--muted-foreground)}.metadata{max-width:160px;text-align:right}.glyph,.status{display:none}.achieve-action{font:inherit;color:var(--foreground);background:var(--background);border:1px solid var(--border)}
 </style>

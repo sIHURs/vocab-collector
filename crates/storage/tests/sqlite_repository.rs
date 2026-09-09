@@ -69,7 +69,7 @@ fn version_one_database_migrates_existing_encounters_to_manual_origin() {
     drop(connection);
 
     let store = SqliteStore::open(&path).unwrap();
-    assert_eq!(store.schema_version().unwrap(), 5);
+    assert_eq!(store.schema_version().unwrap(), 6);
     drop(store);
     let connection = rusqlite::Connection::open(&path).unwrap();
     let origin: String = connection
@@ -164,7 +164,7 @@ fn databases_are_initialized_with_foreign_keys_and_schema_version() {
     let store = SqliteStore::open_in_memory().unwrap();
 
     assert!(store.foreign_keys_enabled().unwrap());
-    assert_eq!(store.schema_version().unwrap(), 5);
+    assert_eq!(store.schema_version().unwrap(), 6);
 }
 
 #[test]
@@ -178,7 +178,7 @@ fn predefined_diagnostics_report_database_state_without_mutating_it() {
         .unwrap();
 
     let summary = store.database_summary().unwrap();
-    assert_eq!(summary.schema_version, 5);
+    assert_eq!(summary.schema_version, 6);
     assert!(summary.foreign_keys_enabled);
     assert_eq!(summary.word_count, 1);
     assert_eq!(summary.active_encounter_count, 2);

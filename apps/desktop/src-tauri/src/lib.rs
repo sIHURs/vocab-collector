@@ -379,6 +379,7 @@ pub fn run() {
             library::find_achieved_capture,
             library::restore_achieved_and_capture,
             library::get_global_insight,
+            library::get_vocabulary_log,
             library::undo_capture,
             library::get_today,
             library::list_words,

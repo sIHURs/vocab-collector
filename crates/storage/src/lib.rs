@@ -2,9 +2,12 @@
 
 //! SQLite persistence and transactional outbox support.
 
-use std::{path::Path, sync::Mutex};
+use std::{
+    path::Path,
+    sync::{Arc, Mutex},
+};
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Days, Local, Months, NaiveDate, Utc};
 use rusqlite::{Connection, OptionalExtension, Transaction, params};
 use serde::Serialize;
 use uuid::Uuid;
@@ -120,6 +123,7 @@ pub struct OutboxDebugEntry {
 
 pub struct SqliteStore {
     connection: Mutex<Connection>,
+    local_date: Arc<dyn Fn() -> NaiveDate + Send + Sync>,
 }
 
 impl SqliteStore {
@@ -131,7 +135,23 @@ impl SqliteStore {
         Self::from_connection(Connection::open_in_memory().map_err(repo_error)?)
     }
 
+    /// Inject the system-local calendar date at the persistence boundary.
+    /// Capture timestamps may come from callers and are not the save date.
+    pub fn open_with_local_date(
+        path: impl AsRef<Path>,
+        local_date: Arc<dyn Fn() -> NaiveDate + Send + Sync>,
+    ) -> Result<Self, RepositoryError> {
+        Self::from_connection_with_date(Connection::open(path).map_err(repo_error)?, local_date)
+    }
+
     fn from_connection(connection: Connection) -> Result<Self, RepositoryError> {
+        Self::from_connection_with_date(connection, Arc::new(|| Local::now().date_naive()))
+    }
+
+    fn from_connection_with_date(
+        connection: Connection,
+        local_date: Arc<dyn Fn() -> NaiveDate + Send + Sync>,
+    ) -> Result<Self, RepositoryError> {
         connection
             .execute_batch("PRAGMA foreign_keys = ON;")
             .map_err(repo_error)?;
@@ -248,8 +268,10 @@ impl SqliteStore {
         connection
             .execute_batch("PRAGMA user_version = 5;")
             .map_err(repo_error)?;
+        migrate_vocabulary_log(&connection, local_date())?;
         Ok(Self {
             connection: Mutex::new(connection),
+            local_date,
         })
     }
 
@@ -309,6 +331,7 @@ impl SqliteStore {
         encounter.source_url.clone_from(&input.source_url);
         encounter.capture_origin = input.capture_origin;
         insert_encounter(&transaction, &encounter)?;
+        record_daily_capture(&transaction, encounter.id, (self.local_date)())?;
         enqueue(
             &transaction,
             "encounter",
@@ -370,6 +393,7 @@ impl SqliteStore {
         encounter.source_url.clone_from(&input.source_url);
         encounter.capture_origin = input.capture_origin;
         insert_encounter(&transaction, &encounter)?;
+        record_daily_capture(&transaction, encounter.id, (self.local_date)())?;
         enqueue(
             &transaction,
             "encounter",
@@ -719,12 +743,27 @@ impl EncounterRepository for SqliteStore {
         let tx = connection.transaction().map_err(repo_error)?;
         let changed = tx
             .execute(
-                "UPDATE encounters SET deleted_at = ?2, updated_at = ?2 WHERE id = ?1",
+                "UPDATE encounters SET deleted_at = ?2, updated_at = ?2 WHERE id = ?1 AND deleted_at IS NULL",
                 params![id.to_string(), deleted_at.to_rfc3339()],
             )
             .map_err(repo_error)?;
         if changed == 0 {
             return Err(RepositoryError::NotFound);
+        }
+        let saved_date: Option<String> = tx
+            .query_row(
+                "SELECT saved_local_date FROM encounters WHERE id = ?1",
+                [id.to_string()],
+                |row| row.get(0),
+            )
+            .map_err(repo_error)?;
+        if let Some(date) = saved_date {
+            let changed = tx.execute("UPDATE vocabulary_daily_counts SET count = count - 1 WHERE date = ?1 AND count > 0", [date]).map_err(repo_error)?;
+            if changed != 1 {
+                return Err(RepositoryError::Persistence(
+                    "daily capture count is inconsistent".into(),
+                ));
+            }
         }
         enqueue(&tx, "encounter", id, "delete", &id, deleted_at)?;
         tx.commit().map_err(repo_error)
@@ -1002,4 +1041,106 @@ fn sql_conversion_error(error: impl std::error::Error + Send + Sync + 'static) -
 
 fn repo_error(error: impl std::fmt::Display) -> RepositoryError {
     RepositoryError::Persistence(error.to_string())
+}
+
+fn migrate_vocabulary_log(
+    connection: &Connection,
+    today: NaiveDate,
+) -> Result<(), RepositoryError> {
+    // Metadata and the nullable original save date are installed atomically.
+    // Do not backfill from surviving encounters: deleted history is unknowable.
+    let tx = connection.unchecked_transaction().map_err(repo_error)?;
+    let exists: bool = tx.query_row("SELECT EXISTS(SELECT 1 FROM pragma_table_info('encounters') WHERE name = 'saved_local_date')", [], |row| row.get(0)).map_err(repo_error)?;
+    if !exists {
+        tx.execute_batch("ALTER TABLE encounters ADD COLUMN saved_local_date TEXT;")
+            .map_err(repo_error)?;
+    }
+    tx.execute_batch("CREATE TABLE IF NOT EXISTS vocabulary_daily_counts (date TEXT PRIMARY KEY, count INTEGER NOT NULL CHECK(count >= 0));
+        CREATE TABLE IF NOT EXISTS vocabulary_log_coverage (singleton INTEGER PRIMARY KEY CHECK(singleton = 1), started_on TEXT NOT NULL);").map_err(repo_error)?;
+    tx.execute(
+        "INSERT OR IGNORE INTO vocabulary_log_coverage VALUES (1, ?1)",
+        [today.to_string()],
+    )
+    .map_err(repo_error)?;
+    tx.execute_batch("PRAGMA user_version = 6;")
+        .map_err(repo_error)?;
+    tx.commit().map_err(repo_error)
+}
+
+fn record_daily_capture(
+    tx: &Transaction<'_>,
+    encounter_id: Uuid,
+    date: NaiveDate,
+) -> Result<(), RepositoryError> {
+    tx.execute(
+        "UPDATE encounters SET saved_local_date = ?2 WHERE id = ?1",
+        params![encounter_id.to_string(), date.to_string()],
+    )
+    .map_err(repo_error)?;
+    tx.execute("INSERT INTO vocabulary_daily_counts(date, count) VALUES (?1, 1) ON CONFLICT(date) DO UPDATE SET count = count + 1", [date.to_string()]).map_err(repo_error)?;
+    Ok(())
+}
+
+impl vocab_domain::VocabularyLogRepository for SqliteStore {
+    fn vocabulary_log(&self) -> Result<vocab_domain::VocabularyLog, RepositoryError> {
+        use vocab_domain::{LogCoverage, VocabularyLog, VocabularyLogDay};
+        let end_date = (self.local_date)();
+        let start_date = end_date
+            .checked_sub_months(Months::new(12))
+            .and_then(|d| d.checked_add_days(Days::new(1)))
+            .ok_or_else(|| RepositoryError::Persistence("invalid calendar range".into()))?;
+        let connection = self.lock()?;
+        let started: String = connection
+            .query_row(
+                "SELECT started_on FROM vocabulary_log_coverage WHERE singleton = 1",
+                [],
+                |row| row.get(0),
+            )
+            .map_err(repo_error)?;
+        let started: NaiveDate = started.parse().map_err(repo_error)?;
+        let mut statement = connection
+            .prepare("SELECT date, count FROM vocabulary_daily_counts WHERE date BETWEEN ?1 AND ?2")
+            .map_err(repo_error)?;
+        let counts = statement
+            .query_map(
+                params![start_date.to_string(), end_date.to_string()],
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, u32>(1)?)),
+            )
+            .map_err(repo_error)?
+            .collect::<Result<std::collections::HashMap<_, _>, _>>()
+            .map_err(repo_error)?;
+        let days = start_date
+            .iter_days()
+            .take_while(|date| *date <= end_date)
+            .map(|date| {
+                let recorded = counts.get(&date.to_string()).copied();
+                let coverage = if date < started {
+                    if recorded.is_some() {
+                        LogCoverage::Partial
+                    } else {
+                        LogCoverage::Unknown
+                    }
+                } else if date == started {
+                    LogCoverage::Partial
+                } else {
+                    LogCoverage::Complete
+                };
+                let count = if coverage == LogCoverage::Unknown {
+                    None
+                } else {
+                    Some(recorded.unwrap_or(0))
+                };
+                VocabularyLogDay {
+                    date,
+                    count,
+                    coverage,
+                }
+            })
+            .collect();
+        Ok(VocabularyLog {
+            start_date,
+            end_date,
+            days,
+        })
+    }
 }

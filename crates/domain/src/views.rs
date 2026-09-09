@@ -136,3 +136,28 @@ pub struct WordDetail {
     pub part_of_speech: Option<String>,
     pub encounters: Vec<Encounter>,
 }
+
+/// Coverage is explicit: an unknown day is never represented as a zero.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum LogCoverage {
+    Unknown,
+    Partial,
+    Complete,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VocabularyLogDay {
+    pub date: chrono::NaiveDate,
+    pub count: Option<u32>,
+    pub coverage: LogCoverage,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VocabularyLog {
+    pub start_date: chrono::NaiveDate,
+    pub end_date: chrono::NaiveDate,
+    pub days: Vec<VocabularyLogDay>,
+}

@@ -139,6 +139,11 @@ impl AppService {
         })
     }
 
+    pub fn get_vocabulary_log(&self) -> Result<vocab_domain::VocabularyLog, ApplicationError> {
+        use vocab_domain::VocabularyLogRepository;
+        Ok(self.store.vocabulary_log()?)
+    }
+
     pub fn get_global_insight(&self) -> Result<GlobalInsight, ApplicationError> {
         let statistics = self.store.lifetime_statistics()?;
         Ok(GlobalInsight {
