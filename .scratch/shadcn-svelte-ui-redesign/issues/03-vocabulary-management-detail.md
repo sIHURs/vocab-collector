@@ -6,6 +6,8 @@
 
 **Status:** ready-for-agent
 
+**Paper design:** Complete, 2026-09-08. [Vocabulary & Detail](https://app.paper.design/file/01M1P47W73ZMCYR34TWR3C1459/4-0) contains 18 Light/Dark artboards: Active, Mastered, Achieved, detail Sheet, Minimum Active/Achieved/Sheet, and loading/empty/recovery and lifecycle-confirmation sheets. See `../paper-ticket-03-05-handoff.md`. Application implementation and runtime acceptance remain open.
+
 - [ ] Before designing or implementing the slice, document the current Vocabulary states, filters, actions, lifecycle terminology, pagination, detail loading, and Encounter presentation; no existing behavior is silently renamed, removed, or replaced.
 - [ ] The primary view is a compact table with Word, Translation, Status, Encounters, and Last Seen, using readable text and icons in addition to color for status.
 - [ ] Active, Mastered, and Achieved remain distinct and use the repository's canonical Vocabulary Item lifecycle language.

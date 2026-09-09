@@ -1,10 +1,12 @@
 # 05: Unify Native Capture and complete cross-platform accessibility
 
-**What to build:** Apply the approved visual system to Shared Capture, Windows Capture, and the OCR Overlay, then verify the complete redesigned application across its supported window sizes, themes, accessibility modes, and platform-specific boundaries. Native Capture behavior remains exactly as implemented: Selection Capture automatically translates and saves, Region OCR Capture requires confirmation, and existing Undo, permission, dismissal, and recovery paths remain intact.
+**What to build:** Apply the approved visual system to Shared Capture, Windows Capture, and the OCR Overlay, then verify the complete redesigned application across its supported window sizes, themes, accessibility modes, and platform-specific boundaries. Preserve current platform behavior: Shared Selection Capture translates and saves automatically; Windows previews translation and requires an explicit Save capture. Both require OCR confirmation, with their existing distinct follow-up flows. Undo, permission, dismissal, and recovery paths remain intact. See `../paper-ticket-03-05-handoff.md` for the source/test inventory and ADR 0003 conflict; do not consolidate these behavioral differences during styling.
 
 **Blocked by:** 01: Establish the visual system through Settings and Manual Capture; 02: Deliver Today and the focused Review flow; 03: Deliver Vocabulary management and detail; 04: Deliver the restrained Insights learning summary.
 
 **Status:** ready-for-agent
+
+**Paper design:** Complete, 2026-09-08. [Native Capture & Accessibility](https://app.paper.design/file/01M1P47W73ZMCYR34TWR3C1459/6-0) contains 40 artboards: paired Windows/Shared Capture at 380×280, explicit user-text zoom proofs, native and OCR Forced Colors examples, OCR ready/selection, and behavior/accessibility handoff sheets. All capture artboards are on this page; eight misplaced Shared boards were moved out of Vocabulary. See `../paper-ticket-03-05-handoff.md`. Application implementation, tests/builds, OS accessibility verification and production-style consolidation remain open.
 
 - [ ] Before designing or implementing Native Capture, document the current state machines and platform differences for Selection Capture, Region OCR Capture, Translation, save, Undo, timeout dismissal, permission handling, and stale or failed requests; each transition retains an explicit presentation.
 - [ ] Shared Capture and Windows Capture use the agreed hierarchy of Vocabulary Item, Translation, Context, status/source, and bottom actions within the actual 380×280 window constraint.

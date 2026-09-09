@@ -6,6 +6,8 @@
 
 **Status:** ready-for-agent
 
+**Paper design:** Draft complete, revised 2026-09-08. [Current page](https://app.paper.design/file/01M1P47W73ZMCYR34TWR3C1459/3-0): 18 Light/Dark artboards covering Today, focused Review, results, completion, recovery and Minimum layouts with unchanged font sizes. Root Today uses the Snapshot Capture icon at the right end of its heading row; nested Review screens omit it. See `../paper-ticket-01-02-handoff.md` for the behavior inventory and verification limits. Application implementation and its acceptance checkboxes below remain open.
+
 - [ ] Before designing or implementing the slice, document the current Today and Review states, commands, transitions, counts, dismissal behavior, and error recovery; the new presentation has an explicit equivalent for each one.
 - [ ] Today gives the planned Review count, estimated time, total due count, and Review start action the strongest visual hierarchy without introducing streaks, scores, or pressure-oriented copy.
 - [ ] Recent Captures uses the shared Vocabulary Item presentation and continues to open the currently implemented detail experience without changing its data or navigation behavior.
