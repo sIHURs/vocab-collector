@@ -1,0 +1,70 @@
+$ vitest run "src/windows/WindowsApp.test.ts" "-t" "keeps keyboard focus"
+12:49:37 PM [vite-plugin-svelte] no Svelte config found at C:/Users/yifan/project/vocab-collector/ui - using default configuration.
+
+ RUN  v3.2.7 C:/Users/yifan/project/vocab-collector/ui
+
+ ❯ src/windows/WindowsApp.test.ts (28 tests | 1 failed | 27 skipped) 159ms
+   ↓ Windows main presentation > provides Windows navigation without the static Progress view
+   ↓ Windows main presentation > moves focus into the Manual Capture dialog and returns it when dismissed
+   × Windows main presentation > keeps keyboard focus inside Manual Capture 158ms
+     → expected <button type="button" …(2)></button> to be null
+   ↓ Windows main presentation > labels changing page content and loading state for assistive technology
+   ↓ Windows main presentation > saves repeat encounters, shows detail, and refreshes after Undo
+   ↓ Windows main presentation > refreshes Today and Vocabulary after a capture is saved in another window
+   ↓ Windows main presentation > shows a recoverable load failure
+   ↓ Windows main presentation > keeps Manual Capture input available after a save failure
+   ↓ Windows main presentation > runs, closes, resumes, and completes the shared due queue
+   ↓ Windows main presentation > requires revealing the answer before a Review can be rated
+   ↓ Windows main presentation > shows core-backed Encounter and repeated-forgetting Insight after rating
+   ↓ Windows main presentation > shows an empty Review state when nothing is due
+   ↓ Windows main presentation > distinguishes the complete due backlog from today's planned Review
+   ↓ Windows main presentation > scrolls configured recent captures and paginates the full vocabulary
+   ↓ Windows main presentation > keeps the current review card available when rating fails
+   ↓ Windows main presentation > resumes a revealed but unrated card in Recall state
+   ↓ Windows main presentation > reuses the logical submission after an ambiguous response
+   ↓ Windows main presentation > blocks stale Resume until a failed close refresh succeeds
+   ↓ Windows main presentation > does not allow Close while a rating submission is pending
+   ↓ Windows main presentation > persists and reads back Windows settings before applying visual preferences
+   ↓ Windows main presentation > offers automatic source detection but requires an explicit target
+   ↓ Windows main presentation > keeps saved visual preferences active when a settings save fails
+   ↓ Windows main presentation > applies persisted visual settings when the subsequent Today refresh fails
+   ↓ Windows main presentation > shows per-setting system failures while preserving unrelated saved values
+   ↓ Windows main presentation > selects the filtered Achieved list and runs batch Unachieve or confirmed deletion
+   ↓ Windows main presentation > offers an inline Achieved tag before returning a captured item to Learning
+   ↓ Windows main presentation > shows archived-aware lifetime Insight on Insights
+   ↓ Windows main presentation > shows when each Achieved Vocabulary Item was achieved
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/windows/WindowsApp.test.ts > Windows main presentation > keeps keyboard focus inside Manual Capture
+AssertionError: expected <button type="button" …(2)></button> to be null
+
+- Expected: 
+null
+
++ Received: 
+<button
+  aria-label="Close manual capture"
+  class="icon svelte-165eeit"
+  type="button"
+>
+  ×
+</button>
+
+ ❯ src/windows/WindowsApp.test.ts:122:76
+    120|     render(WindowsApp, { api: new DemoBackend(false) });
+    121|     await fireEvent.click((await screen.findAllByRole("button", { name…
+    122|     expect(screen.queryByRole("button", { name: "Close manual capture"…
+       |                                                                            ^
+    123|     const close = screen.getByLabelText("Word or phrase");
+    124|     close.focus();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 27 skipped (28)
+   Start at  12:49:37
+   Duration  8.92s (transform 4.86s, setup 1.27s, collect 6.28s, tests 159ms, environment 598ms, prepare 173ms)
+
+[ELIFECYCLE] Test failed. See above for more details.

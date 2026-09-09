@@ -1,0 +1,63 @@
+$ vitest run "src/windows/WindowsFloatingCapture.test.ts"
+9:41:38 PM [vite-plugin-svelte] no Svelte config found at C:/Users/yifan/project/vocab-collector/ui - using default configuration.
+
+ RUN  v3.2.7 C:/Users/yifan/project/vocab-collector/ui
+
+ ❯ src/windows/WindowsFloatingCapture.test.ts (22 tests | 1 failed) 448ms
+   ✓ Windows floating capture presentation > automatically previews a native translation, applies independent edits, and saves only on confirmation 139ms
+   ✓ Windows floating capture presentation > keeps an Achieved capture in the same window until the user returns it to Learning 32ms
+   ✓ Windows floating capture presentation > uses the top bar as a native window drag region without making the close button draggable 5ms
+   × Windows floating capture presentation > requires explicit confirmation before an OCR candidate can enter the save flow 28ms
+     → expected <button …(2)></button> to be null
+   ✓ Windows floating capture presentation > prevents duplicate OCR confirmation while the first confirmation is pending 11ms
+   ✓ Windows floating capture presentation > recovers from a provider-neutral translation failure by retrying the current edited text 35ms
+   ✓ Windows floating capture presentation > marks translation stale after Vocabulary changes and retranslates only on request 26ms
+   ✓ Windows floating capture presentation > recovers a Region OCR recognition failure with retry or Manual Capture 9ms
+   ✓ Windows floating capture presentation > cancels OCR confirmation without saving 7ms
+   ✓ Windows floating capture presentation > turns multiple recognized words into an editable OCR draft 18ms
+   ✓ Windows floating capture presentation > offers OCR after capabilities resolve when the eligible failure arrived first 9ms
+   ✓ Windows floating capture presentation > announces OCR progress and keeps the fallback recoverable when OCR fails 12ms
+   ✓ Windows floating capture presentation > corrects text and context, adds an optional translation, saves once, and undoes by request 25ms
+   ✓ Windows floating capture presentation > requires an explicit save-without-translation action when translation is blank 9ms
+   ✓ Windows floating capture presentation > allows a corrected selection to save when native context is unavailable 17ms
+   ✓ Windows floating capture presentation > ignores a save completion after a newer request arrives 14ms
+   ✓ Windows floating capture presentation > dismisses a saved result after four unpaused seconds 19ms
+   ✓ Windows floating capture presentation > removes main-window minimum dimensions from the capture document 2ms
+   ✓ Windows floating capture presentation > keeps the saved result interactive after editing until the window is dismissed 19ms
+   ✓ Windows floating capture presentation > cancels the active request through the unconditional close command 4ms
+   ✓ Windows floating capture presentation > keeps overflowing capture content vertically scrollable at the normal window width 3ms
+   ✓ Windows floating capture presentation > cancels the active request with Escape 4ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/windows/WindowsFloatingCapture.test.ts > Windows floating capture presentation > requires explicit confirmation before an OCR candidate can enter the save flow
+AssertionError: expected <button …(2)></button> to be null
+
+- Expected: 
+null
+
++ Received: 
+<button
+  aria-label="Cancel capture"
+  class="svelte-b7dwbe"
+>
+  ×
+</button>
+
+ ❯ src/windows/WindowsFloatingCapture.test.ts:152:70
+    150|     expect(mocks.translate).not.toHaveBeenCalled();
+    151| 
+    152|     expect(screen.queryByRole("button", { name: "Cancel capture" })).t…
+       |                                                                      ^
+    153|     expect(screen.getByRole("button", { name: "Cancel OCR" })).toBeVis…
+    154|     await fireEvent.click(await screen.findByRole("button", { name: "C…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 21 passed (22)
+   Start at  21:41:38
+   Duration  3.06s (transform 814ms, setup 1.27s, collect 210ms, tests 448ms, environment 569ms, prepare 155ms)
+
+[ELIFECYCLE] Test failed. See above for more details.

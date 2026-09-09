@@ -1,0 +1,3566 @@
+$ vitest run "src/windows/WindowsApp.test.ts"
+9:29:02 PM [vite-plugin-svelte] no Svelte config found at C:/Users/yifan/project/vocab-collector/ui - using default configuration.
+
+ RUN  v3.2.7 C:/Users/yifan/project/vocab-collector/ui
+
+ ❯ src/windows/WindowsApp.test.ts (36 tests | 2 failed) 4980ms
+   ✓ Windows main presentation > keeps Manual Capture drafts after save and Achieved-restore failures 285ms
+   ✓ Windows main presentation > keeps native Achieve confirmation and shows the resulting Achieved list 193ms
+   ✓ Windows main presentation > keeps cross-filter Achieved selections and makes failed bulk actions retryable 182ms
+   ✓ Windows main presentation > keeps a saved Capture's Undo available after a failed undo 111ms
+   ✓ Windows main presentation > keeps the page available when the Encounter detail request fails 68ms
+   ✓ Windows main presentation > opens Encounter details from a semantic Vocabulary table and restores keyboard focus 89ms
+   ✓ Windows main presentation > provides Windows navigation without the static Progress view 41ms
+   ✓ Windows main presentation > moves focus into the Manual Capture dialog and returns it when dismissed 31ms
+   ✓ Windows main presentation > keeps keyboard focus inside Manual Capture 50ms
+   ✓ Windows main presentation > labels changing page content and loading state for assistive technology 23ms
+   ✓ Windows main presentation > saves repeat encounters, shows detail, and refreshes after Undo 218ms
+   ✓ Windows main presentation > refreshes Today and Vocabulary after a capture is saved in another window 67ms
+   ✓ Windows main presentation > shows a recoverable load failure 26ms
+   ✓ Windows main presentation > keeps Manual Capture input available after a save failure 73ms
+   ✓ Windows main presentation > runs, closes, resumes, and completes the shared due queue 153ms
+   ✓ Windows main presentation > requires revealing the answer before a Review can be rated 61ms
+   ✓ Windows main presentation > shows core-backed Encounter and repeated-forgetting Insight after rating 57ms
+   ✓ Windows main presentation > shows an empty Review state when nothing is due 24ms
+   ✓ Windows main presentation > distinguishes the complete due backlog from today's planned Review 31ms
+   ✓ Windows main presentation > scrolls configured recent captures and paginates the full vocabulary 176ms
+   ✓ Windows main presentation > keeps the current review card available when rating fails 66ms
+   ✓ Windows main presentation > resumes a revealed but unrated card in Recall state 68ms
+   ✓ Windows main presentation > reuses the logical submission after an ambiguous response 67ms
+   ✓ Windows main presentation > blocks stale Resume until a failed close refresh succeeds 110ms
+   ✓ Windows main presentation > does not allow Close while a rating submission is pending 59ms
+   ✓ Windows main presentation > persists and reads back Windows settings before applying visual preferences 114ms
+   ✓ Windows main presentation > offers automatic source detection but requires an explicit target 67ms
+   ✓ Windows main presentation > keeps saved visual preferences active when a settings save fails 53ms
+   ✓ Windows main presentation > applies persisted visual settings when the subsequent Today refresh fails 56ms
+   ✓ Windows main presentation > shows per-setting system failures while preserving unrelated saved values 82ms
+   ✓ Windows main presentation > selects the filtered Achieved list and runs batch Unachieve or confirmed deletion 68ms
+   ✓ Windows main presentation > offers an inline Achieved tag before returning a captured item to Learning 55ms
+   ✓ Windows main presentation > shows archived-aware lifetime Insight on Insights 33ms
+   ✓ Windows main presentation > shows when each Achieved Vocabulary Item was achieved 45ms
+   × Paper Today and Review > returns to Today on close and resumes without revealing the answer 1053ms
+     → Unable to find role="heading" and name "Today"
+
+Ignored nodes: comments, script, style
+[36m<body[39m
+  [33mstyle[39m=[32m""[39m
+[36m>[39m
+  [36m<div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"windows-presentation svelte-165eeit"[39m
+      [33mdata-appearance[39m=[32m"system"[39m
+      [33mdata-reduced-motion[39m=[32m"false"[39m
+      [33mdata-settings-ready[39m=[32m"true"[39m
+    [36m>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"windows-shell svelte-165eeit"[39m
+        [33mdata-appearance[39m=[32m"system"[39m
+        [33mdata-presentation[39m=[32m"windows-main"[39m
+        [33mdata-reduced-motion[39m=[32m"false"[39m
+      [36m>[39m
+        [36m<aside[39m
+          [33mclass[39m=[32m"svelte-165eeit"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"brand svelte-165eeit"[39m
+          [36m>[39m
+            [36m<svg[39m
+              [33maria-hidden[39m=[32m"true"[39m
+              [33mclass[39m=[32m"svelte-165eeit"[39m
+              [33mheight[39m=[32m"20"[39m
+              [33mviewBox[39m=[32m"0 0 24 24"[39m
+              [33mwidth[39m=[32m"20"[39m
+            [36m>[39m
+              [36m<path[39m
+                [33mclass[39m=[32m"svelte-165eeit"[39m
+                [33md[39m=[32m"M3 4h6l3 5 3-5h6l-9 17Z M6 4l6 11 6-11"[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-width[39m=[32m"1.6"[39m
+              [36m/>[39m
+            [36m</svg>[39m
+            [36m<strong[39m
+              [33mclass[39m=[32m"svelte-165eeit"[39m
+            [36m>[39m
+              [0mVocab Collector[0m
+            [36m</strong>[39m
+          [36m</div>[39m
+          [0m [0m
+          [36m<nav[39m
+            [33maria-label[39m=[32m"Main navigation"[39m
+            [33mclass[39m=[32m"svelte-165eeit"[39m
+          [36m>[39m
+            [36m<button[39m
+              [33maria-current[39m=[32m"page"[39m
+              [33mclass[39m=[32m"svelte-165eeit active"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33maria-hidden[39m=[32m"true"[39m
+                [33mclass[39m=[32m"lucide lucide-calendar-days lucide-icon"[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mheight[39m=[32m"18"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-linecap[39m=[32m"round"[39m
+                [33mstroke-linejoin[39m=[32m"round"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [33mwidth[39m=[32m"18"[39m
+                [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M8 2v3"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M16 2v3"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<rect[39m
+                  [33mheight[39m=[32m"18"[39m
+                  [33mrx[39m=[32m"2"[39m
+                  [33mwidth[39m=[32m"18"[39m
+                  [33mx[39m=[32m"3"[39m
+                  [33my[39m=[32m"3"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</rect>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M3 9h18"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M8 13h.01"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M12 13h.01"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M16 13h.01"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M8 17h.01"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M12 17h.01"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M16 17h.01"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+              [36m</svg>[39m
+              [0mToday[0m
+            [36m</button>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"svelte-165eeit"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33maria-hidden[39m=[32m"true"[39m
+                [33mclass[39m=[32m"lucide lucide-book-open lucide-icon"[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mheight[39m=[32m"18"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-linecap[39m=[32m"round"[39m
+                [33mstroke-linejoin[39m=[32m"round"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [33mwidth[39m=[32m"18"[39m
+                [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M12 5v16"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+              [36m</svg>[39m
+              [0mVocabulary[0m
+            [36m</button>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"svelte-165eeit"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33maria-hidden[39m=[32m"true"[39m
+                [33mclass[39m=[32m"lucide lucide-chart-no-axes-column lucide-bar-chart-2 lucide-icon"[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mheight[39m=[32m"18"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-linecap[39m=[32m"round"[39m
+                [33mstroke-linejoin[39m=[32m"round"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [33mwidth[39m=[32m"18"[39m
+                [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M5 21v-6"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M12 21V3"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M19 21V9"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+              [36m</svg>[39m
+              [0mInsights[0m
+            [36m</button>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"svelte-165eeit"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33maria-hidden[39m=[32m"true"[39m
+                [33mclass[39m=[32m"lucide lucide-settings lucide-icon"[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mheight[39m=[32m"18"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-linecap[39m=[32m"round"[39m
+                [33mstroke-linejoin[39m=[32m"round"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [33mwidth[39m=[32m"18"[39m
+                [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<circle[39m
+                  [33mcx[39m=[32m"12"[39m
+                  [33mcy[39m=[32m"12"[39m
+                  [33mr[39m=[32m"3"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</circle>[39m
+                [0m[0m
+              [36m</svg>[39m
+              [0mSettings[0m
+            [36m</button>[39m
+            [0m[0m
+          [36m</nav>[39m
+          [0m [0m
+          [36m<div[39m
+            [33mclass[39m=[32m"local-status svelte-165eeit"[39m
+          [36m>[39m
+            [36m<svg[39m
+              [33maria-hidden[39m=[32m"true"[39m
+              [33mclass[39m=[32m"lucide lucide-monitor lucide-icon"[39m
+              [33mfill[39m=[32m"none"[39m
+              [33mheight[39m=[32m"16"[39m
+              [33mstroke[39m=[32m"currentColor"[39m
+              [33mstroke-linecap[39m=[32m"round"[39m
+              [33mstroke-linejoin[39m=[32m"round"[39m
+              [33mstroke-width[39m=[32m"2"[39m
+              [33mviewBox[39m=[32m"0 0 24 24"[39m
+              [33mwidth[39m=[32m"16"[39m
+              [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+            [36m>[39m
+              [36m<rect[39m
+                [33mheight[39m=[32m"14"[39m
+                [33mrx[39m=[32m"2"[39m
+                [33mwidth[39m=[32m"20"[39m
+                [33mx[39m=[32m"2"[39m
+                [33my[39m=[32m"3"[39m
+              [36m>[39m
+                [0m[0m
+              [36m</rect>[39m
+              [0m[0m
+              [36m<line[39m
+                [33mx1[39m=[32m"8"[39m
+                [33mx2[39m=[32m"16"[39m
+                [33my1[39m=[32m"21"[39m
+                [33my2[39m=[32m"21"[39m
+              [36m>[39m
+                [0m[0m
+              [36m</line>[39m
+              [0m[0m
+              [36m<line[39m
+                [33mx1[39m=[32m"12"[39m
+                [33mx2[39m=[32m"12"[39m
+                [33my1[39m=[32m"17"[39m
+                [33my2[39m=[32m"21"[39m
+              [36m>[39m
+                [0m[0m
+              [36m</line>[39m
+              [0m[0m
+            [36m</svg>[39m
+            [36m<span[39m
+              [33mclass[39m=[32m"svelte-165eeit"[39m
+            [36m>[39m
+              [0mLocal mode[0m
+            [36m</span>[39m
+          [36m</div>[39m
+        [36m</aside>[39m
+        [0m [0m
+        [36m<main[39m
+          [33mclass[39m=[32m"svelte-165eeit"[39m
+        [36m>[39m
+          [36m<header[39m
+            [33mclass[39m=[32m"svelte-165eeit"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"svelte-165eeit"[39m
+            [36m>[39m
+              [36m<h1[39m
+                [33mclass[39m=[32m"svelte-165eeit"[39m
+                [33mid[39m=[32m"windows-page-title"[39m
+              [36m>[39m
+                [0mReview[0m
+              [36m</h1>[39m
+              [36m<p[39m
+                [33mclass[39m=[32m"svelte-165eeit"[39m
+              [36m>[39m
+                [0mVocab Collector for Windows[0m
+              [36m</p>[39m
+            [36m</div>[39m
+          [36m</header>[39m
+          [0m [0m
+          [36m<section[39m
+            [33maria-busy[39m=[32m"false"[39m
+            [33maria-labelledby[39m=[32m"windows-page-title"[39m
+            [33mclass[39m=[32m"svelte-165eeit"[39m
+          [36m>[39m
+            [0m [0m
+            [36m<div[39m
+              [33mclass[39m=[32m"state svelte-165eeit"[39m
+            [36m>[39m
+              [36m<strong[39m
+                [33mclass[39m=[32m"svelte-165eeit"[39m
+              [36m>[39m
+                [0mReview paused[0m
+              [36m</strong>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"svelte-165eeit"[39m
+              [36m>[39m
+                [0m3 words remaining.[0m
+              [36m</span>[39m
+              [36m<button[39m
+                [33mclass[39m=[32m"primary svelte-165eeit"[39m
+              [36m>[39m
+                [0mResume review[0m
+              [36m</button>[39m
+            [36m</div>[39m
+            [0m[0m
+          [36m</section>[39m
+        [36m</main>[39m
+      [36m</div>[39m
+      [0m [0m
+      [0m [0m
+      [0m[0m
+      [0m[0m
+      [0m[0m
+      [0m[0m
+      [0m [0m
+      [36m<section[39m
+        [33maria-atomic[39m=[32m"false"[39m
+        [33maria-label[39m=[32m"Notifications alt+T"[39m
+        [33maria-live[39m=[32m"polite"[39m
+        [33maria-relevant[39m=[32m"additions text"[39m
+        [33mtabindex[39m=[32m"-1"[39m
+      [36m/>[39m
+      [0m [0m
+      [0m[0m
+      [0m[0m
+      [0m[0m
+      [0m[0m
+    [36m</div>[39m
+    [0m[0m
+  [36m</div>[39m
+  [0m[0m
+  [0m[0m
+  [0m [0m
+  [0m[0m
+  [0m[0m
+  [0m[0m
+  [0m[0m
+  [0m[0m
+  [0m[0m
+  [0m [0m
+  [0m[0m
+  [0m[0m
+  [0m[0m
+  [0m[0m
+[36m</body>[39m
+
+Ignored nodes: comments, script, style
+[36m<body[39m
+  [33mstyle[39m=[32m""[39m
+[36m>[39m
+  [36m<div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"windows-presentation svelte-165eeit"[39m
+      [33mdata-appearance[39m=[32m"system"[39m
+      [33mdata-reduced-motion[39m=[32m"false"[39m
+      [33mdata-settings-ready[39m=[32m"true"[39m
+    [36m>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"windows-shell svelte-165eeit"[39m
+        [33mdata-appearance[39m=[32m"system"[39m
+        [33mdata-presentation[39m=[32m"windows-main"[39m
+        [33mdata-reduced-motion[39m=[32m"false"[39m
+      [36m>[39m
+        [36m<aside[39m
+          [33mclass[39m=[32m"svelte-165eeit"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"brand svelte-165eeit"[39m
+          [36m>[39m
+            [36m<svg[39m
+              [33maria-hidden[39m=[32m"true"[39m
+              [33mclass[39m=[32m"svelte-165eeit"[39m
+              [33mheight[39m=[32m"20"[39m
+              [33mviewBox[39m=[32m"0 0 24 24"[39m
+              [33mwidth[39m=[32m"20"[39m
+            [36m>[39m
+              [36m<path[39m
+                [33mclass[39m=[32m"svelte-165eeit"[39m
+                [33md[39m=[32m"M3 4h6l3 5 3-5h6l-9 17Z M6 4l6 11 6-11"[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-width[39m=[32m"1.6"[39m
+              [36m/>[39m
+            [36m</svg>[39m
+            [36m<strong[39m
+              [33mclass[39m=[32m"svelte-165eeit"[39m
+            [36m>[39m
+              [0mVocab Collector[0m
+            [36m</strong>[39m
+          [36m</div>[39m
+          [0m [0m
+          [36m<nav[39m
+            [33maria-label[39m=[32m"Main navigation"[39m
+            [33mclass[39m=[32m"svelte-165eeit"[39m
+          [36m>[39m
+            [36m<button[39m
+              [33maria-current[39m=[32m"page"[39m
+              [33mclass[39m=[32m"svelte-165eeit active"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33maria-hidden[39m=[32m"true"[39m
+                [33mclass[39m=[32m"lucide lucide-calendar-days lucide-icon"[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mheight[39m=[32m"18"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-linecap[39m=[32m"round"[39m
+                [33mstroke-linejoin[39m=[32m"round"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [33mwidth[39m=[32m"18"[39m
+                [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M8 2v3"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M16 2v3"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<rect[39m
+                  [33mheight[39m=[32m"18"[39m
+                  [33mrx[39m=[32m"2"[39m
+                  [33mwidth[39m=[32m"18"[39m
+                  [33mx[39m=[32m"3"[39m
+                  [33my[39m=[32m"3"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</rect>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M3 9h18"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M8 13h.01"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M12 13h.01"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M16 13h.01"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M8 17h.01"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M12 17h.01"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M16 17h.01"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+              [36m</svg>[39m
+              [0mToday[0m
+            [36m</button>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"svelte-165eeit"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33maria-hidden[39m=[32m"true"[39m
+                [33mclass[39m=[32m"lucide lucide-book-open lucide-icon"[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mheight[39m=[32m"18"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-linecap[39m=[32m"round"[39m
+                [33mstroke-linejoin[39m=[32m"round"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [33mwidth[39m=[32m"18"[39m
+                [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M12 5v16"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+              [36m</svg>[39m
+              [0mVocabulary[0m
+            [36m</button>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"svelte-165eeit"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33maria-hidden[39m=[32m"true"[39m
+                [33mclass[39m=[32m"lucide lucide-chart-no-axes-column lucide-bar-chart-2 lucide-icon"[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mheight[39m=[32m"18"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-linecap[39m=[32m"round"[39m
+                [33mstroke-linejoin[39m=[32m"round"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [33mwidth[39m=[32m"18"[39m
+                [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M5 21v-6"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M12 21V3"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M19 21V9"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+              [36m</svg>[39m
+              [0mInsights[0m
+            [36m</button>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"svelte-165eeit"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33maria-hidden[39m=[32m"true"[39m
+                [33mclass[39m=[32m"lucide lucide-settings lucide-icon"[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mheight[39m=[32m"18"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-linecap[39m=[32m"round"[39m
+                [33mstroke-linejoin[39m=[32m"round"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [33mwidth[39m=[32m"18"[39m
+                [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<circle[39m
+                  [33mcx[39m=[32m"12"[39m
+                  [33mcy[39m=[32m"12"[39m
+                  [33mr[39m=[32m"3"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</circle>[39m
+                [0m[0m
+              [36m</svg>[39m
+              [0mSettings[0m
+            [36m</button>[39m
+            [0m[0m
+          [36m</nav>[39m
+          [0m [0m
+          [36m<div[39m
+            [33mclass[39m=[32m"local-status svelte-165eeit"[39m
+          [36m>[39m
+            [36m<svg[39m
+              [33maria-hidden[39m=[32m"true"[39m
+              [33mclass[39m=[32m"lucide lucide-monitor lucide-icon"[39m
+              [33mfill[39m=[32m"none"[39m
+              [33mheight[39m=[32m"16"[39m
+              [33mstroke[39m=[32m"currentColor"[39m
+              [33mstroke-linecap[39m=[32m"round"[39m
+              [33mstroke-linejoin[39m=[32m"round"[39m
+              [33mstroke-width[39m=[32m"2"[39m
+              [33mviewBox[39m=[32m"0 0 24 24"[39m
+              [33mwidth[39m=[32m"16"[39m
+              [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+            [36m>[39m
+              [36m<rect[39m
+                [33mheight[39m=[32m"14"[39m
+                [33mrx[39m=[32m"2"[39m
+                [33mwidth[39m=[32m"20"[39m
+                [33mx[39m=[32m"2"[39m
+                [33my[39m=[32m"3"[39m
+              [36m>[39m
+                [0m[0m
+              [36m</rect>[39m
+              [0m[0m
+              [36m<line[39m
+                [33mx1[39m=[32m"8"[39m
+                [33mx2[39m=[32m"16"[39m
+                [33my1[39m=[32m"21"[39m
+                [33my2[39m=[32m"21"[39m
+              [36m>[39m
+                [0m[0m
+              [36m</line>[39m
+              [0m[0m
+              [36m<line[39m
+                [33mx1[39m=[32m"12"[39m
+                [33mx2[39m=[32m"12"[39m
+                [33my1[39m=[32m"17"[39m
+                [33my2[39m=[32m"21"[39m
+              [36m>[39m
+                [0m[0m
+              [36m</line>[39m
+              [0m[0m
+            [36m</svg>[39m
+            [36m<span[39m
+              [33mclass[39m=[32m"svelte-165eeit"[39m
+            [36m>[39m
+              [0mLocal mode[0m
+            [36m</span>[39m
+          [36m</div>[39m
+        [36m</aside>[39m
+        [0m [0m
+        [36m<main[39m
+          [33mclass[39m=[32m"svelte-165eeit"[39m
+        [36m>[39m
+          [36m<header[39m
+            [33mclass[39m=[32m"svelte-165eeit"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"svelte-165eeit"[39m
+            [36m>[39m
+              [36m<h1[39m
+                [33mclass[39m=[32m"svelte-165eeit"[39m
+                [33mid[39m=[32m"windows-page-title"[39m
+              [36m>[39m
+                [0mReview[0m
+              [36m</h1>[39m
+              [36m<p[39m
+                [33mclass[39m=[32m"svelte-165eeit"[39m
+              [36m>[39m
+                [0mVocab Collector for Windows[0m
+              [36m</p>[39m
+            [36m</div>[39m
+          [36m</header>[39m
+          [0m [0m
+          [36m<section[39m
+            [33maria-busy[39m=[32m"false"[39m
+            [33maria-labelledby[39m=[32m"windows-page-title"[39m
+            [33mclass[39m=[32m"svelte-165eeit"[39m
+          [36m>[39m
+            [0m [0m
+            [36m<div[39m
+              [33mclass[39m=[32m"state svelte-165eeit"[39m
+            [36m>[39m
+              [36m<strong[39m
+                [33mclass[39m=[32m"svelte-165eeit"[39m
+              [36m>[39m
+                [0mReview paused[0m
+              [36m</strong>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"svelte-165eeit"[39m
+              [36m>[39m
+                [0m3 words remaining.[0m
+              [36m</span>[39m
+              [36m<button[39m
+                [33mclass[39m=[32m"primary svelte-165eeit"[39m
+              [36m>[39m
+                [0mResume review[0m
+              [36m</button>[39m
+            [36m</div>[39m
+            [0m[0m
+          [36m</section>[39m
+        [36m</main>[39m
+      [36m</div>[39m
+      [0m [0m
+      [0m [0m
+      [0m[0m
+      [0m[0m
+      [0m[0m
+      [0m[0m
+      [0m [0m
+      [36m<section[39m
+        [33maria-atomic[39m=[32m"false"[39m
+        [33maria-label[39m=[32m"Notifications alt+T"[39m
+        [33maria-live[39m=[32m"polite"[39m
+        [33maria-relevant[39m=[32m"additions text"[39m
+        [33mtabindex[39m=[32m"-1"[39m
+      [36m/>[39m
+      [0m [0m
+      [0m[0m
+      [0m[0m
+      [0m[0m
+      [0m[0m
+    [36m</div>[39m
+    [0m[0m
+  [36m</div>[39m
+  [0m[0m
+  [0m[0m
+  [0m [0m
+  [0m[0m
+  [0m[0m
+  [0m[0m
+  [0m[0m
+  [0m[0m
+  [0m[0m
+  [0m [0m
+  [0m[0m
+  [0m[0m
+  [0m[0m
+  [0m[0m
+[36m</body>[39m
+   × Paper Today and Review > keeps Today available when optional Insight fails 1021ms
+     → Unable to find role="button" and name "Start review (3)"
+
+Ignored nodes: comments, script, style
+[36m<body[39m
+  [33mstyle[39m=[32m""[39m
+[36m>[39m
+  [36m<div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"windows-presentation svelte-165eeit"[39m
+      [33mdata-appearance[39m=[32m"system"[39m
+      [33mdata-reduced-motion[39m=[32m"false"[39m
+      [33mdata-settings-ready[39m=[32m"true"[39m
+    [36m>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"windows-shell svelte-165eeit"[39m
+        [33mdata-appearance[39m=[32m"system"[39m
+        [33mdata-presentation[39m=[32m"windows-main"[39m
+        [33mdata-reduced-motion[39m=[32m"false"[39m
+      [36m>[39m
+        [36m<aside[39m
+          [33mclass[39m=[32m"svelte-165eeit"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"brand svelte-165eeit"[39m
+          [36m>[39m
+            [36m<svg[39m
+              [33maria-hidden[39m=[32m"true"[39m
+              [33mclass[39m=[32m"svelte-165eeit"[39m
+              [33mheight[39m=[32m"20"[39m
+              [33mviewBox[39m=[32m"0 0 24 24"[39m
+              [33mwidth[39m=[32m"20"[39m
+            [36m>[39m
+              [36m<path[39m
+                [33mclass[39m=[32m"svelte-165eeit"[39m
+                [33md[39m=[32m"M3 4h6l3 5 3-5h6l-9 17Z M6 4l6 11 6-11"[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-width[39m=[32m"1.6"[39m
+              [36m/>[39m
+            [36m</svg>[39m
+            [36m<strong[39m
+              [33mclass[39m=[32m"svelte-165eeit"[39m
+            [36m>[39m
+              [0mVocab Collector[0m
+            [36m</strong>[39m
+          [36m</div>[39m
+          [0m [0m
+          [36m<nav[39m
+            [33maria-label[39m=[32m"Main navigation"[39m
+            [33mclass[39m=[32m"svelte-165eeit"[39m
+          [36m>[39m
+            [36m<button[39m
+              [33maria-current[39m=[32m"page"[39m
+              [33mclass[39m=[32m"svelte-165eeit active"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33maria-hidden[39m=[32m"true"[39m
+                [33mclass[39m=[32m"lucide lucide-calendar-days lucide-icon"[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mheight[39m=[32m"18"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-linecap[39m=[32m"round"[39m
+                [33mstroke-linejoin[39m=[32m"round"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [33mwidth[39m=[32m"18"[39m
+                [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M8 2v3"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M16 2v3"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<rect[39m
+                  [33mheight[39m=[32m"18"[39m
+                  [33mrx[39m=[32m"2"[39m
+                  [33mwidth[39m=[32m"18"[39m
+                  [33mx[39m=[32m"3"[39m
+                  [33my[39m=[32m"3"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</rect>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M3 9h18"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M8 13h.01"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M12 13h.01"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M16 13h.01"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M8 17h.01"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M12 17h.01"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M16 17h.01"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+              [36m</svg>[39m
+              [0mToday[0m
+            [36m</button>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"svelte-165eeit"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33maria-hidden[39m=[32m"true"[39m
+                [33mclass[39m=[32m"lucide lucide-book-open lucide-icon"[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mheight[39m=[32m"18"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-linecap[39m=[32m"round"[39m
+                [33mstroke-linejoin[39m=[32m"round"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [33mwidth[39m=[32m"18"[39m
+                [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M12 5v16"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+              [36m</svg>[39m
+              [0mVocabulary[0m
+            [36m</button>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"svelte-165eeit"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33maria-hidden[39m=[32m"true"[39m
+                [33mclass[39m=[32m"lucide lucide-chart-no-axes-column lucide-bar-chart-2 lucide-icon"[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mheight[39m=[32m"18"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-linecap[39m=[32m"round"[39m
+                [33mstroke-linejoin[39m=[32m"round"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [33mwidth[39m=[32m"18"[39m
+                [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M5 21v-6"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M12 21V3"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M19 21V9"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+              [36m</svg>[39m
+              [0mInsights[0m
+            [36m</button>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"svelte-165eeit"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33maria-hidden[39m=[32m"true"[39m
+                [33mclass[39m=[32m"lucide lucide-settings lucide-icon"[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mheight[39m=[32m"18"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-linecap[39m=[32m"round"[39m
+                [33mstroke-linejoin[39m=[32m"round"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [33mwidth[39m=[32m"18"[39m
+                [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<circle[39m
+                  [33mcx[39m=[32m"12"[39m
+                  [33mcy[39m=[32m"12"[39m
+                  [33mr[39m=[32m"3"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</circle>[39m
+                [0m[0m
+              [36m</svg>[39m
+              [0mSettings[0m
+            [36m</button>[39m
+            [0m[0m
+          [36m</nav>[39m
+          [0m [0m
+          [36m<div[39m
+            [33mclass[39m=[32m"local-status svelte-165eeit"[39m
+          [36m>[39m
+            [36m<svg[39m
+              [33maria-hidden[39m=[32m"true"[39m
+              [33mclass[39m=[32m"lucide lucide-monitor lucide-icon"[39m
+              [33mfill[39m=[32m"none"[39m
+              [33mheight[39m=[32m"16"[39m
+              [33mstroke[39m=[32m"currentColor"[39m
+              [33mstroke-linecap[39m=[32m"round"[39m
+              [33mstroke-linejoin[39m=[32m"round"[39m
+              [33mstroke-width[39m=[32m"2"[39m
+              [33mviewBox[39m=[32m"0 0 24 24"[39m
+              [33mwidth[39m=[32m"16"[39m
+              [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+            [36m>[39m
+              [36m<rect[39m
+                [33mheight[39m=[32m"14"[39m
+                [33mrx[39m=[32m"2"[39m
+                [33mwidth[39m=[32m"20"[39m
+                [33mx[39m=[32m"2"[39m
+                [33my[39m=[32m"3"[39m
+              [36m>[39m
+                [0m[0m
+              [36m</rect>[39m
+              [0m[0m
+              [36m<line[39m
+                [33mx1[39m=[32m"8"[39m
+                [33mx2[39m=[32m"16"[39m
+                [33my1[39m=[32m"21"[39m
+                [33my2[39m=[32m"21"[39m
+              [36m>[39m
+                [0m[0m
+              [36m</line>[39m
+              [0m[0m
+              [36m<line[39m
+                [33mx1[39m=[32m"12"[39m
+                [33mx2[39m=[32m"12"[39m
+                [33my1[39m=[32m"17"[39m
+                [33my2[39m=[32m"21"[39m
+              [36m>[39m
+                [0m[0m
+              [36m</line>[39m
+              [0m[0m
+            [36m</svg>[39m
+            [36m<span[39m
+              [33mclass[39m=[32m"svelte-165eeit"[39m
+            [36m>[39m
+              [0mLocal mode[0m
+            [36m</span>[39m
+          [36m</div>[39m
+        [36m</aside>[39m
+        [0m [0m
+        [36m<main[39m
+          [33mclass[39m=[32m"svelte-165eeit"[39m
+        [36m>[39m
+          [36m<header[39m
+            [33mclass[39m=[32m"svelte-165eeit"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"svelte-165eeit"[39m
+            [36m>[39m
+              [36m<h1[39m
+                [33mclass[39m=[32m"svelte-165eeit"[39m
+                [33mid[39m=[32m"windows-page-title"[39m
+              [36m>[39m
+                [0mToday[0m
+              [36m</h1>[39m
+              [36m<p[39m
+                [33mclass[39m=[32m"svelte-165eeit"[39m
+              [36m>[39m
+                [0mYour words, ready when you are[0m
+              [36m</p>[39m
+            [36m</div>[39m
+            [36m<button[39m
+              [33maria-label[39m=[32m"Manual capture"[39m
+              [33mclass[39m=[32m"rounded-lg border border-transparent bg-clip-padding text-sm font-medium focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg:not([class*='size-'])]:size-4 group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap transition-all outline-none select-none disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/80 size-8"[39m
+              [33mdata-slot[39m=[32m"button"[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33maria-hidden[39m=[32m"true"[39m
+                [33mclass[39m=[32m"lucide lucide-plus lucide-icon"[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mheight[39m=[32m"24"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-linecap[39m=[32m"round"[39m
+                [33mstroke-linejoin[39m=[32m"round"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [33mwidth[39m=[32m"24"[39m
+                [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M5 12h14"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M12 5v14"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+              [36m</svg>[39m
+            [36m</button>[39m
+            [0m[0m
+          [36m</header>[39m
+          [0m [0m
+          [36m<section[39m
+            [33maria-busy[39m=[32m"false"[39m
+            [33maria-labelledby[39m=[32m"windows-page-title"[39m
+            [33mclass[39m=[32m"svelte-165eeit"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"error svelte-165eeit"[39m
+              [33mrole[39m=[32m"alert"[39m
+            [36m>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"svelte-165eeit"[39m
+              [36m>[39m
+                [0mInsight offline[0m
+              [36m</span>[39m
+              [36m<button[39m
+                [33mclass[39m=[32m"svelte-165eeit"[39m
+              [36m>[39m
+                [0mTry again[0m
+              [36m</button>[39m
+            [36m</div>[39m
+            [0m [0m
+            [36m<div[39m
+              [33mclass[39m=[32m"summary svelte-165eeit"[39m
+            [36m>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"svelte-165eeit"[39m
+              [36m>[39m
+                [36m<span[39m
+                  [33mclass[39m=[32m"svelte-165eeit"[39m
+                [36m>[39m
+                  [0mToday's plan[0m
+                [36m</span>[39m
+                [36m<strong[39m
+                  [33mclass[39m=[32m"svelte-165eeit"[39m
+                [36m>[39m
+                  [0m0[0m
+                [36m</strong>[39m
+                [36m<small[39m
+                  [33mclass[39m=[32m"svelte-165eeit"[39m
+                [36m>[39m
+                  [0mNothing due[0m
+                [36m</small>[39m
+              [36m</div>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"svelte-165eeit"[39m
+              [36m>[39m
+                [36m<span[39m
+                  [33mclass[39m=[32m"svelte-165eeit"[39m
+                [36m>[39m
+                  [0mRecent captures[0m
+                [36m</span>[39m
+                [36m<strong[39m
+                  [33mclass[39m=[32m"svelte-165eeit"[39m
+                [36m>[39m
+                  [0m0[0m
+                [36m</strong>[39m
+                [36m<small[39m
+                  [33mclass[39m=[32m"svelte-165eeit"[39m
+                [36m>[39m
+                  [0mStored locally[0m
+                [36m</small>[39m
+              [36m</div>[39m
+            [36m</div>[39m
+            [0m [0m
+            [36m<div[39m
+              [33mclass[39m=[32m"section-heading svelte-165eeit"[39m
+            [36m>[39m
+              [36m<h2[39m
+                [33mclass[39m=[32m"svelte-165eeit"[39m
+              [36m>[39m
+                [0mRecent captures[0m
+              [36m</h2>[39m
+              [36m<p[39m
+                [33mclass[39m=[32m"svelte-165eeit"[39m
+              [36m>[39m
+                [0mNew contexts appear here immediately after saving.[0m
+              [36m</p>[39m
+            [36m</div>[39m
+            [0m [0m
+            [36m<div[39m
+              [33mclass[39m=[32m"list recent-captures-list svelte-165eeit"[39m
+            [36m>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"state svelte-165eeit"[39m
+              [36m>[39m
+                [36m<strong[39m
+                  [33mclass[39m=[32m"svelte-165eeit"[39m
+                [36m>[39m
+                  [0mNo captures yet[0m
+                [36m</strong>[39m
+                [36m<span[39m
+                  [33mclass[39m=[32m"svelte-165eeit"[39m
+                [36m>[39m
+                  [0mUse Manual capture to save your first reading context.[0m
+                [36m</span>[39m
+                [36m<button[39m
+                  [33mclass[39m=[32m"primary svelte-165eeit"[39m
+                [36m>[39m
+                  [0mManual capture[0m
+                [36m</button>[39m
+              [36m</div>[39m
+              [0m[0m
+            [36m</div>[39m
+          [36m</section>[39m
+        [36m</main>[39m
+      [36m</div>[39m
+      [0m [0m
+      [0m [0m
+      [0m[0m
+      [0m[0m
+      [0m[0m
+      [0m[0m
+      [0m [0m
+      [36m<section[39m
+        [33maria-atomic[39m=[32m"false"[39m
+        [33maria-label[39m=[32m"Notifications alt+T"[39m
+        [33maria-live[39m=[32m"polite"[39m
+        [33maria-relevant[39m=[32m"additions text"[39m
+        [33mtabindex[39m=[32m"-1"[39m
+      [36m/>[39m
+      [0m [0m
+      [0m[0m
+      [0m[0m
+      [0m[0m
+      [0m[0m
+    [36m</div>[39m
+    [0m[0m
+  [36m</div>[39m
+  [0m[0m
+  [0m[0m
+  [0m [0m
+  [0m[0m
+  [0m[0m
+  [0m[0m
+  [0m[0m
+  [0m[0m
+  [0m[0m
+  [0m [0m
+  [0m[0m
+  [0m[0m
+  [0m[0m
+  [0m[0m
+[36m</body>[39m
+
+Ignored nodes: comments, script, style
+[36m<body[39m
+  [33mstyle[39m=[32m""[39m
+[36m>[39m
+  [36m<div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"windows-presentation svelte-165eeit"[39m
+      [33mdata-appearance[39m=[32m"system"[39m
+      [33mdata-reduced-motion[39m=[32m"false"[39m
+      [33mdata-settings-ready[39m=[32m"true"[39m
+    [36m>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"windows-shell svelte-165eeit"[39m
+        [33mdata-appearance[39m=[32m"system"[39m
+        [33mdata-presentation[39m=[32m"windows-main"[39m
+        [33mdata-reduced-motion[39m=[32m"false"[39m
+      [36m>[39m
+        [36m<aside[39m
+          [33mclass[39m=[32m"svelte-165eeit"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"brand svelte-165eeit"[39m
+          [36m>[39m
+            [36m<svg[39m
+              [33maria-hidden[39m=[32m"true"[39m
+              [33mclass[39m=[32m"svelte-165eeit"[39m
+              [33mheight[39m=[32m"20"[39m
+              [33mviewBox[39m=[32m"0 0 24 24"[39m
+              [33mwidth[39m=[32m"20"[39m
+            [36m>[39m
+              [36m<path[39m
+                [33mclass[39m=[32m"svelte-165eeit"[39m
+                [33md[39m=[32m"M3 4h6l3 5 3-5h6l-9 17Z M6 4l6 11 6-11"[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-width[39m=[32m"1.6"[39m
+              [36m/>[39m
+            [36m</svg>[39m
+            [36m<strong[39m
+              [33mclass[39m=[32m"svelte-165eeit"[39m
+            [36m>[39m
+              [0mVocab Collector[0m
+            [36m</strong>[39m
+          [36m</div>[39m
+          [0m [0m
+          [36m<nav[39m
+            [33maria-label[39m=[32m"Main navigation"[39m
+            [33mclass[39m=[32m"svelte-165eeit"[39m
+          [36m>[39m
+            [36m<button[39m
+              [33maria-current[39m=[32m"page"[39m
+              [33mclass[39m=[32m"svelte-165eeit active"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33maria-hidden[39m=[32m"true"[39m
+                [33mclass[39m=[32m"lucide lucide-calendar-days lucide-icon"[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mheight[39m=[32m"18"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-linecap[39m=[32m"round"[39m
+                [33mstroke-linejoin[39m=[32m"round"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [33mwidth[39m=[32m"18"[39m
+                [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M8 2v3"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M16 2v3"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<rect[39m
+                  [33mheight[39m=[32m"18"[39m
+                  [33mrx[39m=[32m"2"[39m
+                  [33mwidth[39m=[32m"18"[39m
+                  [33mx[39m=[32m"3"[39m
+                  [33my[39m=[32m"3"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</rect>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M3 9h18"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M8 13h.01"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M12 13h.01"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M16 13h.01"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M8 17h.01"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M12 17h.01"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M16 17h.01"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+              [36m</svg>[39m
+              [0mToday[0m
+            [36m</button>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"svelte-165eeit"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33maria-hidden[39m=[32m"true"[39m
+                [33mclass[39m=[32m"lucide lucide-book-open lucide-icon"[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mheight[39m=[32m"18"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-linecap[39m=[32m"round"[39m
+                [33mstroke-linejoin[39m=[32m"round"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [33mwidth[39m=[32m"18"[39m
+                [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M12 5v16"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+              [36m</svg>[39m
+              [0mVocabulary[0m
+            [36m</button>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"svelte-165eeit"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33maria-hidden[39m=[32m"true"[39m
+                [33mclass[39m=[32m"lucide lucide-chart-no-axes-column lucide-bar-chart-2 lucide-icon"[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mheight[39m=[32m"18"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-linecap[39m=[32m"round"[39m
+                [33mstroke-linejoin[39m=[32m"round"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [33mwidth[39m=[32m"18"[39m
+                [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M5 21v-6"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M12 21V3"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M19 21V9"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+              [36m</svg>[39m
+              [0mInsights[0m
+            [36m</button>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"svelte-165eeit"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33maria-hidden[39m=[32m"true"[39m
+                [33mclass[39m=[32m"lucide lucide-settings lucide-icon"[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mheight[39m=[32m"18"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-linecap[39m=[32m"round"[39m
+                [33mstroke-linejoin[39m=[32m"round"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [33mwidth[39m=[32m"18"[39m
+                [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<circle[39m
+                  [33mcx[39m=[32m"12"[39m
+                  [33mcy[39m=[32m"12"[39m
+                  [33mr[39m=[32m"3"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</circle>[39m
+                [0m[0m
+              [36m</svg>[39m
+              [0mSettings[0m
+            [36m</button>[39m
+            [0m[0m
+          [36m</nav>[39m
+          [0m [0m
+          [36m<div[39m
+            [33mclass[39m=[32m"local-status svelte-165eeit"[39m
+          [36m>[39m
+            [36m<svg[39m
+              [33maria-hidden[39m=[32m"true"[39m
+              [33mclass[39m=[32m"lucide lucide-monitor lucide-icon"[39m
+              [33mfill[39m=[32m"none"[39m
+              [33mheight[39m=[32m"16"[39m
+              [33mstroke[39m=[32m"currentColor"[39m
+              [33mstroke-linecap[39m=[32m"round"[39m
+              [33mstroke-linejoin[39m=[32m"round"[39m
+              [33mstroke-width[39m=[32m"2"[39m
+              [33mviewBox[39m=[32m"0 0 24 24"[39m
+              [33mwidth[39m=[32m"16"[39m
+              [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+            [36m>[39m
+              [36m<rect[39m
+                [33mheight[39m=[32m"14"[39m
+                [33mrx[39m=[32m"2"[39m
+                [33mwidth[39m=[32m"20"[39m
+                [33mx[39m=[32m"2"[39m
+                [33my[39m=[32m"3"[39m
+              [36m>[39m
+                [0m[0m
+              [36m</rect>[39m
+              [0m[0m
+              [36m<line[39m
+                [33mx1[39m=[32m"8"[39m
+                [33mx2[39m=[32m"16"[39m
+                [33my1[39m=[32m"21"[39m
+                [33my2[39m=[32m"21"[39m
+              [36m>[39m
+                [0m[0m
+              [36m</line>[39m
+              [0m[0m
+              [36m<line[39m
+                [33mx1[39m=[32m"12"[39m
+                [33mx2[39m=[32m"12"[39m
+                [33my1[39m=[32m"17"[39m
+                [33my2[39m=[32m"21"[39m
+              [36m>[39m
+                [0m[0m
+              [36m</line>[39m
+              [0m[0m
+            [36m</svg>[39m
+            [36m<span[39m
+              [33mclass[39m=[32m"svelte-165eeit"[39m
+            [36m>[39m
+              [0mLocal mode[0m
+            [36m</span>[39m
+          [36m</div>[39m
+        [36m</aside>[39m
+        [0m [0m
+        [36m<main[39m
+          [33mclass[39m=[32m"svelte-165eeit"[39m
+        [36m>[39m
+          [36m<header[39m
+            [33mclass[39m=[32m"svelte-165eeit"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"svelte-165eeit"[39m
+            [36m>[39m
+              [36m<h1[39m
+                [33mclass[39m=[32m"svelte-165eeit"[39m
+                [33mid[39m=[32m"windows-page-title"[39m
+              [36m>[39m
+                [0mToday[0m
+              [36m</h1>[39m
+              [36m<p[39m
+                [33mclass[39m=[32m"svelte-165eeit"[39m
+              [36m>[39m
+                [0mYour words, ready when you are[0m
+              [36m</p>[39m
+            [36m</div>[39m
+            [36m<button[39m
+              [33maria-label[39m=[32m"Manual capture"[39m
+              [33mclass[39m=[32m"rounded-lg border border-transparent bg-clip-padding text-sm font-medium focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg:not([class*='size-'])]:size-4 group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap transition-all outline-none select-none disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/80 size-8"[39m
+              [33mdata-slot[39m=[32m"button"[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33maria-hidden[39m=[32m"true"[39m
+                [33mclass[39m=[32m"lucide lucide-plus lucide-icon"[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mheight[39m=[32m"24"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-linecap[39m=[32m"round"[39m
+                [33mstroke-linejoin[39m=[32m"round"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [33mwidth[39m=[32m"24"[39m
+                [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M5 12h14"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M12 5v14"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+              [36m</svg>[39m
+            [36m</button>[39m
+            [0m[0m
+          [36m</header>[39m
+          [0m [0m
+          [36m<section[39m
+            [33maria-busy[39m=[32m"false"[39m
+            [33maria-labelledby[39m=[32m"windows-page-title"[39m
+            [33mclass[39m=[32m"svelte-165eeit"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"error svelte-165eeit"[39m
+              [33mrole[39m=[32m"alert"[39m
+            [36m>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"svelte-165eeit"[39m
+              [36m>[39m
+                [0mInsight offline[0m
+              [36m</span>[39m
+              [36m<button[39m
+                [33mclass[39m=[32m"svelte-165eeit"[39m
+              [36m>[39m
+                [0mTry again[0m
+              [36m</button>[39m
+            [36m</div>[39m
+            [0m [0m
+            [36m<div[39m
+              [33mclass[39m=[32m"summary svelte-165eeit"[39m
+            [36m>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"svelte-165eeit"[39m
+              [36m>[39m
+                [36m<span[39m
+                  [33mclass[39m=[32m"svelte-165eeit"[39m
+                [36m>[39m
+                  [0mToday's plan[0m
+                [36m</span>[39m
+                [36m<strong[39m
+                  [33mclass[39m=[32m"svelte-165eeit"[39m
+                [36m>[39m
+                  [0m0[0m
+                [36m</strong>[39m
+                [36m<small[39m
+                  [33mclass[39m=[32m"svelte-165eeit"[39m
+                [36m>[39m
+                  [0mNothing due[0m
+                [36m</small>[39m
+              [36m</div>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"svelte-165eeit"[39m
+              [36m>[39m
+                [36m<span[39m
+                  [33mclass[39m=[32m"svelte-165eeit"[39m
+                [36m>[39m
+                  [0mRecent captures[0m
+                [36m</span>[39m
+                [36m<strong[39m
+                  [33mclass[39m=[32m"svelte-165eeit"[39m
+                [36m>[39m
+                  [0m0[0m
+                [36m</strong>[39m
+                [36m<small[39m
+                  [33mclass[39m=[32m"svelte-165eeit"[39m
+                [36m>[39m
+                  [0mStored locally[0m
+                [36m</small>[39m
+              [36m</div>[39m
+            [36m</div>[39m
+            [0m [0m
+            [36m<div[39m
+              [33mclass[39m=[32m"section-heading svelte-165eeit"[39m
+            [36m>[39m
+              [36m<h2[39m
+                [33mclass[39m=[32m"svelte-165eeit"[39m
+              [36m>[39m
+                [0mRecent captures[0m
+              [36m</h2>[39m
+              [36m<p[39m
+                [33mclass[39m=[32m"svelte-165eeit"[39m
+              [36m>[39m
+                [0mNew contexts appear here immediately after saving.[0m
+              [36m</p>[39m
+            [36m</div>[39m
+            [0m [0m
+            [36m<div[39m
+              [33mclass[39m=[32m"list recent-captures-list svelte-165eeit"[39m
+            [36m>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"state svelte-165eeit"[39m
+              [36m>[39m
+                [36m<strong[39m
+                  [33mclass[39m=[32m"svelte-165eeit"[39m
+                [36m>[39m
+                  [0mNo captures yet[0m
+                [36m</strong>[39m
+                [36m<span[39m
+                  [33mclass[39m=[32m"svelte-165eeit"[39m
+                [36m>[39m
+                  [0mUse Manual capture to save your first reading context.[0m
+                [36m</span>[39m
+                [36m<button[39m
+                  [33mclass[39m=[32m"primary svelte-165eeit"[39m
+                [36m>[39m
+                  [0mManual capture[0m
+                [36m</button>[39m
+              [36m</div>[39m
+              [0m[0m
+            [36m</div>[39m
+          [36m</section>[39m
+        [36m</main>[39m
+      [36m</div>[39m
+      [0m [0m
+      [0m [0m
+      [0m[0m
+      [0m[0m
+      [0m[0m
+      [0m[0m
+      [0m [0m
+      [36m<section[39m
+        [33maria-atomic[39m=[32m"false"[39m
+        [33maria-label[39m=[32m"Notifications alt+T"[39m
+        [33maria-live[39m=[32m"polite"[39m
+        [33maria-relevant[39m=[32m"additions text"[39m
+        [33mtabindex[39m=[32m"-1"[39m
+      [36m/>[39m
+      [0m [0m
+      [0m[0m
+      [0m[0m
+      [0m[0m
+      [0m[0m
+    [36m</div>[39m
+    [0m[0m
+  [36m</div>[39m
+  [0m[0m
+  [0m[0m
+  [0m [0m
+  [0m[0m
+  [0m[0m
+  [0m[0m
+  [0m[0m
+  [0m[0m
+  [0m[0m
+  [0m [0m
+  [0m[0m
+  [0m[0m
+  [0m[0m
+  [0m[0m
+[36m</body>[39m
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/windows/WindowsApp.test.ts > Paper Today and Review > returns to Today on close and resumes without revealing the answer
+TestingLibraryElementError: Unable to find role="heading" and name "Today"
+
+Ignored nodes: comments, script, style
+<body
+  style=""
+>
+  <div>
+    <div
+      class="windows-presentation svelte-165eeit"
+      data-appearance="system"
+      data-reduced-motion="false"
+      data-settings-ready="true"
+    >
+      <div
+        class="windows-shell svelte-165eeit"
+        data-appearance="system"
+        data-presentation="windows-main"
+        data-reduced-motion="false"
+      >
+        <aside
+          class="svelte-165eeit"
+        >
+          <div
+            class="brand svelte-165eeit"
+          >
+            <svg
+              aria-hidden="true"
+              class="svelte-165eeit"
+              height="20"
+              viewBox="0 0 24 24"
+              width="20"
+            >
+              <path
+                class="svelte-165eeit"
+                d="M3 4h6l3 5 3-5h6l-9 17Z M6 4l6 11 6-11"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+              />
+            </svg>
+            <strong
+              class="svelte-165eeit"
+            >
+              Vocab Collector
+            </strong>
+          </div>
+           
+          <nav
+            aria-label="Main navigation"
+            class="svelte-165eeit"
+          >
+            <button
+              aria-current="page"
+              class="svelte-165eeit active"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-calendar-days lucide-icon"
+                fill="none"
+                height="18"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="18"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M8 2v3"
+                >
+                  
+                </path>
+                
+                <path
+                  d="M16 2v3"
+                >
+                  
+                </path>
+                
+                <rect
+                  height="18"
+                  rx="2"
+                  width="18"
+                  x="3"
+                  y="3"
+                >
+                  
+                </rect>
+                
+                <path
+                  d="M3 9h18"
+                >
+                  
+                </path>
+                
+                <path
+                  d="M8 13h.01"
+                >
+                  
+                </path>
+                
+                <path
+                  d="M12 13h.01"
+                >
+                  
+                </path>
+                
+                <path
+                  d="M16 13h.01"
+                >
+                  
+                </path>
+                
+                <path
+                  d="M8 17h.01"
+                >
+                  
+                </path>
+                
+                <path
+                  d="M12 17h.01"
+                >
+                  
+                </path>
+                
+                <path
+                  d="M16 17h.01"
+                >
+                  
+                </path>
+                
+              </svg>
+              Today
+            </button>
+            <button
+              class="svelte-165eeit"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-book-open lucide-icon"
+                fill="none"
+                height="18"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="18"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M12 5v16"
+                >
+                  
+                </path>
+                
+                <path
+                  d="M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z"
+                >
+                  
+                </path>
+                
+              </svg>
+              Vocabulary
+            </button>
+            <button
+              class="svelte-165eeit"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-chart-no-axes-column lucide-bar-chart-2 lucide-icon"
+                fill="none"
+                height="18"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="18"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M5 21v-6"
+                >
+                  
+                </path>
+                
+                <path
+                  d="M12 21V3"
+                >
+                  
+                </path>
+                
+                <path
+                  d="M19 21V9"
+                >
+                  
+                </path>
+                
+              </svg>
+              Insights
+            </button>
+            <button
+              class="svelte-165eeit"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-settings lucide-icon"
+                fill="none"
+                height="18"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="18"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"
+                >
+                  
+                </path>
+                
+                <circle
+                  cx="12"
+                  cy="12"
+                  r="3"
+                >
+                  
+                </circle>
+                
+              </svg>
+              Settings
+            </button>
+            
+          </nav>
+           
+          <div
+            class="local-status svelte-165eeit"
+          >
+            <svg
+              aria-hidden="true"
+              class="lucide lucide-monitor lucide-icon"
+              fill="none"
+              height="16"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+              width="16"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <rect
+                height="14"
+                rx="2"
+                width="20"
+                x="2"
+                y="3"
+              >
+                
+              </rect>
+              
+              <line
+                x1="8"
+                x2="16"
+                y1="21"
+                y2="21"
+              >
+                
+              </line>
+              
+              <line
+                x1="12"
+                x2="12"
+                y1="17"
+                y2="21"
+              >
+                
+              </line>
+              
+            </svg>
+            <span
+              class="svelte-165eeit"
+            >
+              Local mode
+            </span>
+          </div>
+        </aside>
+         
+        <main
+          class="svelte-165eeit"
+        >
+          <header
+            class="svelte-165eeit"
+          >
+            <div
+              class="svelte-165eeit"
+            >
+              <h1
+                class="svelte-165eeit"
+                id="windows-page-title"
+              >
+                Review
+              </h1>
+              <p
+                class="svelte-165eeit"
+              >
+                Vocab Collector for Windows
+              </p>
+            </div>
+          </header>
+           
+          <section
+            aria-busy="false"
+            aria-labelledby="windows-page-title"
+            class="svelte-165eeit"
+          >
+             
+            <div
+              class="state svelte-165eeit"
+            >
+              <strong
+                class="svelte-165eeit"
+              >
+                Review paused
+              </strong>
+              <span
+                class="svelte-165eeit"
+              >
+                3 words remaining.
+              </span>
+              <button
+                class="primary svelte-165eeit"
+              >
+                Resume review
+              </button>
+            </div>
+            
+          </section>
+        </main>
+      </div>
+       
+       
+      
+      
+      
+      
+       
+      <section
+        aria-atomic="false"
+        aria-label="Notifications alt+T"
+        aria-live="polite"
+        aria-relevant="additions text"
+        tabindex="-1"
+      />
+       
+      
+      
+      
+      
+    </div>
+    
+  </div>
+  
+  
+   
+  
+  
+  
+  
+  
+  
+   
+  
+  
+  
+  
+</body>
+
+Ignored nodes: comments, script, style
+<body
+  style=""
+>
+  <div>
+    <div
+      class="windows-presentation svelte-165eeit"
+      data-appearance="system"
+      data-reduced-motion="false"
+      data-settings-ready="true"
+    >
+      <div
+        class="windows-shell svelte-165eeit"
+        data-appearance="system"
+        data-presentation="windows-main"
+        data-reduced-motion="false"
+      >
+        <aside
+          class="svelte-165eeit"
+        >
+          <div
+            class="brand svelte-165eeit"
+          >
+            <svg
+              aria-hidden="true"
+              class="svelte-165eeit"
+              height="20"
+              viewBox="0 0 24 24"
+              width="20"
+            >
+              <path
+                class="svelte-165eeit"
+                d="M3 4h6l3 5 3-5h6l-9 17Z M6 4l6 11 6-11"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+              />
+            </svg>
+            <strong
+              class="svelte-165eeit"
+            >
+              Vocab Collector
+            </strong>
+          </div>
+           
+          <nav
+            aria-label="Main navigation"
+            class="svelte-165eeit"
+          >
+            <button
+              aria-current="page"
+              class="svelte-165eeit active"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-calendar-days lucide-icon"
+                fill="none"
+                height="18"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="18"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M8 2v3"
+                >
+                  
+                </path>
+                
+                <path
+                  d="M16 2v3"
+                >
+                  
+                </path>
+                
+                <rect
+                  height="18"
+                  rx="2"
+                  width="18"
+                  x="3"
+                  y="3"
+                >
+                  
+                </rect>
+                
+                <path
+                  d="M3 9h18"
+                >
+                  
+                </path>
+                
+                <path
+                  d="M8 13h.01"
+                >
+                  
+                </path>
+                
+                <path
+                  d="M12 13h.01"
+                >
+                  
+                </path>
+                
+                <path
+                  d="M16 13h.01"
+                >
+                  
+                </path>
+                
+                <path
+                  d="M8 17h.01"
+                >
+                  
+                </path>
+                
+                <path
+                  d="M12 17h.01"
+                >
+                  
+                </path>
+                
+                <path
+                  d="M16 17h.01"
+                >
+                  
+                </path>
+                
+              </svg>
+              Today
+            </button>
+            <button
+              class="svelte-165eeit"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-book-open lucide-icon"
+                fill="none"
+                height="18"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="18"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M12 5v16"
+                >
+                  
+                </path>
+                
+                <path
+                  d="M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z"
+                >
+                  
+                </path>
+                
+              </svg>
+              Vocabulary
+            </button>
+            <button
+              class="svelte-165eeit"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-chart-no-axes-column lucide-bar-chart-2 lucide-icon"
+                fill="none"
+                height="18"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="18"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M5 21v-6"
+                >
+                  
+                </path>
+                
+                <path
+                  d="M12 21V3"
+                >
+                  
+                </path>
+                
+                <path
+                  d="M19 21V9"
+                >
+                  
+                </path>
+                
+              </svg>
+              Insights
+            </button>
+            <button
+              class="svelte-165eeit"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-settings lucide-icon"
+                fill="none"
+                height="18"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="18"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"
+                >
+                  
+                </path>
+                
+                <circle
+                  cx="12"
+                  cy="12"
+                  r="3"
+                >
+                  
+                </circle>
+                
+              </svg>
+              Settings
+            </button>
+            
+          </nav>
+           
+          <div
+            class="local-status svelte-165eeit"
+          >
+            <svg
+              aria-hidden="true"
+              class="lucide lucide-monitor lucide-icon"
+              fill="none"
+              height="16"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+              width="16"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <rect
+                height="14"
+                rx="2"
+                width="20"
+                x="2"
+                y="3"
+              >
+                
+              </rect>
+              
+              <line
+                x1="8"
+                x2="16"
+                y1="21"
+                y2="21"
+              >
+                
+              </line>
+              
+              <line
+                x1="12"
+                x2="12"
+                y1="17"
+                y2="21"
+              >
+                
+              </line>
+              
+            </svg>
+            <span
+              class="svelte-165eeit"
+            >
+              Local mode
+            </span>
+          </div>
+        </aside>
+         
+        <main
+          class="svelte-165eeit"
+        >
+          <header
+            class="svelte-165eeit"
+          >
+            <div
+              class="svelte-165eeit"
+            >
+              <h1
+                class="svelte-165eeit"
+                id="windows-page-title"
+              >
+                Review
+              </h1>
+              <p
+                class="svelte-165eeit"
+              >
+                Vocab Collector for Windows
+              </p>
+            </div>
+          </header>
+           
+          <section
+            aria-busy="false"
+            aria-labelledby="windows-page-title"
+            class="svelte-165eeit"
+          >
+             
+            <div
+              class="state svelte-165eeit"
+            >
+              <strong
+                class="svelte-165eeit"
+              >
+                Review paused
+              </strong>
+              <span
+                class="svelte-165eeit"
+              >
+                3 words remaining.
+              </span>
+              <button
+                class="primary svelte-165eeit"
+              >
+                Resume review
+              </button>
+            </div>
+            
+          </section>
+        </main>
+      </div>
+       
+       
+      
+      
+      
+      
+       
+      <section
+        aria-atomic="false"
+        aria-label="Notifications alt+T"
+        aria-live="polite"
+        aria-relevant="additions text"
+        tabindex="-1"
+      />
+       
+      
+      
+      
+      
+    </div>
+    
+  </div>
+  
+  
+   
+  
+  
+  
+  
+  
+  
+   
+  
+  
+  
+  
+</body>
+ ❯ waitForWrapper ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/wait-for.js:163:27
+ ❯ ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:86:33
+ ❯ src/windows/WindowsApp.test.ts:723:25
+    721|     await fireEvent.click(screen.getByRole("button", { name: "Show ans…
+    722|     await fireEvent.click(screen.getByRole("button", { name: "Close re…
+    723|     expect(await screen.findByRole("heading", { name: "Today", exact: …
+       |                         ^
+    724|     await fireEvent.click(await screen.findByRole("button", { name: "R…
+    725|     expect(screen.getByRole("button", { name: "Show answer" })).toBeVi…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/windows/WindowsApp.test.ts > Paper Today and Review > keeps Today available when optional Insight fails
+TestingLibraryElementError: Unable to find role="button" and name "Start review (3)"
+
+Ignored nodes: comments, script, style
+<body
+  style=""
+>
+  <div>
+    <div
+      class="windows-presentation svelte-165eeit"
+      data-appearance="system"
+      data-reduced-motion="false"
+      data-settings-ready="true"
+    >
+      <div
+        class="windows-shell svelte-165eeit"
+        data-appearance="system"
+        data-presentation="windows-main"
+        data-reduced-motion="false"
+      >
+        <aside
+          class="svelte-165eeit"
+        >
+          <div
+            class="brand svelte-165eeit"
+          >
+            <svg
+              aria-hidden="true"
+              class="svelte-165eeit"
+              height="20"
+              viewBox="0 0 24 24"
+              width="20"
+            >
+              <path
+                class="svelte-165eeit"
+                d="M3 4h6l3 5 3-5h6l-9 17Z M6 4l6 11 6-11"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+              />
+            </svg>
+            <strong
+              class="svelte-165eeit"
+            >
+              Vocab Collector
+            </strong>
+          </div>
+           
+          <nav
+            aria-label="Main navigation"
+            class="svelte-165eeit"
+          >
+            <button
+              aria-current="page"
+              class="svelte-165eeit active"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-calendar-days lucide-icon"
+                fill="none"
+                height="18"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="18"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M8 2v3"
+                >
+                  
+                </path>
+                
+                <path
+                  d="M16 2v3"
+                >
+                  
+                </path>
+                
+                <rect
+                  height="18"
+                  rx="2"
+                  width="18"
+                  x="3"
+                  y="3"
+                >
+                  
+                </rect>
+                
+                <path
+                  d="M3 9h18"
+                >
+                  
+                </path>
+                
+                <path
+                  d="M8 13h.01"
+                >
+                  
+                </path>
+                
+                <path
+                  d="M12 13h.01"
+                >
+                  
+                </path>
+                
+                <path
+                  d="M16 13h.01"
+                >
+                  
+                </path>
+                
+                <path
+                  d="M8 17h.01"
+                >
+                  
+                </path>
+                
+                <path
+                  d="M12 17h.01"
+                >
+                  
+                </path>
+                
+                <path
+                  d="M16 17h.01"
+                >
+                  
+                </path>
+                
+              </svg>
+              Today
+            </button>
+            <button
+              class="svelte-165eeit"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-book-open lucide-icon"
+                fill="none"
+                height="18"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="18"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M12 5v16"
+                >
+                  
+                </path>
+                
+                <path
+                  d="M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z"
+                >
+                  
+                </path>
+                
+              </svg>
+              Vocabulary
+            </button>
+            <button
+              class="svelte-165eeit"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-chart-no-axes-column lucide-bar-chart-2 lucide-icon"
+                fill="none"
+                height="18"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="18"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M5 21v-6"
+                >
+                  
+                </path>
+                
+                <path
+                  d="M12 21V3"
+                >
+                  
+                </path>
+                
+                <path
+                  d="M19 21V9"
+                >
+                  
+                </path>
+                
+              </svg>
+              Insights
+            </button>
+            <button
+              class="svelte-165eeit"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-settings lucide-icon"
+                fill="none"
+                height="18"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="18"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"
+                >
+                  
+                </path>
+                
+                <circle
+                  cx="12"
+                  cy="12"
+                  r="3"
+                >
+                  
+                </circle>
+                
+              </svg>
+              Settings
+            </button>
+            
+          </nav>
+           
+          <div
+            class="local-status svelte-165eeit"
+          >
+            <svg
+              aria-hidden="true"
+              class="lucide lucide-monitor lucide-icon"
+              fill="none"
+              height="16"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+              width="16"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <rect
+                height="14"
+                rx="2"
+                width="20"
+                x="2"
+                y="3"
+              >
+                
+              </rect>
+              
+              <line
+                x1="8"
+                x2="16"
+                y1="21"
+                y2="21"
+              >
+                
+              </line>
+              
+              <line
+                x1="12"
+                x2="12"
+                y1="17"
+                y2="21"
+              >
+                
+              </line>
+              
+            </svg>
+            <span
+              class="svelte-165eeit"
+            >
+              Local mode
+            </span>
+          </div>
+        </aside>
+         
+        <main
+          class="svelte-165eeit"
+        >
+          <header
+            class="svelte-165eeit"
+          >
+            <div
+              class="svelte-165eeit"
+            >
+              <h1
+                class="svelte-165eeit"
+                id="windows-page-title"
+              >
+                Today
+              </h1>
+              <p
+                class="svelte-165eeit"
+              >
+                Your words, ready when you are
+              </p>
+            </div>
+            <button
+              aria-label="Manual capture"
+              class="rounded-lg border border-transparent bg-clip-padding text-sm font-medium focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg:not([class*='size-'])]:size-4 group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap transition-all outline-none select-none disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/80 size-8"
+              data-slot="button"
+              type="button"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-plus lucide-icon"
+                fill="none"
+                height="24"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M5 12h14"
+                >
+                  
+                </path>
+                
+                <path
+                  d="M12 5v14"
+                >
+                  
+                </path>
+                
+              </svg>
+            </button>
+            
+          </header>
+           
+          <section
+            aria-busy="false"
+            aria-labelledby="windows-page-title"
+            class="svelte-165eeit"
+          >
+            <div
+              class="error svelte-165eeit"
+              role="alert"
+            >
+              <span
+                class="svelte-165eeit"
+              >
+                Insight offline
+              </span>
+              <button
+                class="svelte-165eeit"
+              >
+                Try again
+              </button>
+            </div>
+             
+            <div
+              class="summary svelte-165eeit"
+            >
+              <div
+                class="svelte-165eeit"
+              >
+                <span
+                  class="svelte-165eeit"
+                >
+                  Today's plan
+                </span>
+                <strong
+                  class="svelte-165eeit"
+                >
+                  0
+                </strong>
+                <small
+                  class="svelte-165eeit"
+                >
+                  Nothing due
+                </small>
+              </div>
+              <div
+                class="svelte-165eeit"
+              >
+                <span
+                  class="svelte-165eeit"
+                >
+                  Recent captures
+                </span>
+                <strong
+                  class="svelte-165eeit"
+                >
+                  0
+                </strong>
+                <small
+                  class="svelte-165eeit"
+                >
+                  Stored locally
+                </small>
+              </div>
+            </div>
+             
+            <div
+              class="section-heading svelte-165eeit"
+            >
+              <h2
+                class="svelte-165eeit"
+              >
+                Recent captures
+              </h2>
+              <p
+                class="svelte-165eeit"
+              >
+                New contexts appear here immediately after saving.
+              </p>
+            </div>
+             
+            <div
+              class="list recent-captures-list svelte-165eeit"
+            >
+              <div
+                class="state svelte-165eeit"
+              >
+                <strong
+                  class="svelte-165eeit"
+                >
+                  No captures yet
+                </strong>
+                <span
+                  class="svelte-165eeit"
+                >
+                  Use Manual capture to save your first reading context.
+                </span>
+                <button
+                  class="primary svelte-165eeit"
+                >
+                  Manual capture
+                </button>
+              </div>
+              
+            </div>
+          </section>
+        </main>
+      </div>
+       
+       
+      
+      
+      
+      
+       
+      <section
+        aria-atomic="false"
+        aria-label="Notifications alt+T"
+        aria-live="polite"
+        aria-relevant="additions text"
+        tabindex="-1"
+      />
+       
+      
+      
+      
+      
+    </div>
+    
+  </div>
+  
+  
+   
+  
+  
+  
+  
+  
+  
+   
+  
+  
+  
+  
+</body>
+
+Ignored nodes: comments, script, style
+<body
+  style=""
+>
+  <div>
+    <div
+      class="windows-presentation svelte-165eeit"
+      data-appearance="system"
+      data-reduced-motion="false"
+      data-settings-ready="true"
+    >
+      <div
+        class="windows-shell svelte-165eeit"
+        data-appearance="system"
+        data-presentation="windows-main"
+        data-reduced-motion="false"
+      >
+        <aside
+          class="svelte-165eeit"
+        >
+          <div
+            class="brand svelte-165eeit"
+          >
+            <svg
+              aria-hidden="true"
+              class="svelte-165eeit"
+              height="20"
+              viewBox="0 0 24 24"
+              width="20"
+            >
+              <path
+                class="svelte-165eeit"
+                d="M3 4h6l3 5 3-5h6l-9 17Z M6 4l6 11 6-11"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+              />
+            </svg>
+            <strong
+              class="svelte-165eeit"
+            >
+              Vocab Collector
+            </strong>
+          </div>
+           
+          <nav
+            aria-label="Main navigation"
+            class="svelte-165eeit"
+          >
+            <button
+              aria-current="page"
+              class="svelte-165eeit active"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-calendar-days lucide-icon"
+                fill="none"
+                height="18"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="18"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M8 2v3"
+                >
+                  
+                </path>
+                
+                <path
+                  d="M16 2v3"
+                >
+                  
+                </path>
+                
+                <rect
+                  height="18"
+                  rx="2"
+                  width="18"
+                  x="3"
+                  y="3"
+                >
+                  
+                </rect>
+                
+                <path
+                  d="M3 9h18"
+                >
+                  
+                </path>
+                
+                <path
+                  d="M8 13h.01"
+                >
+                  
+                </path>
+                
+                <path
+                  d="M12 13h.01"
+                >
+                  
+                </path>
+                
+                <path
+                  d="M16 13h.01"
+                >
+                  
+                </path>
+                
+                <path
+                  d="M8 17h.01"
+                >
+                  
+                </path>
+                
+                <path
+                  d="M12 17h.01"
+                >
+                  
+                </path>
+                
+                <path
+                  d="M16 17h.01"
+                >
+                  
+                </path>
+                
+              </svg>
+              Today
+            </button>
+            <button
+              class="svelte-165eeit"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-book-open lucide-icon"
+                fill="none"
+                height="18"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="18"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M12 5v16"
+                >
+                  
+                </path>
+                
+                <path
+                  d="M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z"
+                >
+                  
+                </path>
+                
+              </svg>
+              Vocabulary
+            </button>
+            <button
+              class="svelte-165eeit"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-chart-no-axes-column lucide-bar-chart-2 lucide-icon"
+                fill="none"
+                height="18"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="18"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M5 21v-6"
+                >
+                  
+                </path>
+                
+                <path
+                  d="M12 21V3"
+                >
+                  
+                </path>
+                
+                <path
+                  d="M19 21V9"
+                >
+                  
+                </path>
+                
+              </svg>
+              Insights
+            </button>
+            <button
+              class="svelte-165eeit"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-settings lucide-icon"
+                fill="none"
+                height="18"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="18"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"
+                >
+                  
+                </path>
+                
+                <circle
+                  cx="12"
+                  cy="12"
+                  r="3"
+                >
+                  
+                </circle>
+                
+              </svg>
+              Settings
+            </button>
+            
+          </nav>
+           
+          <div
+            class="local-status svelte-165eeit"
+          >
+            <svg
+              aria-hidden="true"
+              class="lucide lucide-monitor lucide-icon"
+              fill="none"
+              height="16"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+              width="16"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <rect
+                height="14"
+                rx="2"
+                width="20"
+                x="2"
+                y="3"
+              >
+                
+              </rect>
+              
+              <line
+                x1="8"
+                x2="16"
+                y1="21"
+                y2="21"
+              >
+                
+              </line>
+              
+              <line
+                x1="12"
+                x2="12"
+                y1="17"
+                y2="21"
+              >
+                
+              </line>
+              
+            </svg>
+            <span
+              class="svelte-165eeit"
+            >
+              Local mode
+            </span>
+          </div>
+        </aside>
+         
+        <main
+          class="svelte-165eeit"
+        >
+          <header
+            class="svelte-165eeit"
+          >
+            <div
+              class="svelte-165eeit"
+            >
+              <h1
+                class="svelte-165eeit"
+                id="windows-page-title"
+              >
+                Today
+              </h1>
+              <p
+                class="svelte-165eeit"
+              >
+                Your words, ready when you are
+              </p>
+            </div>
+            <button
+              aria-label="Manual capture"
+              class="rounded-lg border border-transparent bg-clip-padding text-sm font-medium focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg:not([class*='size-'])]:size-4 group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap transition-all outline-none select-none disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/80 size-8"
+              data-slot="button"
+              type="button"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-plus lucide-icon"
+                fill="none"
+                height="24"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M5 12h14"
+                >
+                  
+                </path>
+                
+                <path
+                  d="M12 5v14"
+                >
+                  
+                </path>
+                
+              </svg>
+            </button>
+            
+          </header>
+           
+          <section
+            aria-busy="false"
+            aria-labelledby="windows-page-title"
+            class="svelte-165eeit"
+          >
+            <div
+              class="error svelte-165eeit"
+              role="alert"
+            >
+              <span
+                class="svelte-165eeit"
+              >
+                Insight offline
+              </span>
+              <button
+                class="svelte-165eeit"
+              >
+                Try again
+              </button>
+            </div>
+             
+            <div
+              class="summary svelte-165eeit"
+            >
+              <div
+                class="svelte-165eeit"
+              >
+                <span
+                  class="svelte-165eeit"
+                >
+                  Today's plan
+                </span>
+                <strong
+                  class="svelte-165eeit"
+                >
+                  0
+                </strong>
+                <small
+                  class="svelte-165eeit"
+                >
+                  Nothing due
+                </small>
+              </div>
+              <div
+                class="svelte-165eeit"
+              >
+                <span
+                  class="svelte-165eeit"
+                >
+                  Recent captures
+                </span>
+                <strong
+                  class="svelte-165eeit"
+                >
+                  0
+                </strong>
+                <small
+                  class="svelte-165eeit"
+                >
+                  Stored locally
+                </small>
+              </div>
+            </div>
+             
+            <div
+              class="section-heading svelte-165eeit"
+            >
+              <h2
+                class="svelte-165eeit"
+              >
+                Recent captures
+              </h2>
+              <p
+                class="svelte-165eeit"
+              >
+                New contexts appear here immediately after saving.
+              </p>
+            </div>
+             
+            <div
+              class="list recent-captures-list svelte-165eeit"
+            >
+              <div
+                class="state svelte-165eeit"
+              >
+                <strong
+                  class="svelte-165eeit"
+                >
+                  No captures yet
+                </strong>
+                <span
+                  class="svelte-165eeit"
+                >
+                  Use Manual capture to save your first reading context.
+                </span>
+                <button
+                  class="primary svelte-165eeit"
+                >
+                  Manual capture
+                </button>
+              </div>
+              
+            </div>
+          </section>
+        </main>
+      </div>
+       
+       
+      
+      
+      
+      
+       
+      <section
+        aria-atomic="false"
+        aria-label="Notifications alt+T"
+        aria-live="polite"
+        aria-relevant="additions text"
+        tabindex="-1"
+      />
+       
+      
+      
+      
+      
+    </div>
+    
+  </div>
+  
+  
+   
+  
+  
+  
+  
+  
+  
+   
+  
+  
+  
+  
+</body>
+ ❯ waitForWrapper ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/wait-for.js:163:27
+ ❯ ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:86:33
+ ❯ src/windows/WindowsApp.test.ts:732:25
+    730|     api.getGlobalInsight = async () => { throw new Error("Insight offl…
+    731|     render(WindowsApp, { api });
+    732|     expect(await screen.findByRole("button", { name: "Start review (3)…
+       |                         ^
+    733|     await fireEvent.click(screen.getByRole("button", { name: "Insights…
+    734|     expect(await screen.findByText("Insight offline")).toBeVisible();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 34 passed (36)
+   Start at  21:29:02
+   Duration  15.94s (transform 6.06s, setup 1.47s, collect 7.86s, tests 4.98s, environment 912ms, prepare 190ms)
+
+[ELIFECYCLE] Test failed. See above for more details.

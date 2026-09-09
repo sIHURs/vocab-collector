@@ -1,0 +1,56 @@
+   Compiling vocab-storage v0.1.0 (C:\Users\yifan\project\vocab-collector\crates\storage)
+error[E0432]: unresolved import `vocab_domain::VocabularyLogRepository`
+ --> crates\storage\tests\vocabulary_log.rs:3:56
+  |
+3 | use vocab_domain::{CaptureOrigin, EncounterRepository, VocabularyLogRepository};
+  |                                                        ^^^^^^^^^^^^^^^^^^^^^^^ no `VocabularyLogRepository` in the root
+
+error[E0433]: cannot find `LogCoverage` in `vocab_domain`
+  --> crates\storage\tests\vocabulary_log.rs:25:65
+   |
+25 |     assert_eq!(log.days.last().unwrap().coverage, vocab_domain::LogCoverage::Complete);
+   |                                                                 ^^^^^^^^^^^ could not find `LogCoverage` in `vocab_domain`
+
+error[E0599]: no associated function or constant named `open_with_local_date` found for struct `SqliteStore` in the current scope
+   --> crates\storage\tests\vocabulary_log.rs:15:30
+    |
+ 15 |     let store = SqliteStore::open_with_local_date(&path, Arc::new(move || *source.lock().unwrap())).unwrap();
+    |                              ^^^^^^^^^^^^^^^^^^^^ associated function or constant not found in `SqliteStore`
+    |
+note: if you're trying to build a new `SqliteStore` consider using one of the following associated functions:
+      SqliteStore::open
+      SqliteStore::open_in_memory
+   --> crates\storage\src\lib.rs:126:5
+    |
+126 |     pub fn open(path: impl AsRef<Path>) -> Result<Self, RepositoryError> {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+130 |     pub fn open_in_memory() -> Result<Self, RepositoryError> {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0599]: no associated function or constant named `open_with_local_date` found for struct `SqliteStore` in the current scope
+   --> crates\storage\tests\vocabulary_log.rs:29:33
+    |
+ 29 |     let reopened = SqliteStore::open_with_local_date(&path, Arc::new(move || *source.lock().unwrap())).unwrap();
+    |                                 ^^^^^^^^^^^^^^^^^^^^ associated function or constant not found in `SqliteStore`
+    |
+note: if you're trying to build a new `SqliteStore` consider using one of the following associated functions:
+      SqliteStore::open
+      SqliteStore::open_in_memory
+   --> crates\storage\src\lib.rs:126:5
+    |
+126 |     pub fn open(path: impl AsRef<Path>) -> Result<Self, RepositoryError> {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+130 |     pub fn open_in_memory() -> Result<Self, RepositoryError> {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0599]: no method named `vocabulary_log` found for struct `SqliteStore` in the current scope
+  --> crates\storage\tests\vocabulary_log.rs:43:22
+   |
+43 |     assert_eq!(store.vocabulary_log().unwrap().days.last().unwrap().count, Some(1));
+   |                      ^^^^^^^^^^^^^^ method not found in `SqliteStore`
+
+Some errors have detailed explanations: E0432, E0433, E0599.
+For more information about an error, try `rustc --explain E0432`.
+error: could not compile `vocab-storage` (test "vocabulary_log") due to 5 previous errors

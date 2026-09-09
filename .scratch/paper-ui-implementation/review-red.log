@@ -1,0 +1,102 @@
+$ vitest run "src/windows/WindowsFloatingCapture.test.ts" "src/components/VocabularyLog.test.ts"
+9:58:16 PM [vite-plugin-svelte] no Svelte config found at C:/Users/yifan/project/vocab-collector/ui - using default configuration.
+
+ RUN  v3.2.7 C:/Users/yifan/project/vocab-collector/ui
+
+ ❯ src/windows/WindowsFloatingCapture.test.ts (23 tests | 1 failed) 1036ms
+   ✓ Windows floating capture presentation > automatically previews a native translation, applies independent edits, and saves only on confirmation 236ms
+   ✓ Windows floating capture presentation > keeps an Achieved capture in the same window until the user returns it to Learning 52ms
+   ✓ Windows floating capture presentation > uses the top bar as a native window drag region without making the close button draggable 6ms
+   ✓ Windows floating capture presentation > requires explicit confirmation before an OCR candidate can enter the save flow 71ms
+   ✓ Windows floating capture presentation > prevents duplicate OCR confirmation while the first confirmation is pending 30ms
+   ✓ Windows floating capture presentation > recovers from a provider-neutral translation failure by retrying the current edited text 97ms
+   ✓ Windows floating capture presentation > marks translation stale after Vocabulary changes and retranslates only on request 77ms
+   ✓ Windows floating capture presentation > recovers a Region OCR recognition failure with retry or Manual Capture 41ms
+   ✓ Windows floating capture presentation > cancels OCR confirmation without saving 15ms
+   ✓ Windows floating capture presentation > turns multiple recognized words into an editable OCR draft 29ms
+   ✓ Windows floating capture presentation > offers OCR after capabilities resolve when the eligible failure arrived first 25ms
+   ✓ Windows floating capture presentation > announces OCR progress and keeps the fallback recoverable when OCR fails 27ms
+   ✓ Windows floating capture presentation > corrects text and context, adds an optional translation, saves once, and undoes by request 84ms
+   ✓ Windows floating capture presentation > requires an explicit save-without-translation action when translation is blank 21ms
+   ✓ Windows floating capture presentation > allows a corrected selection to save when native context is unavailable 50ms
+   ✓ Windows floating capture presentation > ignores a save completion after a newer request arrives 31ms
+   ✓ Windows floating capture presentation > dismisses a saved result after four unpaused seconds 34ms
+   × Windows floating capture presentation > keeps the timer paused while either hover or focus remains active 41ms
+     → expected "spy" to not be called at all, but actually been called 1 times
+
+Received: 
+
+  1st spy call:
+
+    Array [
+      "paused-request",
+    ]
+
+
+Number of calls: 1
+
+   ✓ Windows floating capture presentation > removes main-window minimum dimensions from the capture document 5ms
+   ✓ Windows floating capture presentation > keeps the saved result interactive after editing until the window is dismissed 42ms
+   ✓ Windows floating capture presentation > cancels the active request through the unconditional close command 10ms
+   ✓ Windows floating capture presentation > keeps overflowing capture content vertically scrollable at the normal window width 4ms
+   ✓ Windows floating capture presentation > cancels the active request with Escape 6ms
+ ❯ src/components/VocabularyLog.test.ts (5 tests | 1 failed) 3107ms
+   ✓ Vocabulary log > reports genuine counts for save, repeat and repeated Undo 4ms
+   × Vocabulary log > does not undo anonymous totals after permanent deletion 10ms
+     → expected +0 to be 1 // Object.is equality
+   ✓ Vocabulary log > uses one tab stop, moves through days and weeks, labels partial and unknown days  3064ms
+   ✓ Vocabulary log > distinguishes loading and unavailable from zero 13ms
+   ✓ Vocabulary log > handles leap-day ranges and all five intensity levels 6ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/VocabularyLog.test.ts > Vocabulary log > does not undo anonymous totals after permanent deletion
+AssertionError: expected +0 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ src/components/VocabularyLog.test.ts:25:63
+     23|     await api.deleteAchievedWords([capture.wordId]);
+     24|     await api.undoCapture(capture.encounterId);
+     25|     expect((await api.getVocabularyLog()).days.at(-1)?.count).toBe(1);
+       |                                                               ^
+     26|   });
+     27|   it('uses one tab stop, moves through days and weeks, labels partial …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/windows/WindowsFloatingCapture.test.ts > Windows floating capture presentation > keeps the timer paused while either hover or focus remains active
+AssertionError: expected "spy" to not be called at all, but actually been called 1 times
+
+Received: 
+
+  1st spy call:
+
+    Array [
+      "paused-request",
+    ]
+
+
+Number of calls: 1
+
+ ❯ src/windows/WindowsFloatingCapture.test.ts:390:30
+    388|       await fireEvent.mouseLeave(surface);
+    389|       vi.advanceTimersByTime(5000);
+    390|       expect(mocks.hide).not.toHaveBeenCalled();
+       |                              ^
+    391|       await fireEvent.mouseEnter(surface);
+    392|       await fireEvent.focusOut(undo, { relatedTarget: document.body });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  2 failed | 26 passed (28)
+   Start at  21:58:17
+   Duration  13.00s (transform 5.56s, setup 2.94s, collect 13.52s, tests 4.14s, environment 1.63s, prepare 548ms)
+
+[ELIFECYCLE] Test failed. See above for more details.

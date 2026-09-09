@@ -1,0 +1,5 @@
+$ svelte-check --tsconfig ./tsconfig.json
+Loading svelte-check in workspace: c:\Users\yifan\project\vocab-collector\ui
+Getting Svelte diagnostics...
+
+svelte-check found 0 errors and 0 warnings

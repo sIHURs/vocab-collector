@@ -1,0 +1,13 @@
+$ vitest run "src/components/VocabularyLog.test.ts"
+9:39:57 PM [vite-plugin-svelte] no Svelte config found at C:/Users/yifan/project/vocab-collector/ui - using default configuration.
+
+ RUN  v3.2.7 C:/Users/yifan/project/vocab-collector/ui
+
+ ✓ src/components/VocabularyLog.test.ts (4 tests) 2137ms
+   ✓ Vocabulary log > uses one tab stop, moves through days and weeks, labels partial and unknown days  2112ms
+
+ Test Files  1 passed (1)
+      Tests  4 passed (4)
+   Start at  21:39:57
+   Duration  10.42s (transform 4.49s, setup 1.27s, collect 5.78s, tests 2.14s, environment 574ms, prepare 190ms)
+

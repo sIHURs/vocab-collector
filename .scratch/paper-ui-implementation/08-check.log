@@ -1,0 +1,145 @@
+$ svelte-check --tsconfig ./tsconfig.json
+Loading svelte-check in workspace: c:\Users\yifan\project\vocab-collector\ui
+Getting Svelte diagnostics...
+
+c:\Users\yifan\project\vocab-collector\ui\src\windows\WindowsApp.svelte:594:3
+Warn: Unused CSS selector ".primary"
+https://svelte.dev/e/css_unused_selector (svelte)
+  main { min-width: 0; } header { display: flex; align-items: center; justify-content: space-between; height: 86px; padding: 0 28px; border-bottom: 1px solid var(--line); } h1, h2, p { margin: 0; } h1 { font-size:1.375rem; } header p { margin-top: 5px; color: var(--muted-foreground); font-size:0.75rem; } section { min-height: calc(100vh - 87px); padding: 26px 28px; }
+  .primary, .secondary { min-height: 34px; padding: 0 14px; border-radius: 6px; border: 1px solid transparent; cursor: pointer; }.primary { color: var(--primary-foreground); background: var(--primary); box-shadow:none; }.primary:disabled { opacity: .45; cursor: default; }.secondary { color: var(--text); border-color: var(--line); background: var(--surface-raised); }
+  .summary { display: grid; grid-template-columns: repeat(2, minmax(0, 190px)); gap: 12px; }.summary div { display: grid; gap: 8px; padding: 18px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); }.summary span, .summary small { color: var(--muted-foreground); font-size:0.75rem; }.summary strong { font-size:1.625rem; }
+
+c:\Users\yifan\project\vocab-collector\ui\src\windows\WindowsApp.svelte:594:130
+Warn: Unused CSS selector ".primary"
+https://svelte.dev/e/css_unused_selector (svelte)
+  main { min-width: 0; } header { display: flex; align-items: center; justify-content: space-between; height: 86px; padding: 0 28px; border-bottom: 1px solid var(--line); } h1, h2, p { margin: 0; } h1 { font-size:1.375rem; } header p { margin-top: 5px; color: var(--muted-foreground); font-size:0.75rem; } section { min-height: calc(100vh - 87px); padding: 26px 28px; }
+  .primary, .secondary { min-height: 34px; padding: 0 14px; border-radius: 6px; border: 1px solid transparent; cursor: pointer; }.primary { color: var(--primary-foreground); background: var(--primary); box-shadow:none; }.primary:disabled { opacity: .45; cursor: default; }.secondary { color: var(--text); border-color: var(--line); background: var(--surface-raised); }
+  .summary { display: grid; grid-template-columns: repeat(2, minmax(0, 190px)); gap: 12px; }.summary div { display: grid; gap: 8px; padding: 18px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); }.summary span, .summary small { color: var(--muted-foreground); font-size:0.75rem; }.summary strong { font-size:1.625rem; }
+
+c:\Users\yifan\project\vocab-collector\ui\src\windows\WindowsApp.svelte:594:221
+Warn: Unused CSS selector ".primary:disabled"
+https://svelte.dev/e/css_unused_selector (svelte)
+  main { min-width: 0; } header { display: flex; align-items: center; justify-content: space-between; height: 86px; padding: 0 28px; border-bottom: 1px solid var(--line); } h1, h2, p { margin: 0; } h1 { font-size:1.375rem; } header p { margin-top: 5px; color: var(--muted-foreground); font-size:0.75rem; } section { min-height: calc(100vh - 87px); padding: 26px 28px; }
+  .primary, .secondary { min-height: 34px; padding: 0 14px; border-radius: 6px; border: 1px solid transparent; cursor: pointer; }.primary { color: var(--primary-foreground); background: var(--primary); box-shadow:none; }.primary:disabled { opacity: .45; cursor: default; }.secondary { color: var(--text); border-color: var(--line); background: var(--surface-raised); }
+  .summary { display: grid; grid-template-columns: repeat(2, minmax(0, 190px)); gap: 12px; }.summary div { display: grid; gap: 8px; padding: 18px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); }.summary span, .summary small { color: var(--muted-foreground); font-size:0.75rem; }.summary strong { font-size:1.625rem; }
+
+c:\Users\yifan\project\vocab-collector\ui\src\windows\WindowsApp.svelte:595:3
+Warn: Unused CSS selector ".summary"
+https://svelte.dev/e/css_unused_selector (svelte)
+  .primary, .secondary { min-height: 34px; padding: 0 14px; border-radius: 6px; border: 1px solid transparent; cursor: pointer; }.primary { color: var(--primary-foreground); background: var(--primary); box-shadow:none; }.primary:disabled { opacity: .45; cursor: default; }.secondary { color: var(--text); border-color: var(--line); background: var(--surface-raised); }
+  .summary { display: grid; grid-template-columns: repeat(2, minmax(0, 190px)); gap: 12px; }.summary div { display: grid; gap: 8px; padding: 18px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); }.summary span, .summary small { color: var(--muted-foreground); font-size:0.75rem; }.summary strong { font-size:1.625rem; }
+  .section-heading { margin: 24px 0 10px; }.section-heading h2 { font-size:0.9375rem; }.section-heading p { margin-top: 4px; color: var(--muted-foreground); font-size:0.6875rem; }
+
+c:\Users\yifan\project\vocab-collector\ui\src\windows\WindowsApp.svelte:595:93
+Warn: Unused CSS selector ".summary div"
+https://svelte.dev/e/css_unused_selector (svelte)
+  .primary, .secondary { min-height: 34px; padding: 0 14px; border-radius: 6px; border: 1px solid transparent; cursor: pointer; }.primary { color: var(--primary-foreground); background: var(--primary); box-shadow:none; }.primary:disabled { opacity: .45; cursor: default; }.secondary { color: var(--text); border-color: var(--line); background: var(--surface-raised); }
+  .summary { display: grid; grid-template-columns: repeat(2, minmax(0, 190px)); gap: 12px; }.summary div { display: grid; gap: 8px; padding: 18px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); }.summary span, .summary small { color: var(--muted-foreground); font-size:0.75rem; }.summary strong { font-size:1.625rem; }
+  .section-heading { margin: 24px 0 10px; }.section-heading h2 { font-size:0.9375rem; }.section-heading p { margin-top: 4px; color: var(--muted-foreground); font-size:0.6875rem; }
+
+c:\Users\yifan\project\vocab-collector\ui\src\windows\WindowsApp.svelte:595:228
+Warn: Unused CSS selector ".summary span"
+https://svelte.dev/e/css_unused_selector (svelte)
+  .primary, .secondary { min-height: 34px; padding: 0 14px; border-radius: 6px; border: 1px solid transparent; cursor: pointer; }.primary { color: var(--primary-foreground); background: var(--primary); box-shadow:none; }.primary:disabled { opacity: .45; cursor: default; }.secondary { color: var(--text); border-color: var(--line); background: var(--surface-raised); }
+  .summary { display: grid; grid-template-columns: repeat(2, minmax(0, 190px)); gap: 12px; }.summary div { display: grid; gap: 8px; padding: 18px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); }.summary span, .summary small { color: var(--muted-foreground); font-size:0.75rem; }.summary strong { font-size:1.625rem; }
+  .section-heading { margin: 24px 0 10px; }.section-heading h2 { font-size:0.9375rem; }.section-heading p { margin-top: 4px; color: var(--muted-foreground); font-size:0.6875rem; }
+
+c:\Users\yifan\project\vocab-collector\ui\src\windows\WindowsApp.svelte:595:243
+Warn: Unused CSS selector ".summary small"
+https://svelte.dev/e/css_unused_selector (svelte)
+  .primary, .secondary { min-height: 34px; padding: 0 14px; border-radius: 6px; border: 1px solid transparent; cursor: pointer; }.primary { color: var(--primary-foreground); background: var(--primary); box-shadow:none; }.primary:disabled { opacity: .45; cursor: default; }.secondary { color: var(--text); border-color: var(--line); background: var(--surface-raised); }
+  .summary { display: grid; grid-template-columns: repeat(2, minmax(0, 190px)); gap: 12px; }.summary div { display: grid; gap: 8px; padding: 18px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); }.summary span, .summary small { color: var(--muted-foreground); font-size:0.75rem; }.summary strong { font-size:1.625rem; }
+  .section-heading { margin: 24px 0 10px; }.section-heading h2 { font-size:0.9375rem; }.section-heading p { margin-top: 4px; color: var(--muted-foreground); font-size:0.6875rem; }
+
+c:\Users\yifan\project\vocab-collector\ui\src\windows\WindowsApp.svelte:595:312
+Warn: Unused CSS selector ".summary strong"
+https://svelte.dev/e/css_unused_selector (svelte)
+  .primary, .secondary { min-height: 34px; padding: 0 14px; border-radius: 6px; border: 1px solid transparent; cursor: pointer; }.primary { color: var(--primary-foreground); background: var(--primary); box-shadow:none; }.primary:disabled { opacity: .45; cursor: default; }.secondary { color: var(--text); border-color: var(--line); background: var(--surface-raised); }
+  .summary { display: grid; grid-template-columns: repeat(2, minmax(0, 190px)); gap: 12px; }.summary div { display: grid; gap: 8px; padding: 18px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); }.summary span, .summary small { color: var(--muted-foreground); font-size:0.75rem; }.summary strong { font-size:1.625rem; }
+  .section-heading { margin: 24px 0 10px; }.section-heading h2 { font-size:0.9375rem; }.section-heading p { margin-top: 4px; color: var(--muted-foreground); font-size:0.6875rem; }
+
+c:\Users\yifan\project\vocab-collector\ui\src\windows\WindowsApp.svelte:596:3
+Warn: Unused CSS selector ".section-heading"
+https://svelte.dev/e/css_unused_selector (svelte)
+  .summary { display: grid; grid-template-columns: repeat(2, minmax(0, 190px)); gap: 12px; }.summary div { display: grid; gap: 8px; padding: 18px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); }.summary span, .summary small { color: var(--muted-foreground); font-size:0.75rem; }.summary strong { font-size:1.625rem; }
+  .section-heading { margin: 24px 0 10px; }.section-heading h2 { font-size:0.9375rem; }.section-heading p { margin-top: 4px; color: var(--muted-foreground); font-size:0.6875rem; }
+  .list { overflow: hidden; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); }
+
+c:\Users\yifan\project\vocab-collector\ui\src\windows\WindowsApp.svelte:596:44
+Warn: Unused CSS selector ".section-heading h2"
+https://svelte.dev/e/css_unused_selector (svelte)
+  .summary { display: grid; grid-template-columns: repeat(2, minmax(0, 190px)); gap: 12px; }.summary div { display: grid; gap: 8px; padding: 18px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); }.summary span, .summary small { color: var(--muted-foreground); font-size:0.75rem; }.summary strong { font-size:1.625rem; }
+  .section-heading { margin: 24px 0 10px; }.section-heading h2 { font-size:0.9375rem; }.section-heading p { margin-top: 4px; color: var(--muted-foreground); font-size:0.6875rem; }
+  .list { overflow: hidden; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); }
+
+c:\Users\yifan\project\vocab-collector\ui\src\windows\WindowsApp.svelte:596:88
+Warn: Unused CSS selector ".section-heading p"
+https://svelte.dev/e/css_unused_selector (svelte)
+  .summary { display: grid; grid-template-columns: repeat(2, minmax(0, 190px)); gap: 12px; }.summary div { display: grid; gap: 8px; padding: 18px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); }.summary span, .summary small { color: var(--muted-foreground); font-size:0.75rem; }.summary strong { font-size:1.625rem; }
+  .section-heading { margin: 24px 0 10px; }.section-heading h2 { font-size:0.9375rem; }.section-heading p { margin-top: 4px; color: var(--muted-foreground); font-size:0.6875rem; }
+  .list { overflow: hidden; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); }
+
+c:\Users\yifan\project\vocab-collector\ui\src\windows\WindowsApp.svelte:598:3
+Warn: Unused CSS selector ".recent-captures-list"
+https://svelte.dev/e/css_unused_selector (svelte)
+  .list { overflow: hidden; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); }
+  .recent-captures-list { max-height: min(55vh, 540px); overflow-y: auto; scrollbar-gutter: stable; }
+  .vocabulary-list { max-height: calc(100vh - 244px); overflow-y: auto; scrollbar-gutter: stable; }
+
+c:\Users\yifan\project\vocab-collector\ui\src\windows\WindowsApp.svelte:603:208
+Warn: Unused CSS selector ".state .primary"
+https://svelte.dev/e/css_unused_selector (svelte)
+  .pagination form, .pagination label { display: flex; align-items: center; gap: 6px; }.pagination input { width: 54px; height: 32px; padding: 0 6px; border: 1px solid var(--line); border-radius: 5px; color: var(--text); background: var(--field); text-align: center; }
+  .state { min-height: 220px; display: grid; place-content: center; justify-items: center; gap: 8px; color: var(--muted-foreground); text-align: center; }.state strong { color: var(--text); font-size:1rem; }.state .primary { margin-top: 8px; }
+  .tools { margin-top:20px; display: flex; align-items: end; justify-content: space-between; margin-bottom: 12px; color: var(--muted-foreground); font-size:0.6875rem; }.tools label { display: grid; gap: 6px; }.tools :global(input) { width: 310px; height: 34px; padding: 0 10px; border: 1px solid var(--line); border-radius: 6px; color: var(--text); background: var(--surface); }
+
+c:\Users\yifan\project\vocab-collector\ui\src\windows\WindowsApp.svelte:609:3
+Warn: Unused CSS selector ".insight-grid"
+https://svelte.dev/e/css_unused_selector (svelte)
+  .achieved-capture-notice { padding: 10px; border: 1px solid var(--warning); border-radius: 6px; background: rgba(196, 145, 46, .1); }.achieved-capture-notice span { display: inline-block; padding: 2px 7px; border-radius: 999px; color: var(--warning); background: var(--card); font-size:0.625rem; font-weight: 700; text-transform: uppercase; }.achieved-capture-notice p { margin: 7px 0 0; color: var(--text); font-size:0.75rem; }
+  .insight-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }.insight-grid > div { display: grid; gap: 6px; padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }.insight-grid span { color: var(--muted-foreground); font-size:0.6875rem; }.insight-grid strong { font-size:1.375rem; }
+  .settings-toast { position:fixed; top:18px; left:50%; transform:translateX(-50%); color:var(--success); background:var(--card); border:1px solid var(--success); border-radius:10px; padding:10px 16px; }
+
+c:\Users\yifan\project\vocab-collector\ui\src\windows\WindowsApp.svelte:609:96
+Warn: Unused CSS selector ".insight-grid > div"
+https://svelte.dev/e/css_unused_selector (svelte)
+  .achieved-capture-notice { padding: 10px; border: 1px solid var(--warning); border-radius: 6px; background: rgba(196, 145, 46, .1); }.achieved-capture-notice span { display: inline-block; padding: 2px 7px; border-radius: 999px; color: var(--warning); background: var(--card); font-size:0.625rem; font-weight: 700; text-transform: uppercase; }.achieved-capture-notice p { margin: 7px 0 0; color: var(--text); font-size:0.75rem; }
+  .insight-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }.insight-grid > div { display: grid; gap: 6px; padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }.insight-grid span { color: var(--muted-foreground); font-size:0.6875rem; }.insight-grid strong { font-size:1.375rem; }
+  .settings-toast { position:fixed; top:18px; left:50%; transform:translateX(-50%); color:var(--success); background:var(--card); border:1px solid var(--success); border-radius:10px; padding:10px 16px; }
+
+c:\Users\yifan\project\vocab-collector\ui\src\windows\WindowsApp.svelte:609:238
+Warn: Unused CSS selector ".insight-grid span"
+https://svelte.dev/e/css_unused_selector (svelte)
+  .achieved-capture-notice { padding: 10px; border: 1px solid var(--warning); border-radius: 6px; background: rgba(196, 145, 46, .1); }.achieved-capture-notice span { display: inline-block; padding: 2px 7px; border-radius: 999px; color: var(--warning); background: var(--card); font-size:0.625rem; font-weight: 700; text-transform: uppercase; }.achieved-capture-notice p { margin: 7px 0 0; color: var(--text); font-size:0.75rem; }
+  .insight-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }.insight-grid > div { display: grid; gap: 6px; padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }.insight-grid span { color: var(--muted-foreground); font-size:0.6875rem; }.insight-grid strong { font-size:1.375rem; }
+  .settings-toast { position:fixed; top:18px; left:50%; transform:translateX(-50%); color:var(--success); background:var(--card); border:1px solid var(--success); border-radius:10px; padding:10px 16px; }
+
+c:\Users\yifan\project\vocab-collector\ui\src\windows\WindowsApp.svelte:609:313
+Warn: Unused CSS selector ".insight-grid strong"
+https://svelte.dev/e/css_unused_selector (svelte)
+  .achieved-capture-notice { padding: 10px; border: 1px solid var(--warning); border-radius: 6px; background: rgba(196, 145, 46, .1); }.achieved-capture-notice span { display: inline-block; padding: 2px 7px; border-radius: 999px; color: var(--warning); background: var(--card); font-size:0.625rem; font-weight: 700; text-transform: uppercase; }.achieved-capture-notice p { margin: 7px 0 0; color: var(--text); font-size:0.75rem; }
+  .insight-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }.insight-grid > div { display: grid; gap: 6px; padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }.insight-grid span { color: var(--muted-foreground); font-size:0.6875rem; }.insight-grid strong { font-size:1.375rem; }
+  .settings-toast { position:fixed; top:18px; left:50%; transform:translateX(-50%); color:var(--success); background:var(--card); border:1px solid var(--success); border-radius:10px; padding:10px 16px; }
+
+c:\Users\yifan\project\vocab-collector\ui\src\windows\WindowsApp.svelte:616:3
+Warn: Unused CSS selector ".icon"
+https://svelte.dev/e/css_unused_selector (svelte)
+  .dialog-heading { display: flex; justify-content: space-between; }.eyebrow { color: var(--muted-foreground); font-size:0.75rem; font-weight: 700; text-transform: uppercase; }.actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+  .icon { width: 32px; height: 32px; border: 0; color: var(--muted-foreground); background: transparent; cursor: pointer; font-size:1.25rem; }
+
+c:\Users\yifan\project\vocab-collector\ui\src\windows\WindowsApp.svelte:619:219
+Warn: Unused CSS selector ".primary"
+https://svelte.dev/e/css_unused_selector (svelte)
+  @media (prefers-reduced-motion: reduce) { .windows-presentation, .windows-presentation * { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
+  @media (forced-colors: active) { .windows-presentation { --page: Canvas; --sidebar: Canvas; --surface: Canvas; --surface-raised: Canvas; --field: Field; --text: CanvasText; --muted: CanvasText; --line: CanvasText; } .primary, .secondary, :global(.word-row) { border:1px solid ButtonText; } }
+  @media (max-width: 760px), (min-resolution: 1.5dppx) and (max-width: 1100px) { .windows-shell { grid-template-columns: 10rem minmax(0,1fr); } header, section { height: auto; min-height: 5.4rem; padding-left: 1.125rem; padding-right: 1.125rem; }.summary { grid-template-columns: 1fr; } }
+
+c:\Users\yifan\project\vocab-collector\ui\src\windows\WindowsApp.svelte:620:247
+Warn: Unused CSS selector ".summary"
+https://svelte.dev/e/css_unused_selector (svelte)
+  @media (forced-colors: active) { .windows-presentation { --page: Canvas; --sidebar: Canvas; --surface: Canvas; --surface-raised: Canvas; --field: Field; --text: CanvasText; --muted: CanvasText; --line: CanvasText; } .primary, .secondary, :global(.word-row) { border:1px solid ButtonText; } }
+  @media (max-width: 760px), (min-resolution: 1.5dppx) and (max-width: 1100px) { .windows-shell { grid-template-columns: 10rem minmax(0,1fr); } header, section { height: auto; min-height: 5.4rem; padding-left: 1.125rem; padding-right: 1.125rem; }.summary { grid-template-columns: 1fr; } }
+  @media (max-width: 560px) { .windows-shell { display: block; } aside { position: static; } nav { grid-template-columns: repeat(2, minmax(0, 1fr)); } .local-status { margin-top: 0; } header { align-items: flex-start; gap: 1rem; padding-top: 1rem; padding-bottom: 1rem; } section { min-height: auto; } .tools { align-items: stretch; flex-direction: column; gap: .75rem; } .tools :global(input) { width: 100%; } .pagination { flex-wrap: wrap; justify-content: center; }.pagination form { order: -1; width: 100%; justify-content: center; } }
+
+====================================
+svelte-check found 0 errors and 20 warnings in 1 file

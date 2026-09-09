@@ -1,0 +1,30 @@
+$ vitest run
+9:55:36 PM [vite-plugin-svelte] no Svelte config found at C:/Users/yifan/project/vocab-collector/ui - using default configuration.
+
+ RUN  v3.2.7 C:/Users/yifan/project/vocab-collector/ui
+
+ ✓ src/lib/appearance.test.ts (3 tests) 174ms
+ ✓ src/windows/WindowsOcrOverlay.test.ts (3 tests) 255ms
+ ✓ src/App.test.ts (3 tests) 1094ms
+   ✓ application shell > provides compact navigation for the main product areas  548ms
+   ✓ application shell > supports quick capture without leaving the reading flow  301ms
+ ✓ src/FloatingCapture.test.ts (20 tests) 1330ms
+   ✓ floating capture request freshness > uses the top bar as a native window drag region without making the close button draggable  325ms
+ ✓ src/components/ShortcutRecorder.test.ts (2 tests) 227ms
+ ✓ src/lib/presentation.test.ts (2 tests) 94ms
+ ✓ src/lib/backend.test.ts (4 tests) 11ms
+ ✓ src/windows/WindowsFloatingCapture.test.ts (22 tests) 994ms
+   ✓ Windows floating capture presentation > automatically previews a native translation, applies independent edits, and saves only on confirmation  301ms
+ ✓ src/components/VocabularyLog.test.ts (4 tests) 3591ms
+   ✓ Vocabulary log > uses one tab stop, moves through days and weeks, labels partial and unknown days  3540ms
+ ✓ src/windows/WindowsApp.test.ts (36 tests) 10312ms
+   ✓ Windows main presentation > keeps Manual Capture drafts after save and Achieved-restore failures  385ms
+   ✓ Windows main presentation > saves repeat encounters, shows detail, and refreshes after Undo  301ms
+   ✓ Windows main presentation > shows archived-aware lifetime Insight on Insights  3451ms
+   ✓ Paper Today and Review > keeps Today available when optional Insight fails  2785ms
+
+ Test Files  10 passed (10)
+      Tests  99 passed (99)
+   Start at  21:55:36
+   Duration  29.72s (transform 13.59s, setup 22.02s, collect 41.94s, tests 18.08s, environment 18.51s, prepare 3.23s)
+

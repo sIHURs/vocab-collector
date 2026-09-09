@@ -1,0 +1,19 @@
+$ vitest run "src/windows/WindowsFloatingCapture.test.ts" "src/FloatingCapture.test.ts" "src/components/VocabularyLog.test.ts" "src/windows/WindowsApp.test.ts"
+9:59:08 PM [vite-plugin-svelte] no Svelte config found at C:/Users/yifan/project/vocab-collector/ui - using default configuration.
+
+ RUN  v3.2.7 C:/Users/yifan/project/vocab-collector/ui
+
+ ✓ src/FloatingCapture.test.ts (20 tests) 657ms
+ ✓ src/windows/WindowsFloatingCapture.test.ts (23 tests) 1015ms
+ ✓ src/components/VocabularyLog.test.ts (5 tests) 3556ms
+   ✓ Vocabulary log > uses one tab stop, moves through days and weeks, labels partial and unknown days  3502ms
+ ✓ src/windows/WindowsApp.test.ts (36 tests) 9757ms
+   ✓ Windows main presentation > keeps Manual Capture drafts after save and Achieved-restore failures  372ms
+   ✓ Windows main presentation > shows archived-aware lifetime Insight on Insights  2771ms
+   ✓ Paper Today and Review > keeps Today available when optional Insight fails  2923ms
+
+ Test Files  4 passed (4)
+      Tests  84 passed (84)
+   Start at  21:59:09
+   Duration  23.47s (transform 8.32s, setup 7.02s, collect 25.28s, tests 14.99s, environment 5.41s, prepare 1.51s)
+
