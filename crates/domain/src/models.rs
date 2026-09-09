@@ -138,7 +138,17 @@ impl Word {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct SavedTranslation {
+    pub target_language: String,
+    pub text: String,
+    pub saved_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Encounter {
+    #[serde(default)]
+    pub saved_translation: Option<SavedTranslation>,
     pub id: Uuid,
     pub word_id: Uuid,
     pub selected_text: String,
@@ -170,6 +180,7 @@ impl Encounter {
             source_title: None,
             source_url: None,
             capture_origin: CaptureOrigin::Manual,
+            saved_translation: None,
             captured_at,
             updated_at: captured_at,
             deleted_at: None,

@@ -619,3 +619,240 @@ fn vocabulary_log_query_serializes_real_capture_and_undo_totals() {
     );
     assert!(wire["days"][0]["count"].is_null());
 }
+
+#[test]
+fn saved_translation_updates_preserve_encounter_snapshots_and_undo() {
+    let store = Arc::new(SqliteStore::open_in_memory().unwrap());
+    let service = AppService::new(store, Uuid::now_v7());
+    let first = service.capture(request("robust", "beständig")).unwrap();
+    let second = service.capture(request("robust", "kräftig")).unwrap();
+    let detail = serde_json::to_value(service.get_word(first.word_id).unwrap()).unwrap();
+    assert_eq!(detail["translations"][0]["text"], "kräftig");
+    let encounters = detail["encounters"].as_array().unwrap();
+    assert!(
+        encounters
+            .iter()
+            .any(|e| e["savedTranslation"]["text"] == "beständig")
+    );
+    service.undo_capture(second.encounter_id).unwrap();
+    let detail = serde_json::to_value(service.get_word(first.word_id).unwrap()).unwrap();
+    assert_eq!(detail["translations"][0]["text"], "beständig");
+}
+
+#[test]
+fn target_languages_share_one_vocabulary_item_and_keep_both_translations() {
+    let store = Arc::new(SqliteStore::open_in_memory().unwrap());
+    let service = AppService::new(store, Uuid::now_v7());
+    let first = service.capture(request("robust", "kräftig")).unwrap();
+    let mut chinese = request("ROBUST", "稳健的");
+    chinese.target_language = "zh-Hans".into();
+    let second = service.capture(chinese).unwrap();
+    assert_eq!(first.word_id, second.word_id);
+    assert_eq!(second.encounter_count, 2);
+    assert_eq!(
+        service.get_word(first.word_id).unwrap().translations.len(),
+        2
+    );
+}
+
+#[test]
+fn unknown_language_reconciles_only_when_unambiguous() {
+    let store = Arc::new(SqliteStore::open_in_memory().unwrap());
+    let service = AppService::new(store, Uuid::now_v7());
+    let mut unknown = request("robust", "stark");
+    unknown.source_language = "auto".into();
+    let first = service.capture(unknown.clone()).unwrap();
+    let second = service.capture(request("robust", "strong")).unwrap();
+    assert_eq!(first.word_id, second.word_id);
+    let mut german = request("robust", "strong");
+    german.source_language = "de".into();
+    let third = service.capture(german).unwrap();
+    assert_ne!(first.word_id, third.word_id);
+    let ambiguous = service.capture(unknown).unwrap();
+    assert_ne!(ambiguous.word_id, first.word_id);
+    assert_ne!(ambiguous.word_id, third.word_id);
+}
+
+#[test]
+fn preferred_translation_changes_display_without_creating_saves() {
+    let store = Arc::new(SqliteStore::open_in_memory().unwrap());
+    let service = AppService::new(store, Uuid::now_v7());
+    let first = service.capture(request("robust", "kräftig")).unwrap();
+    let mut chinese = request("robust", "稳健的");
+    chinese.target_language = "zh-Hans".into();
+    service.capture(chinese).unwrap();
+    assert_eq!(
+        service.list_words().unwrap()[0].translation.as_deref(),
+        Some("kräftig")
+    );
+    let mut settings = service.get_settings().unwrap();
+    settings.target_language = "fr".into();
+    service.update_settings(settings).unwrap();
+    let list = serde_json::to_value(service.list_words().unwrap()).unwrap();
+    assert_eq!(list[0]["translation"], "稳健的");
+    assert_eq!(list[0]["translationLanguage"], "zh-hans");
+    assert_eq!(service.get_word(first.word_id).unwrap().encounters.len(), 2);
+}
+
+#[test]
+fn achieved_recapture_restarts_review_and_revalidates_current_state() {
+    let store = Arc::new(SqliteStore::open_in_memory().unwrap());
+    let service = AppService::new(store.clone(), Uuid::now_v7());
+    let card = service.capture(request("robust", "stark")).unwrap();
+    let mut word = WordRepository::get(store.as_ref(), card.word_id)
+        .unwrap()
+        .unwrap();
+    word.review_state.as_mut().unwrap().stability = 99.0;
+    word.enter_mastered(Utc::now());
+    WordRepository::save(store.as_ref(), &word).unwrap();
+    service.achieve_word(word.id, Utc::now()).unwrap();
+    let mut repeated = request("robust", "稳健的");
+    repeated.target_language = "zh-Hans".into();
+    repeated.captured_at = Utc::now();
+    service
+        .restore_achieved_and_capture(word.id, repeated.clone())
+        .unwrap();
+    let restored = WordRepository::get(store.as_ref(), word.id)
+        .unwrap()
+        .unwrap();
+    assert_eq!(restored.review_state.unwrap().stability, 1.0);
+    assert_eq!(service.list_achieved_words().unwrap().len(), 0);
+    service
+        .restore_achieved_and_capture(word.id, repeated)
+        .unwrap();
+    assert_eq!(service.get_word(word.id).unwrap().encounters.len(), 3);
+}
+
+#[test]
+fn undo_restores_achieved_state_and_refuses_subsequent_review_changes() {
+    let store = Arc::new(SqliteStore::open_in_memory().unwrap());
+    let service = AppService::new(store.clone(), Uuid::now_v7());
+    let card = service.capture(request("robust", "stark")).unwrap();
+    let mut word = WordRepository::get(store.as_ref(), card.word_id)
+        .unwrap()
+        .unwrap();
+    word.enter_mastered(Utc::now());
+    WordRepository::save(store.as_ref(), &word).unwrap();
+    service.achieve_word(word.id, Utc::now()).unwrap();
+    let before = WordRepository::get(store.as_ref(), word.id)
+        .unwrap()
+        .unwrap();
+    let saved = service
+        .restore_achieved_and_capture(word.id, request("robust", "kräftig"))
+        .unwrap();
+    service.undo_capture(saved.encounter_id).unwrap();
+    assert_eq!(
+        WordRepository::get(store.as_ref(), word.id)
+            .unwrap()
+            .unwrap(),
+        before
+    );
+    let saved = service
+        .restore_achieved_and_capture(word.id, request("robust", "kräftig"))
+        .unwrap();
+    service
+        .submit_review(word.id, ReviewRating::Remembered, Utc::now())
+        .unwrap();
+    assert!(service.undo_capture(saved.encounter_id).is_err());
+    assert_eq!(service.get_word(word.id).unwrap().encounters.len(), 2);
+}
+
+#[test]
+fn capture_undo_preserves_unrelated_work_and_rejects_every_conflicting_mutation() {
+    for change in ["save", "translation", "achieve", "delete"] {
+        let store = Arc::new(SqliteStore::open_in_memory().unwrap());
+        let service = AppService::new(store.clone(), Uuid::now_v7());
+        let saved = service.capture(request("robust", "stark")).unwrap();
+        match change {
+            "save" => {
+                service.capture(request("robust", "kräftig")).unwrap();
+            }
+            "translation" => {
+                let mut word = WordRepository::get(store.as_ref(), saved.word_id)
+                    .unwrap()
+                    .unwrap();
+                word.translation = Some("edit".into());
+                WordRepository::save(store.as_ref(), &word).unwrap();
+            }
+            _ => {
+                let mut word = WordRepository::get(store.as_ref(), saved.word_id)
+                    .unwrap()
+                    .unwrap();
+                word.enter_mastered(Utc::now());
+                WordRepository::save(store.as_ref(), &word).unwrap();
+                service.achieve_word(word.id, Utc::now()).unwrap();
+                if change == "delete" {
+                    service
+                        .delete_achieved_words(&[word.id], Utc::now())
+                        .unwrap();
+                }
+            }
+        }
+        let before = service.get_global_insight().unwrap();
+        assert!(
+            service.undo_capture(saved.encounter_id).is_err(),
+            "{change}"
+        );
+        assert_eq!(service.get_global_insight().unwrap(), before);
+    }
+    let service = AppService::new(
+        Arc::new(SqliteStore::open_in_memory().unwrap()),
+        Uuid::now_v7(),
+    );
+    let first = service.capture(request("robust", "stark")).unwrap();
+    service.capture(request("other", "anderes")).unwrap();
+    service.undo_capture(first.encounter_id).unwrap();
+    assert_eq!(service.list_words().unwrap()[0].display_form, "other");
+}
+
+#[test]
+fn undo_restores_unresolved_language_after_reconciliation() {
+    let store = Arc::new(SqliteStore::open_in_memory().unwrap());
+    let service = AppService::new(store.clone(), Uuid::now_v7());
+    let mut unknown = request("robust", "stark");
+    unknown.source_language = "auto".into();
+    let first = service.capture(unknown).unwrap();
+    let resolved = service.capture(request("robust", "kräftig")).unwrap();
+    assert_eq!(first.word_id, resolved.word_id);
+    assert_eq!(
+        WordRepository::get(store.as_ref(), first.word_id)
+            .unwrap()
+            .unwrap()
+            .source_language,
+        "en"
+    );
+    service.undo_capture(resolved.encounter_id).unwrap();
+    assert_eq!(
+        WordRepository::get(store.as_ref(), first.word_id)
+            .unwrap()
+            .unwrap()
+            .source_language,
+        "auto"
+    );
+    assert_eq!(
+        service.get_word(first.word_id).unwrap().translations[0].text,
+        "stark"
+    );
+}
+
+#[test]
+fn deleted_previewed_achieved_item_is_not_silently_replaced() {
+    let store = Arc::new(SqliteStore::open_in_memory().unwrap());
+    let service = AppService::new(store.clone(), Uuid::now_v7());
+    let first = service.capture(request("robust", "stark")).unwrap();
+    let mut word = WordRepository::get(store.as_ref(), first.word_id)
+        .unwrap()
+        .unwrap();
+    word.enter_mastered(Utc::now());
+    WordRepository::save(store.as_ref(), &word).unwrap();
+    service.achieve_word(word.id, Utc::now()).unwrap();
+    service
+        .delete_achieved_words(&[word.id], Utc::now())
+        .unwrap();
+    assert!(
+        service
+            .restore_achieved_and_capture(word.id, request("robust", "stark"))
+            .is_err()
+    );
+    assert!(service.list_words().unwrap().is_empty());
+}

@@ -8,9 +8,11 @@ describe('Vocabulary log', () => {
   it('reports genuine counts for save, repeat and repeated Undo', async () => {
     const api = new DemoBackend(false);
     const a = await api.capture({ selectedText: 'word', sentence: 'a word' });
-    await api.capture({ selectedText: 'word', sentence: 'another word' });
+    const b = await api.capture({ selectedText: 'word', sentence: 'another word' });
     expect((await api.getVocabularyLog()).days.at(-1)?.count).toBe(2);
-    await api.undoCapture(a.encounterId); await api.undoCapture(a.encounterId);
+    await expect(api.undoCapture(a.encounterId)).rejects.toThrow("Cannot undo");
+    await api.undoCapture(b.encounterId);
+    await expect(api.undoCapture(b.encounterId)).rejects.toThrow();
     expect((await api.getVocabularyLog()).days.at(-1)?.count).toBe(1);
     expect((await api.getVocabularyLog()).days[0].count).toBeNull();
   });
@@ -21,7 +23,7 @@ describe('Vocabulary log', () => {
     (api as unknown as { words: Array<{ item: { status: string } }> }).words[0].item.status = 'mastered';
     await api.achieveWord(capture.wordId);
     await api.deleteAchievedWords([capture.wordId]);
-    await api.undoCapture(capture.encounterId);
+    await expect(api.undoCapture(capture.encounterId)).rejects.toThrow("Cannot undo");
     expect((await api.getVocabularyLog()).days.at(-1)?.count).toBe(1);
   });
   it('uses one tab stop, moves through days and weeks, labels partial and unknown days', async () => {

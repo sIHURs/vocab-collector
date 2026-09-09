@@ -17,11 +17,12 @@
       <div class="detail-heading"><span>Vocabulary detail</span><button bind:this={closeButton} class="close" aria-label="Close vocabulary detail" onclick={onclose}><X size={18} /></button></div>
       <Sheet.Title>{detail.item.displayForm}</Sheet.Title>
       <Sheet.Description>{detail.item.translation ?? 'No translation'}</Sheet.Description>
+      <section aria-label="Saved translations">{#each detail.translations ?? [] as translation}<p><small>{translation.targetLanguage}</small> <span>{translation.text}</span></p>{/each}</section>
       <div class="detail-status"><Badge variant="secondary"><span class="status">{detail.item.status}</span></Badge><span>Saved {detail.item.encounterCount} time{detail.item.encounterCount === 1 ? '' : 's'}</span></div>
       {#if detail.item.status === 'mastered'}<div><Button variant="destructiveOutline" onclick={onachieve}>Achieve</Button></div>{/if}
       <section class="timeline" aria-label="Capture history"><h3>Capture history</h3>
         {#each detail.encounters as encounter (encounter.id)}
-          <article><p>{encounter.sentence}</p><small>{[encounter.sourceApp, encounter.sourceTitle, encounter.sourceUrl].filter(Boolean).join(' · ') || 'Manual entry'}</small></article>
+          <article><p>{encounter.sentence}</p>{#if encounter.savedTranslation}<p><small>{encounter.savedTranslation.targetLanguage}</small> <span>{encounter.savedTranslation.text}</span></p>{/if}<small>{[encounter.sourceApp, encounter.sourceTitle, encounter.sourceUrl].filter(Boolean).join(' · ') || 'Manual entry'}</small></article>
         {/each}
       </section>
     {/if}

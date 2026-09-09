@@ -8,7 +8,7 @@ use std::{
 };
 
 use chrono::{DateTime, Days, Local, Months, NaiveDate, Utc};
-use rusqlite::{Connection, OptionalExtension, Transaction, params};
+use rusqlite::{Connection, OptionalExtension, params};
 use serde::Serialize;
 use uuid::Uuid;
 use vocab_domain::{
@@ -16,6 +16,10 @@ use vocab_domain::{
     ReviewRepository, ReviewState, SettingsRepository, UserSettings, Word, WordRepository,
     WordStatus, dedupe_key, normalize_lemma,
 };
+
+mod capture_undo;
+mod identity;
+mod translations;
 
 const MIGRATION_001: &str = r#"
 CREATE TABLE IF NOT EXISTS words (
@@ -152,8 +156,16 @@ impl SqliteStore {
         connection: Connection,
         local_date: Arc<dyn Fn() -> NaiveDate + Send + Sync>,
     ) -> Result<Self, RepositoryError> {
+        let version: u32 = connection
+            .query_row("PRAGMA user_version", [], |r| r.get(0))
+            .map_err(repo_error)?;
+        if version > 8 {
+            return Err(RepositoryError::Persistence(
+                "Database was created by a newer app version".into(),
+            ));
+        }
         connection
-            .execute_batch("PRAGMA foreign_keys = ON;")
+            .execute_batch("PRAGMA foreign_keys = ON; SAVEPOINT schema_upgrade;")
             .map_err(repo_error)?;
         connection
             .execute_batch(MIGRATION_001)
@@ -269,6 +281,12 @@ impl SqliteStore {
             .execute_batch("PRAGMA user_version = 5;")
             .map_err(repo_error)?;
         migrate_vocabulary_log(&connection, local_date())?;
+        translations::migrate(&connection)?;
+        identity::migrate(&connection)?;
+        capture_undo::migrate(&connection)?;
+        connection
+            .execute_batch("RELEASE schema_upgrade;")
+            .map_err(repo_error)?;
         Ok(Self {
             connection: Mutex::new(connection),
             local_date,
@@ -276,15 +294,31 @@ impl SqliteStore {
     }
 
     pub fn capture(&self, input: &CaptureRecord) -> Result<StoredCapture, RepositoryError> {
+        self.capture_with_expected(input, None)
+    }
+
+    fn capture_with_expected(
+        &self,
+        input: &CaptureRecord,
+        expected: Option<Uuid>,
+    ) -> Result<StoredCapture, RepositoryError> {
         let mut connection = self.lock()?;
         let transaction = connection.transaction().map_err(repo_error)?;
-        let key = dedupe_key(&input.lemma, &input.source_language, &input.target_language);
-        let existing = find_word(&transaction, &key)?;
-        if existing.as_ref().is_some_and(Word::is_achieved) {
+        let key = dedupe_key(&input.lemma, &input.source_language);
+        if let Some(id) = expected
+            && identity::preview(&transaction, input)?.is_none_or(|w| w.id != id)
+        {
+            return Err(RepositoryError::Persistence(
+                "Vocabulary Item changed; recheck the capture before saving".into(),
+            ));
+        }
+        let before = capture_undo::before(&transaction, input)?;
+        let existing = identity::resolve(&transaction, input)?;
+        if expected.is_none() && existing.as_ref().is_some_and(Word::is_achieved) {
             return Err(RepositoryError::Achieved);
         }
         let is_existing_word = existing.is_some();
-        let word = existing.unwrap_or_else(|| Word {
+        let mut word = existing.unwrap_or_else(|| Word {
             id: Uuid::now_v7(),
             owner_scope: OwnerScope::Guest,
             lemma: normalize_lemma(&input.lemma),
@@ -308,16 +342,18 @@ impl SqliteStore {
                 lapse_count: 0,
             }),
         });
+        if word.is_achieved() {
+            word.unmaster(input.captured_at, WordStatus::Learning);
+            word.review_state = Some(ReviewState {
+                difficulty: 5.0,
+                stability: 1.0,
+                due_at: input.captured_at,
+                last_reviewed_at: None,
+                lapse_count: 0,
+            });
+        }
         if !is_existing_word {
             insert_word(&transaction, &key, &word)?;
-            enqueue(
-                &transaction,
-                "word",
-                word.id,
-                "upsert",
-                &word,
-                input.captured_at,
-            )?;
         }
 
         let mut encounter = Encounter::new(
@@ -330,6 +366,20 @@ impl SqliteStore {
         encounter.source_title.clone_from(&input.source_title);
         encounter.source_url.clone_from(&input.source_url);
         encounter.capture_origin = input.capture_origin;
+        translations::save(&transaction, &mut word, &mut encounter, input)?;
+        insert_word(
+            &transaction,
+            &dedupe_key(&word.lemma, &word.source_language),
+            &word,
+        )?;
+        enqueue(
+            &transaction,
+            "word",
+            word.id,
+            "upsert",
+            &word,
+            input.captured_at,
+        )?;
         insert_encounter(&transaction, &encounter)?;
         record_daily_capture(&transaction, encounter.id, (self.local_date)())?;
         enqueue(
@@ -340,6 +390,7 @@ impl SqliteStore {
             &encounter,
             input.captured_at,
         )?;
+        capture_undo::record(&transaction, &encounter, &before)?;
         transaction.commit().map_err(repo_error)?;
         Ok(StoredCapture {
             word,
@@ -353,61 +404,7 @@ impl SqliteStore {
         expected_word_id: Uuid,
         input: &CaptureRecord,
     ) -> Result<StoredCapture, RepositoryError> {
-        let mut connection = self.lock()?;
-        let transaction = connection.transaction().map_err(repo_error)?;
-        let mut word =
-            get_word_by_id(&transaction, expected_word_id)?.ok_or(RepositoryError::NotFound)?;
-        let source_is_compatible = word
-            .source_language
-            .eq_ignore_ascii_case(&input.source_language)
-            || word.source_language.eq_ignore_ascii_case("auto")
-            || input.source_language.eq_ignore_ascii_case("auto");
-        if !word.is_achieved()
-            || word.lemma != normalize_lemma(&input.lemma)
-            || !word
-                .target_language
-                .eq_ignore_ascii_case(&input.target_language)
-            || !source_is_compatible
-        {
-            return Err(RepositoryError::NotFound);
-        }
-        let key = dedupe_key(&word.lemma, &word.source_language, &word.target_language);
-        word.unmaster(input.captured_at, WordStatus::Learning);
-        insert_word(&transaction, &key, &word)?;
-        enqueue(
-            &transaction,
-            "word",
-            word.id,
-            "upsert",
-            &word,
-            input.captured_at,
-        )?;
-        let mut encounter = Encounter::new(
-            word.id,
-            input.selected_text.trim().to_string(),
-            input.sentence.clone(),
-            input.source_app.clone(),
-            input.captured_at,
-        );
-        encounter.source_title.clone_from(&input.source_title);
-        encounter.source_url.clone_from(&input.source_url);
-        encounter.capture_origin = input.capture_origin;
-        insert_encounter(&transaction, &encounter)?;
-        record_daily_capture(&transaction, encounter.id, (self.local_date)())?;
-        enqueue(
-            &transaction,
-            "encounter",
-            encounter.id,
-            "upsert",
-            &encounter,
-            input.captured_at,
-        )?;
-        transaction.commit().map_err(repo_error)?;
-        Ok(StoredCapture {
-            word,
-            encounter,
-            is_existing_word: true,
-        })
+        self.capture_with_expected(input, Some(expected_word_id))
     }
 
     pub fn lifetime_statistics(&self) -> Result<LifetimeStatistics, RepositoryError> {
@@ -534,7 +531,7 @@ impl SqliteStore {
     pub fn record_review(&self, word: &Word, review: &ReviewLog) -> Result<(), RepositoryError> {
         let mut connection = self.lock()?;
         let tx = connection.transaction().map_err(repo_error)?;
-        let key = dedupe_key(&word.lemma, &word.source_language, &word.target_language);
+        let key = dedupe_key(&word.lemma, &word.source_language);
         insert_word(&tx, &key, word)?;
         tx.execute(
             "INSERT INTO review_logs(id, word_id, rating, reviewed_at, received_at, device_id, result_payload)
@@ -577,7 +574,7 @@ impl SqliteStore {
             words.push(word);
         }
         for word in &words {
-            let key = dedupe_key(&word.lemma, &word.source_language, &word.target_language);
+            let key = dedupe_key(&word.lemma, &word.source_language);
             insert_word(&tx, &key, word)?;
             enqueue(&tx, "word", word.id, "upsert", word, now)?;
         }
@@ -699,7 +696,7 @@ impl WordRepository for SqliteStore {
     fn save(&self, word: &Word) -> Result<(), RepositoryError> {
         let mut connection = self.lock()?;
         let tx = connection.transaction().map_err(repo_error)?;
-        let key = dedupe_key(&word.lemma, &word.source_language, &word.target_language);
+        let key = dedupe_key(&word.lemma, &word.source_language);
         insert_word(&tx, &key, word)?;
         enqueue(&tx, "word", word.id, "upsert", word, word.updated_at)?;
         tx.commit().map_err(repo_error)
@@ -727,7 +724,7 @@ impl EncounterRepository for SqliteStore {
         let mut statement = connection
             .prepare(
                 "SELECT id, word_id, selected_text, sentence, source_app, source_title,
-                 source_url, capture_origin, captured_at, updated_at, deleted_at FROM encounters
+                 source_url, capture_origin, captured_at, updated_at, deleted_at, saved_translation_json FROM encounters
                  WHERE word_id = ?1 AND deleted_at IS NULL ORDER BY captured_at DESC",
             )
             .map_err(repo_error)?;
@@ -741,6 +738,7 @@ impl EncounterRepository for SqliteStore {
     fn soft_delete(&self, id: Uuid, deleted_at: DateTime<Utc>) -> Result<(), RepositoryError> {
         let mut connection = self.lock()?;
         let tx = connection.transaction().map_err(repo_error)?;
+        let before = capture_undo::check(&tx, id)?;
         let changed = tx
             .execute(
                 "UPDATE encounters SET deleted_at = ?2, updated_at = ?2 WHERE id = ?1 AND deleted_at IS NULL",
@@ -764,6 +762,11 @@ impl EncounterRepository for SqliteStore {
                     "daily capture count is inconsistent".into(),
                 ));
             }
+        }
+        if let Some(before) = before {
+            capture_undo::restore(&tx, id, before, deleted_at)?;
+        } else {
+            translations::undo(&tx, id, deleted_at)?;
         }
         enqueue(&tx, "encounter", id, "delete", &id, deleted_at)?;
         tx.commit().map_err(repo_error)
@@ -857,13 +860,14 @@ impl ReviewRepository for SqliteStore {
     }
 }
 
-fn insert_word(tx: &Transaction<'_>, key: &str, word: &Word) -> Result<(), RepositoryError> {
+fn insert_word(tx: &Connection, key: &str, word: &Word) -> Result<(), RepositoryError> {
+    let key = identity::scoped_key(word, key)?;
     tx.execute(
         "INSERT INTO words(id, dedupe_key, owner_scope, lemma, display_form, source_language,
          target_language, translation, part_of_speech, status, created_at, updated_at, deleted_at,
          mastered_at, achieved_at, delete_after, review_state_json) VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)
-         ON CONFLICT(id) DO UPDATE SET display_form=excluded.display_form,
-         translation=excluded.translation, part_of_speech=excluded.part_of_speech,
+         ON CONFLICT(id) DO UPDATE SET dedupe_key=excluded.dedupe_key, lemma=excluded.lemma, source_language=excluded.source_language, display_form=excluded.display_form,
+         target_language=excluded.target_language, translation=excluded.translation, part_of_speech=excluded.part_of_speech,
          status=excluded.status, updated_at=excluded.updated_at, deleted_at=excluded.deleted_at,
          mastered_at=excluded.mastered_at, achieved_at=excluded.achieved_at,
          delete_after=excluded.delete_after, review_state_json=excluded.review_state_json",
@@ -897,7 +901,7 @@ fn find_word(connection: &Connection, key: &str) -> Result<Option<Word>, Reposit
             "SELECT id, owner_scope, lemma, display_form, source_language, target_language,
              translation, part_of_speech, status, created_at, updated_at, deleted_at,
              mastered_at, achieved_at, delete_after, review_state_json FROM words WHERE dedupe_key = ?1 AND deleted_at IS NULL",
-            [key],
+            [format!("{}|{key}", enum_json(&OwnerScope::Guest)?)],
             map_word,
         )
         .optional()
@@ -950,11 +954,11 @@ fn map_word(row: &rusqlite::Row<'_>) -> rusqlite::Result<Word> {
     })
 }
 
-fn insert_encounter(tx: &Transaction<'_>, encounter: &Encounter) -> Result<(), RepositoryError> {
+fn insert_encounter(tx: &Connection, encounter: &Encounter) -> Result<(), RepositoryError> {
     tx.execute(
         "INSERT INTO encounters(id, word_id, selected_text, sentence, source_app, source_title,
-         source_url, capture_origin, captured_at, updated_at, deleted_at) VALUES(?1, ?2, ?3, ?4,
-         ?5, ?6, ?7, ?8, ?9, ?10, ?11) ON CONFLICT(id) DO UPDATE SET sentence=excluded.sentence,
+         source_url, capture_origin, captured_at, updated_at, deleted_at, saved_translation_json) VALUES(?1, ?2, ?3, ?4,
+         ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12) ON CONFLICT(id) DO UPDATE SET sentence=excluded.sentence,
          updated_at=excluded.updated_at, deleted_at=excluded.deleted_at",
         params![
             encounter.id.to_string(),
@@ -968,6 +972,7 @@ fn insert_encounter(tx: &Transaction<'_>, encounter: &Encounter) -> Result<(), R
             encounter.captured_at.to_rfc3339(),
             encounter.updated_at.to_rfc3339(),
             encounter.deleted_at.map(|time| time.to_rfc3339()),
+            encounter.saved_translation.as_ref().map(serde_json::to_string).transpose().map_err(repo_error)?,
         ],
     )
     .map_err(repo_error)?;
@@ -984,6 +989,10 @@ fn map_encounter(row: &rusqlite::Row<'_>) -> rusqlite::Result<Encounter> {
         source_title: row.get(5)?,
         source_url: row.get(6)?,
         capture_origin: parse_json(&row.get::<_, String>(7)?)?,
+        saved_translation: row
+            .get::<_, Option<String>>(11)?
+            .map(|v| parse_json(&v))
+            .transpose()?,
         captured_at: parse_time(row.get::<_, String>(8)?)?,
         updated_at: parse_time(row.get::<_, String>(9)?)?,
         deleted_at: row
@@ -994,13 +1003,18 @@ fn map_encounter(row: &rusqlite::Row<'_>) -> rusqlite::Result<Encounter> {
 }
 
 fn enqueue(
-    tx: &Transaction<'_>,
+    tx: &Connection,
     entity_type: &str,
     entity_id: Uuid,
     operation: &str,
     payload: &impl Serialize,
     created_at: DateTime<Utc>,
 ) -> Result<(), RepositoryError> {
+    let mut serialized = serde_json::to_value(payload).map_err(repo_error)?;
+    if entity_type == "word" && operation == "upsert" {
+        serialized["translations"] =
+            serde_json::to_value(translations::list(tx, entity_id)?).map_err(repo_error)?;
+    }
     tx.execute(
         "INSERT INTO outbox(mutation_id, entity_type, entity_id, operation, payload, created_at)
          VALUES(?1, ?2, ?3, ?4, ?5, ?6)",
@@ -1009,7 +1023,7 @@ fn enqueue(
             entity_type,
             entity_id.to_string(),
             operation,
-            serde_json::to_string(payload).map_err(repo_error)?,
+            serde_json::to_string(&serialized).map_err(repo_error)?,
             created_at.to_rfc3339(),
         ],
     )
@@ -1049,7 +1063,7 @@ fn migrate_vocabulary_log(
 ) -> Result<(), RepositoryError> {
     // Metadata and the nullable original save date are installed atomically.
     // Do not backfill from surviving encounters: deleted history is unknowable.
-    let tx = connection.unchecked_transaction().map_err(repo_error)?;
+    let tx = connection;
     let exists: bool = tx.query_row("SELECT EXISTS(SELECT 1 FROM pragma_table_info('encounters') WHERE name = 'saved_local_date')", [], |row| row.get(0)).map_err(repo_error)?;
     if !exists {
         tx.execute_batch("ALTER TABLE encounters ADD COLUMN saved_local_date TEXT;")
@@ -1064,11 +1078,11 @@ fn migrate_vocabulary_log(
     .map_err(repo_error)?;
     tx.execute_batch("PRAGMA user_version = 6;")
         .map_err(repo_error)?;
-    tx.commit().map_err(repo_error)
+    Ok(())
 }
 
 fn record_daily_capture(
-    tx: &Transaction<'_>,
+    tx: &Connection,
     encounter_id: Uuid,
     date: NaiveDate,
 ) -> Result<(), RepositoryError> {

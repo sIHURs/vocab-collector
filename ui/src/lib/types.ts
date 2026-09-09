@@ -86,7 +86,10 @@ export interface CaptureCandidate {
   origin: "manual" | "accessibility" | "ocr";
 }
 
+export interface SavedTranslation { targetLanguage: string; text: string; savedAt: string; }
+
 export interface Encounter {
+  savedTranslation?: SavedTranslation;
   id: string;
   wordId: string;
   selectedText: string;
@@ -101,6 +104,7 @@ export interface Encounter {
 }
 
 export interface WordListItem {
+  translationLanguage?: string;
   id: string;
   displayForm: string;
   translation?: string;
@@ -131,6 +135,7 @@ export interface GlobalInsight {
 }
 
 export interface AchievedWordListItem {
+  translationLanguage?: string;
   id: string;
   lemma: string;
   displayForm: string;
@@ -143,6 +148,7 @@ export interface AchievedWordListItem {
 }
 
 export interface ReviewCard {
+  translationLanguage?: string;
   wordId: string;
   displayForm: string;
   translation?: string;
@@ -182,6 +188,7 @@ export interface TodayView {
 }
 
 export interface WordDetail {
+  translations?: SavedTranslation[];
   item: WordListItem;
   lemma: string;
   partOfSpeech?: string;

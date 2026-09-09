@@ -15,7 +15,7 @@ use vocab_domain::{
     EncounterRepository, GlobalInsight, LifecycleError, LifecycleSweepResult, RepositoryError,
     ReviewCard, ReviewLog, ReviewRating, ReviewResult, ReviewSessionInsight, SettingsRepository,
     TodayView, UserSettings, WordDetail, WordListItem, WordRepository, WordStatus, apply_review,
-    build_review_queue, dedupe_key, normalize_lemma, summarize_review_session,
+    build_review_queue, summarize_review_session,
 };
 use vocab_storage::{CaptureRecord, SqliteStore};
 
@@ -76,34 +76,10 @@ impl AppService {
         &self,
         request: &CaptureRequest,
     ) -> Result<Option<AchievedCaptureConflict>, ApplicationError> {
-        let lemma = request.lemma.as_deref().unwrap_or(&request.selected_text);
-        let key = dedupe_key(lemma, &request.source_language, &request.target_language);
-        let exact = WordRepository::find_by_dedupe_key(self.store.as_ref(), &key)?
+        let word = self
+            .store
+            .capture_match(&capture_record(request.clone()))?
             .filter(|word| word.is_achieved());
-        let word = match exact {
-            Some(word) => Some(word),
-            None => {
-                let normalized = normalize_lemma(lemma);
-                let mut compatible = self.store.list()?.into_iter().filter(|word| {
-                    word.is_achieved()
-                        && word.lemma == normalized
-                        && word
-                            .target_language
-                            .eq_ignore_ascii_case(&request.target_language)
-                        && (word
-                            .source_language
-                            .eq_ignore_ascii_case(&request.source_language)
-                            || word.source_language.eq_ignore_ascii_case("auto")
-                            || request.source_language.eq_ignore_ascii_case("auto"))
-                });
-                let first = compatible.next();
-                if compatible.next().is_some() {
-                    None
-                } else {
-                    first
-                }
-            }
-        };
         Ok(word.map(|word| AchievedCaptureConflict {
             word_id: word.id,
             display_form: word.display_form,
@@ -186,10 +162,12 @@ impl AppService {
                     .into_iter()
                     .next()
                     .map(|encounter| encounter.sentence);
+                let (translation, translation_language) = self.displayed_translation(word.id)?;
                 Ok(ReviewCard {
+                    translation_language,
                     word_id: word.id,
                     display_form: word.display_form.clone(),
-                    translation: word.translation.clone(),
+                    translation,
                     context,
                 })
             })
@@ -219,6 +197,24 @@ impl AppService {
         Ok(words)
     }
 
+    fn displayed_translation(
+        &self,
+        word_id: Uuid,
+    ) -> Result<(Option<String>, Option<String>), RepositoryError> {
+        let preferred = SettingsRepository::get(self.store.as_ref())?
+            .target_language
+            .to_lowercase();
+        let values = self.store.translations(word_id)?;
+        let value = values
+            .iter()
+            .find(|v| v.target_language == preferred)
+            .or_else(|| values.first());
+        Ok((
+            value.map(|v| v.text.clone()),
+            value.map(|v| v.target_language.clone()),
+        ))
+    }
+
     pub fn list_words(&self) -> Result<Vec<WordListItem>, ApplicationError> {
         self.words_with_captures()?
             .into_iter()
@@ -228,10 +224,12 @@ impl AppService {
                 let last_seen_at = encounters
                     .first()
                     .map_or(word.updated_at, |encounter| encounter.captured_at);
+                let (translation, translation_language) = self.displayed_translation(word.id)?;
                 Ok(WordListItem {
+                    translation_language,
                     id: word.id,
                     display_form: word.display_form,
-                    translation: word.translation,
+                    translation,
                     status: word.status,
                     encounter_count: encounters.len(),
                     next_review_at: word.review_state.map(|state| state.due_at),
@@ -265,7 +263,8 @@ impl AppService {
         &self,
         now: DateTime<Utc>,
     ) -> Result<Vec<AchievedWordListItem>, ApplicationError> {
-        let mut items = self.words_with_captures()?
+        let mut items = self
+            .words_with_captures()?
             .into_iter()
             .filter(|word| word.is_achieved())
             .map(|word| self.achieved_list_item(word, now))
@@ -348,11 +347,13 @@ impl AppService {
             3..=7 => DeletionUrgency::Warning,
             _ => DeletionUrgency::Normal,
         };
+        let (translation, translation_language) = self.displayed_translation(word.id)?;
         Ok(AchievedWordListItem {
+            translation_language,
             id: word.id,
             lemma: word.lemma,
             display_form: word.display_form,
-            translation: word.translation,
+            translation,
             encounter_count: self.store.list_for_word(word.id)?.len(),
             achieved_at: word.achieved_at.expect("Achieved invariant checked"),
             delete_after,
@@ -368,11 +369,14 @@ impl AppService {
         let last_seen_at = encounters
             .first()
             .map_or(word.updated_at, |encounter| encounter.captured_at);
+        let (translation, translation_language) = self.displayed_translation(word_id)?;
         Ok(WordDetail {
+            translations: self.store.translations(word_id)?,
             item: WordListItem {
+                translation_language,
                 id: word.id,
                 display_form: word.display_form,
-                translation: word.translation,
+                translation,
                 status: word.status,
                 encounter_count: encounters.len(),
                 next_review_at: word.review_state.as_ref().map(|state| state.due_at),

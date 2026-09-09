@@ -30,9 +30,12 @@ fn successful_saves_use_local_save_day_and_undo_original_day_once() {
     let store = SqliteStore::open_with_local_date(&path, Arc::new(move || *source.lock().unwrap()))
         .unwrap();
     let a = store.capture(&record()).unwrap();
-    store.capture(&record()).unwrap();
+    let mut other = record();
+    other.lemma = "other".into();
+    other.selected_text = "other".into();
+    store.capture(&other).unwrap();
     *clock.lock().unwrap() = day("2026-03-29"); // DST / next local date: no 24-hour arithmetic.
-    store.capture(&record()).unwrap();
+    store.capture(&other).unwrap();
     store.soft_delete(a.encounter.id, Utc::now()).unwrap();
     let _ = store.soft_delete(a.encounter.id, Utc::now());
     let log = store.vocabulary_log().unwrap();

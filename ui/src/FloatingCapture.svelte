@@ -9,6 +9,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { backend } from "./lib/backend";
   import type {
+    AchievedCaptureConflict,
     CaptureCandidate,
     CaptureCard,
     CaptureFailure,
@@ -33,6 +34,7 @@
   let saved: CaptureCard | null = null;
   let failure: CaptureFailure | null = null;
   let saving = false;
+  let achievedConflict: AchievedCaptureConflict | null = null;
   let translationFailure: CaptureFailure | null = null;
   let ocrNeedsConfirmation = false;
   let permissionAction: "accessibility" | "screen_recording" = "accessibility";
@@ -91,6 +93,7 @@
     clearDismissTimer();
     candidate = next;
     saved = null;
+    achievedConflict = null;
     failure = null;
     translationFailure = null;
     ocrNeedsConfirmation = false;
@@ -113,9 +116,16 @@
       } catch (cause) {
         if (!isActiveRequest(requestId)) return;
         translationFailure = asCaptureFailure(cause);
+        const match = await invoke<AchievedCaptureConflict | null>("find_achieved_native_capture", { requestId });
+        if (isActiveRequest(requestId)) achievedConflict = match;
         return;
       }
-      if (isActiveRequest(requestId)) await persist(requestId, false);
+      if (isActiveRequest(requestId)) {
+        const match = await invoke<AchievedCaptureConflict | null>("find_achieved_native_capture", { requestId });
+        if (!isActiveRequest(requestId)) return;
+        achievedConflict = match;
+        if (!achievedConflict) await persist(requestId, false);
+      }
     } catch (cause) {
       if (isActiveRequest(requestId)) failure = asCaptureFailure(cause);
     } finally {
@@ -126,7 +136,14 @@
   async function persist(requestId = activeRequest, withoutTranslation = false) {
     if (!isActiveRequest(requestId)) return;
     try {
-      const nextSaved = await invoke<CaptureCard>("save_native_capture", { requestId, withoutTranslation });
+      if (!achievedConflict) {
+        const match = await invoke<AchievedCaptureConflict | null>("find_achieved_native_capture", { requestId });
+        if (!isActiveRequest(requestId)) return;
+        if (match) { achievedConflict = match; return; }
+      }
+      const nextSaved = achievedConflict
+        ? await invoke<CaptureCard>("restore_achieved_and_save_native_capture", { requestId, wordId: achievedConflict.wordId, withoutTranslation })
+        : await invoke<CaptureCard>("save_native_capture", { requestId, withoutTranslation });
       if (!isActiveRequest(requestId)) return;
       saved = nextSaved;
       scheduleDismissal(requestId);
@@ -143,6 +160,7 @@
     clearDismissTimer();
     candidate = event.candidate;
     saved = null;
+    achievedConflict = null;
     failure = null;
     saving = false;
     translationFailure = null;
@@ -213,6 +231,7 @@
     {#if failure}<Alert.Root variant="destructive"><Alert.Title>Capture needs attention</Alert.Title><Alert.Description>{failure.message}</Alert.Description></Alert.Root>
     {:else if saved}<Badge variant="secondary">Saved</Badge><h1>{saved.displayForm}</h1><p class="translation">{saved.translation ?? "Saved without translation"}</p><p class="context">“{saved.context}”</p><small>{saved.isExistingWord ? `Saved ${saved.encounterCount} times · New context saved` : "Added to your review queue"}</small><CaptureSource app={candidate?.sourceApp} title={candidate?.sourceTitle} url={candidate?.sourceUrl} />
     {:else if candidate}<small>{ocrNeedsConfirmation ? "OCR suggestion · Confirm before saving" : saving ? "Translating…" : "Captured"}</small><h1>{candidate.selectedText}</h1><p class="context">“{candidate.sentence}”</p><CaptureSource app={candidate.sourceApp ?? 'Current application'} title={candidate.sourceTitle} url={candidate.sourceUrl} />
+      {#if achievedConflict}<p role="status">Already learned and reviewed. Saving will restart learning and save this context.</p>{/if}
       {#if translationFailure}<Alert.Root variant="destructive"><Alert.Title>Translation needs attention</Alert.Title><Alert.Description>{translationFailure.message}</Alert.Description></Alert.Root>{/if}
     {:else}<strong>Ready to capture</strong><p>Select text in another app, then press your shortcut.</p>{/if}
   </section>
@@ -224,6 +243,7 @@
     {:else if saved}<Button variant="outline" onclick={undo}>Undo</Button>
     {:else if candidate}
       {#if ocrNeedsConfirmation}<Button onclick={() => candidate && accept({ requestId: activeRequest, candidate }, true)}>Use this text</Button>
+      {:else if achievedConflict}<Button disabled={saving} onclick={() => persist(activeRequest, Boolean(translationFailure))}>{translationFailure ? "Save without translation" : "Save capture"}</Button>
       {:else if translationFailure && (translationFailure.code === "translation_unavailable" || translationFailure.code === "translation_failed")}<Button variant="outline" onclick={() => candidate && accept({ requestId: activeRequest, candidate })}>Retry translation</Button><Button onclick={() => persist(activeRequest, true)}>Save without translation</Button>{/if}
     {/if}
   </footer>

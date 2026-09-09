@@ -105,7 +105,7 @@ describe("Windows main presentation", () => {
     api.findAchievedCapture = async () => ({ wordId: "draft", displayForm: "draft", achievedAt: "2026-09-01T00:00:00Z", deleteAfter: "2026-10-01T00:00:00Z" });
     api.restoreAchievedAndCapture = vi.fn().mockRejectedValue(new Error("Return failed"));
     await fireEvent.click(screen.getByRole("button", { name: "Save capture" }));
-    await fireEvent.click(await screen.findByRole("button", { name: "Return to Learning" }));
+    await fireEvent.click(await screen.findByRole("button", { name: "Save capture" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Return failed");
     expect(screen.getByLabelText("Context")).toHaveValue("Keep this complete context.");
   });
@@ -768,12 +768,13 @@ describe("Windows main presentation", () => {
     render(WindowsApp, { api });
     await screen.findByText("No captures yet");
 
-    await saveManualCapture("achieve", "We can achieve this.");
-
-    const dialog = screen.getByRole("dialog", { name: "Save a reading context" });
-    expect(within(dialog).getByText("Achieved")).toBeVisible();
-    expect(within(dialog).getByText(/Return it to Learning/)).toBeVisible();
-    await fireEvent.click(within(dialog).getByRole("button", { name: "Return to Learning" }));
+    await fireEvent.click(screen.getAllByRole("button", { name: "Manual capture" })[0]);
+    await fireEvent.input(screen.getByLabelText("Word or phrase"), { target: { value: "achieve" } });
+    await fireEvent.input(screen.getByLabelText("Context"), { target: { value: "We can achieve this." } });
+    expect(await screen.findByText("Achieved")).toBeVisible();
+    expect(screen.getByText(/Saving will restart learning/)).toBeVisible();
+    expect(api.restoreAchievedAndCapture).not.toHaveBeenCalled();
+    await fireEvent.click(screen.getByRole("button", { name: "Save capture" }));
     expect(api.restoreAchievedAndCapture).toHaveBeenCalledWith("achieved-1", expect.objectContaining({ selectedText: "achieve" }));
     expect(await screen.findByRole("dialog", { name: "Capture saved" })).toBeVisible();
   });

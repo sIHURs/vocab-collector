@@ -69,6 +69,24 @@ describe("floating capture request freshness", () => {
     vi.restoreAllMocks();
   });
 
+  it("shows Achieved before explicitly saving the same item", async () => {
+    mocks.invoke.mockImplementation(async (command: string) => {
+      if (command === "get_settings") return {sourceLanguage:"en",targetLanguage:"de"};
+      if (command === "translate_text") return {translatedText:"stark"};
+      if (command === "find_achieved_native_capture") return {wordId:"word-robust",displayForm:"robust",achievedAt:"2026-09-01",deleteAfter:"2026-10-01"};
+      if (command === "restore_achieved_and_save_native_capture") return savedCard("robust");
+      return undefined;
+    });
+    render(FloatingCapture);
+    await waitFor(() => expect(mocks.handlers.has("capture-ready")).toBe(true));
+    mocks.handlers.get("capture-ready")!({payload:{requestId:"r",candidate:candidate("robust")}});
+    expect(await screen.findByText(/Saving will restart learning/)).toBeVisible();
+    expect(mocks.invoke.mock.calls.some(([name])=>name==="save_native_capture")).toBe(false);
+    await fireEvent.click(screen.getByRole("button",{name:"Save capture"}));
+    expect(mocks.invoke).toHaveBeenCalledWith("restore_achieved_and_save_native_capture",{requestId:"r",wordId:"word-robust",withoutTranslation:false});
+    expect(await screen.findByText("Saved")).toBeVisible();
+  });
+
   it("uses the top bar as a native window drag region without making the close button draggable", () => {
     const view = render(FloatingCapture);
     const header = view.container.querySelector("header");

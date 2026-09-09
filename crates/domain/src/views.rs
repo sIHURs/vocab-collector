@@ -19,6 +19,8 @@ pub struct CaptureCard {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WordListItem {
+    #[serde(default)]
+    pub translation_language: Option<String>,
     pub id: Uuid,
     pub display_form: String,
     pub translation: Option<String>,
@@ -33,6 +35,8 @@ pub struct WordListItem {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AchievedWordListItem {
+    #[serde(default)]
+    pub translation_language: Option<String>,
     pub id: Uuid,
     pub lemma: String,
     pub display_form: String,
@@ -84,6 +88,8 @@ pub struct LifecycleSweepResult {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReviewCard {
+    #[serde(default)]
+    pub translation_language: Option<String>,
     pub word_id: Uuid,
     pub display_form: String,
     pub translation: Option<String>,
@@ -131,6 +137,8 @@ pub struct TodayView {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WordDetail {
+    #[serde(default)]
+    pub translations: Vec<crate::SavedTranslation>,
     pub item: WordListItem,
     pub lemma: String,
     pub part_of_speech: Option<String>,

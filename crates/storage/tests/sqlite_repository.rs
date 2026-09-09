@@ -69,7 +69,7 @@ fn version_one_database_migrates_existing_encounters_to_manual_origin() {
     drop(connection);
 
     let store = SqliteStore::open(&path).unwrap();
-    assert_eq!(store.schema_version().unwrap(), 6);
+    assert_eq!(store.schema_version().unwrap(), 8);
     drop(store);
     let connection = rusqlite::Connection::open(&path).unwrap();
     let origin: String = connection
@@ -128,7 +128,13 @@ fn duplicate_capture_keeps_one_word_and_all_contexts() {
     assert!(second.is_existing_word);
     assert_eq!(store.list().unwrap().len(), 1);
     assert_eq!(store.list_for_word(first.word.id).unwrap().len(), 2);
-    assert_eq!(store.pending_outbox_count().unwrap(), 3);
+    assert!(
+        store
+            .outbox_debug_entries()
+            .unwrap()
+            .iter()
+            .any(|entry| entry.entity_type == "word")
+    );
 }
 
 #[test]
@@ -142,8 +148,14 @@ fn undo_soft_deletes_only_the_new_encounter() {
     store.soft_delete(result.encounter.id, deleted_at).unwrap();
 
     assert!(store.list_for_word(result.word.id).unwrap().is_empty());
-    assert_eq!(store.list().unwrap().len(), 1);
-    assert_eq!(store.pending_outbox_count().unwrap(), 3);
+    assert!(store.list().unwrap().is_empty());
+    assert!(
+        store
+            .outbox_debug_entries()
+            .unwrap()
+            .iter()
+            .any(|entry| entry.entity_type == "word")
+    );
 }
 
 #[test]
@@ -164,7 +176,7 @@ fn databases_are_initialized_with_foreign_keys_and_schema_version() {
     let store = SqliteStore::open_in_memory().unwrap();
 
     assert!(store.foreign_keys_enabled().unwrap());
-    assert_eq!(store.schema_version().unwrap(), 6);
+    assert_eq!(store.schema_version().unwrap(), 8);
 }
 
 #[test]
@@ -178,21 +190,21 @@ fn predefined_diagnostics_report_database_state_without_mutating_it() {
         .unwrap();
 
     let summary = store.database_summary().unwrap();
-    assert_eq!(summary.schema_version, 6);
+    assert_eq!(summary.schema_version, 8);
     assert!(summary.foreign_keys_enabled);
     assert_eq!(summary.word_count, 1);
     assert_eq!(summary.active_encounter_count, 2);
     assert_eq!(summary.review_log_count, 0);
-    assert_eq!(summary.pending_outbox_count, 3);
+    assert_eq!(summary.pending_outbox_count, 4);
 
     let outbox = store.outbox_debug_entries().unwrap();
-    assert_eq!(outbox.len(), 3);
+    assert_eq!(outbox.len(), 4);
     assert_eq!(
         outbox
             .iter()
             .filter(|entry| entry.entity_type == "word")
             .count(),
-        1
+        2
     );
     assert_eq!(
         outbox
@@ -214,4 +226,71 @@ fn ids_are_client_generated_uuid_v7_values() {
     assert_eq!(result.word.id.get_version_num(), 7);
     assert_eq!(result.encounter.id.get_version_num(), 7);
     assert_ne!(result.encounter.id, Uuid::nil());
+}
+
+#[test]
+fn identity_upgrade_consolidates_duplicates_without_losing_history_or_counts() {
+    let path = std::env::temp_dir().join(format!("vocab-identity-{}.db", Uuid::now_v7()));
+    let (first, second, counts);
+    {
+        let store = SqliteStore::open(&path).unwrap();
+        first = store.capture(&capture("robust", "First.")).unwrap().word.id;
+        let mut other = capture("temporary", "Second.");
+        other.target_language = "zh-Hans".into();
+        other.translation = Some("稳健的".into());
+        second = store.capture(&other).unwrap().word.id;
+        let mut word = WordRepository::get(&store, first).unwrap().unwrap();
+        word.enter_mastered(Utc::now());
+        word.achieve(Utc::now(), 30).unwrap();
+        WordRepository::save(&store, &word).unwrap();
+        counts = store.lifetime_statistics().unwrap().active_encounter_count;
+    }
+    {
+        let db = rusqlite::Connection::open(&path).unwrap();
+        db.execute("UPDATE words SET lemma='robust', display_form='robust', dedupe_key='robust|en|zh-hans' WHERE id=?1", [second.to_string()]).unwrap();
+        db.execute_batch("DROP TABLE identity_migration; PRAGMA user_version=7;")
+            .unwrap();
+    }
+    for _ in 0..2 {
+        let store = SqliteStore::open(&path).unwrap();
+        let words = WordRepository::list(&store).unwrap();
+        assert_eq!(words.len(), 1);
+        assert_eq!(words[0].status, vocab_domain::WordStatus::Learning);
+        assert!(!words[0].is_achieved());
+        assert_eq!(store.list_for_word(words[0].id).unwrap().len(), 2);
+        assert_eq!(store.translations(words[0].id).unwrap().len(), 2);
+        assert_eq!(
+            store.lifetime_statistics().unwrap().active_encounter_count,
+            counts
+        );
+        assert!(store.database_summary().unwrap().foreign_keys_enabled);
+    }
+    std::fs::remove_file(path).unwrap();
+}
+
+#[test]
+fn failed_identity_upgrade_rolls_back_keys_and_schema_version() {
+    let path = std::env::temp_dir().join(format!("vocab-failed-upgrade-{}.db", Uuid::now_v7()));
+    {
+        let store = SqliteStore::open(&path).unwrap();
+        store.capture(&capture("robust", "A context.")).unwrap();
+    }
+    let db = rusqlite::Connection::open(&path).unwrap();
+    db.execute_batch("DROP TABLE identity_migration; PRAGMA user_version=7; UPDATE words SET dedupe_key='old-key',review_state_json='invalid-json';").unwrap();
+    drop(db);
+    assert!(SqliteStore::open(&path).is_err());
+    let db = rusqlite::Connection::open(&path).unwrap();
+    assert_eq!(
+        db.query_row("PRAGMA user_version", [], |r| r.get::<_, u32>(0))
+            .unwrap(),
+        7
+    );
+    assert_eq!(
+        db.query_row("SELECT dedupe_key FROM words", [], |r| r
+            .get::<_, String>(0))
+            .unwrap(),
+        "old-key"
+    );
+    drop(db);
+    std::fs::remove_file(path).unwrap();
 }

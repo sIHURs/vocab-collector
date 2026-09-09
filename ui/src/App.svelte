@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import { createBackend } from "./lib/backend";
   import ShortcutRecorder from "./components/ShortcutRecorder.svelte";
-  import type { CaptureCard, ReviewCard, Settings, TodayView, WordDetail, WordListItem } from "./lib/types";
+  import type { AchievedCaptureConflict, CaptureCard, ReviewCard, Settings, TodayView, WordDetail, WordListItem } from "./lib/types";
 
   type Route = "Today" | "Vocabulary" | "Progress" | "Settings";
   const api = createBackend();
@@ -35,18 +35,41 @@
     } catch (cause) { error = cause instanceof Error ? cause.message : String(cause); }
   }
 
+  let achievedConflict: AchievedCaptureConflict | null = null;
+  let captureLookupVersion = 0;
+  $: void previewCapture(captureOpen, captureInput.selectedText);
+  async function previewCapture(open: boolean, text: string) {
+    const version = ++captureLookupVersion;
+    achievedConflict = null;
+    if (!open || !text.trim()) return;
+    try {
+      const match = await api.findAchievedCapture?.({ selectedText:text, sentence:"" });
+      if (version === captureLookupVersion && captureOpen) achievedConflict = match ?? null;
+    } catch (cause) { if (version === captureLookupVersion) error = String(cause); }
+  }
+
   async function saveCapture() {
     if (!captureInput.selectedText.trim() || !captureInput.sentence.trim()) return;
-    savedCard = await api.capture({ ...captureInput, translation: captureInput.translation || undefined });
+    try {
+      const input = { ...captureInput, translation: captureInput.translation || undefined };
+      if (achievedConflict && api.restoreAchievedAndCapture) savedCard = await api.restoreAchievedAndCapture(achievedConflict.wordId, input);
+      else {
+        const match = await api.findAchievedCapture?.(input);
+        if (match) { achievedConflict = match; return; }
+        savedCard = await api.capture(input);
+      }
+    } catch (cause) { error = String(cause); return; }
     captureInput = { selectedText: "", translation: "", sentence: "", sourceApp: "Browser" };
     await refresh();
   }
 
   async function undoSaved() {
     if (!savedCard) return;
-    await api.undoCapture(savedCard.encounterId);
-    savedCard = null;
-    await refresh();
+    try {
+      await api.undoCapture(savedCard.encounterId);
+      savedCard = null;
+      await refresh();
+    } catch (cause) { error = String(cause); }
   }
 
   async function rate(rating: "forgot" | "remembered") {
@@ -134,14 +157,14 @@
 {#if captureOpen}
   <div class="floating-card capture-card" role="dialog" aria-label="Quick capture"><div class="float-header"><span><i class="status-dot"></i> Quick capture</span><button aria-label="Close capture" onclick={() => { captureOpen = false; savedCard = null; }}>×</button></div>
     {#if savedCard}<div class="saved-state"><span class="saved-check">✓</span><div><span class="eyebrow">Saved · Undo</span><h2>{savedCard.displayForm}</h2><strong>{savedCard.translation ?? "Translation unavailable"}</strong><p>“{savedCard.context}”</p><small>{savedCard.isExistingWord ? `Saved ${savedCard.encounterCount} times · New context saved` : "Added to your review queue"}</small></div></div><button class="text-button undo" onclick={undoSaved}>Undo</button>
-    {:else}<form onsubmit={(event) => { event.preventDefault(); saveCapture(); }}><label>Word<input bind:value={captureInput.selectedText} placeholder="Selected word" /></label><label>Translation<input bind:value={captureInput.translation} placeholder="Automatic or manual" /></label><label>Context<textarea bind:value={captureInput.sentence} placeholder="Sentence around the word"></textarea></label><div class="form-actions"><span>Auto-saves locally</span><button class="primary" type="submit">Save word</button></div></form>{/if}
+    {:else}{#if achievedConflict}<p role="status">Already learned and reviewed. Saving will restart learning and save this context.</p>{/if}<form onsubmit={(event) => { event.preventDefault(); saveCapture(); }}><label>Word<input bind:value={captureInput.selectedText} placeholder="Selected word" /></label><label>Translation<input bind:value={captureInput.translation} placeholder="Automatic or manual" /></label><label>Context<textarea bind:value={captureInput.sentence} placeholder="Sentence around the word"></textarea></label><div class="form-actions"><span>Auto-saves locally</span><button class="primary" type="submit">Save word</button></div></form>{/if}
   </div>
 {/if}
 
 {#if reviewOpen && activeReview}
-  <div class="modal-backdrop"><div class="floating-card review-card" role="dialog" aria-label="Daily review"><div class="review-progress"><span>Review {reviewIndex + 1} of {today?.reviewQueue.length}</span><div><i style={`width:${((reviewIndex + 1)/(today?.reviewQueue.length ?? 1))*100}%`}></i></div><button aria-label="Close review" onclick={() => (reviewOpen = false)}>×</button></div><span class="eyebrow">Do you remember this word?</span><h2>{activeReview.displayForm}</h2><p>“{activeReview.context}”</p><div class="translation-reveal"><small>Translation</small><strong>{activeReview.translation ?? "Unavailable"}</strong></div><div class="review-actions"><button class="secondary" onclick={() => rate("forgot")}>Forgot</button><button class="primary" onclick={() => rate("remembered")}>Remembered</button></div></div></div>
+  <div class="modal-backdrop"><div class="floating-card review-card" role="dialog" aria-label="Daily review"><div class="review-progress"><span>Review {reviewIndex + 1} of {today?.reviewQueue.length}</span><div><i style={`width:${((reviewIndex + 1)/(today?.reviewQueue.length ?? 1))*100}%`}></i></div><button aria-label="Close review" onclick={() => (reviewOpen = false)}>×</button></div><span class="eyebrow">Do you remember this word?</span><h2>{activeReview.displayForm}</h2><p>“{activeReview.context}”</p><div class="translation-reveal"><small>Translation</small><strong>{activeReview.translation ?? "Unavailable"}{#if activeReview.translationLanguage}<small> · {activeReview.translationLanguage}</small>{/if}</strong></div><div class="review-actions"><button class="secondary" onclick={() => rate("forgot")}>Forgot</button><button class="primary" onclick={() => rate("remembered")}>Remembered</button></div></div></div>
 {/if}
 
 {#if selectedDetail}
-  <div class="detail-drawer"><button class="drawer-close" aria-label="Close word detail" onclick={() => (selectedDetail = null)}>×</button><span class="eyebrow">Word detail</span><h2>{selectedDetail.item.displayForm}</h2><strong class="detail-translation">{selectedDetail.item.translation ?? "No translation"}</strong><span class="status-pill">{selectedDetail.item.status}</span><div class="timeline"><h3>Capture history · {selectedDetail.encounters.length}</h3>{#each selectedDetail.encounters as encounter}<article><i></i><p>“{encounter.sentence}”</p><small>{encounter.sourceApp ?? "Unknown source"} · {relative(encounter.capturedAt)}</small></article>{/each}</div></div>
+  <div class="detail-drawer"><button class="drawer-close" aria-label="Close word detail" onclick={() => (selectedDetail = null)}>×</button><span class="eyebrow">Word detail</span><h2>{selectedDetail.item.displayForm}</h2><strong class="detail-translation">{selectedDetail.item.translation ?? "No translation"}</strong><span class="status-pill">{selectedDetail.item.status}</span><section aria-label="Saved translations">{#each selectedDetail.translations ?? [] as translation}<p>{translation.targetLanguage} · {translation.text}</p>{/each}</section><div class="timeline"><h3>Capture history · {selectedDetail.encounters.length}</h3>{#each selectedDetail.encounters as encounter}<article><i></i><p>“{encounter.sentence}”</p>{#if encounter.savedTranslation}<p>{encounter.savedTranslation.targetLanguage} · {encounter.savedTranslation.text}</p>{/if}<small>{encounter.sourceApp ?? "Unknown source"} · {relative(encounter.capturedAt)}</small></article>{/each}</div></div>
 {/if}

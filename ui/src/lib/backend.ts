@@ -35,7 +35,7 @@ export interface Backend {
   getPlatformCapabilities(): Promise<PlatformCapabilities>;
 }
 
-type DemoWord = WordDetail & { due: boolean };
+type DemoWord = WordDetail & { due: boolean; sourceLanguage?: string };
 
 const defaultSettings: Settings = {
   sourceLanguage: "en", targetLanguage: "de", selectionCaptureShortcut: "Alt+Shift+V",
@@ -75,6 +75,7 @@ const achievedTiming = (deleteAfter: string) => {
 
 export class DemoBackend implements Backend {
   private words: DemoWord[] = [];
+  private captureUndo = new Map<string, { before: DemoWord[]; after: string; wordId: string }>();
   private logStarted = localDate();
   private dailyCounts = new Map<string, number>();
   private savedDates = new Map<string, string>();
@@ -104,23 +105,52 @@ export class DemoBackend implements Backend {
     this.words.push({
       item: { id: wordId, displayForm: word, translation, status: "learning",
         encounterCount: 1, nextReviewAt: capturedAt, lastSeenAt: capturedAt },
+      sourceLanguage: "en", translations: [{targetLanguage:"de",text:translation,savedAt:capturedAt}],
       lemma: word, partOfSpeech: "word", encounters: [encounter], due: true,
     });
   }
 
-  async capture(input: CaptureInput): Promise<CaptureCard> {
-    const normalized = input.selectedText.trim().toLowerCase();
-    let detail = this.words.find((word) => word.lemma === normalized);
+  private matches(input: CaptureInput) {
+    const normalized = input.selectedText.trim().replace(/\s+/g, " ").toLowerCase();
+    const source = this.settings.sourceLanguage.toLowerCase();
+    const words = this.words.filter(w => w.lemma === normalized);
+    const known = new Set(words.map(w => w.sourceLanguage ?? "en").filter(s => s !== "auto"));
+    const resolved = source === "auto" && known.size === 1 ? [...known][0] : source;
+    return words.filter(w => (w.sourceLanguage ?? "en") === resolved || (w.sourceLanguage === "auto" && (!known.size || known.size === 1 && known.has(resolved)))).sort((a,b) => a.item.id.localeCompare(b.item.id));
+  }
+
+  private projectItem(word: DemoWord) {
+    const values = word.translations ?? [];
+    const value = values.find(t => t.targetLanguage === this.settings.targetLanguage.toLowerCase()) ?? values[0];
+    return { ...word.item, translation: value?.text ?? word.item.translation, translationLanguage: value?.targetLanguage };
+  }
+
+  async capture(input: CaptureInput): Promise<CaptureCard> { return this.saveCapture(input); }
+
+  private async saveCapture(input: CaptureInput, expected?: string): Promise<CaptureCard> {
+    const matches = this.matches(input);
+    const before = structuredClone(matches);
+    let detail = matches[0];
+    if (expected && detail?.item.id !== expected) throw new Error("Vocabulary Item changed; recheck capture");
+    if (!expected && detail?.item.achievedAt) throw new Error("This Vocabulary Item is Achieved; recheck capture");
     const existing = Boolean(detail);
     if (!detail) {
-      const wordId = id();
       const now = new Date().toISOString();
-      detail = {
-        item: { id: wordId, displayForm: input.selectedText.trim(), translation: input.translation,
-          status: "learning", encounterCount: 0, nextReviewAt: now, lastSeenAt: now },
-        lemma: normalized, encounters: [], due: true,
-      };
+      detail = { item: {id:id(),displayForm:input.selectedText.trim(),status:"learning",encounterCount:0,nextReviewAt:now,lastSeenAt:now},
+        sourceLanguage:this.settings.sourceLanguage.toLowerCase(), lemma:input.selectedText.trim().replace(/\s+/g," ").toLowerCase(), encounters:[], due:true };
       this.words.unshift(detail);
+    } else {
+      for (const other of matches.slice(1)) {
+        detail.encounters.push(...other.encounters.map(e => ({...e,wordId:detail!.item.id})));
+        detail.translations = [...(detail.translations ?? []), ...(other.translations ?? [])];
+        if (!other.item.achievedAt) { detail.item.status=other.item.status; detail.item.achievedAt=undefined; detail.item.deleteAfter=undefined; }
+        this.words = this.words.filter(w => w !== other);
+      }
+      if (this.settings.sourceLanguage !== "auto") detail.sourceLanguage=this.settings.sourceLanguage.toLowerCase();
+    }
+    if (expected && detail.item.achievedAt) {
+      detail.item.status="learning"; detail.item.achievedAt=undefined; detail.item.deleteAfter=undefined;
+      detail.item.nextReviewAt=new Date().toISOString(); detail.due=true;
     }
     const now = new Date().toISOString();
     const encounter: Encounter = {
@@ -130,6 +160,10 @@ export class DemoBackend implements Backend {
       captureOrigin: input.captureOrigin ?? "manual",
       capturedAt: now, updatedAt: now,
     };
+    if (input.translation?.trim()) {
+      encounter.savedTranslation = { targetLanguage: this.settings.targetLanguage.toLowerCase(), text: input.translation.trim(), savedAt: now };
+      detail.translations = [encounter.savedTranslation, ...(detail.translations ?? []).filter(t => t.targetLanguage !== encounter.savedTranslation!.targetLanguage)];
+    }
     const savedDate = localDate();
     this.savedDates.set(encounter.id, savedDate);
     this.dailyCounts.set(savedDate, (this.dailyCounts.get(savedDate) ?? 0) + 1);
@@ -137,6 +171,7 @@ export class DemoBackend implements Backend {
     detail.item.encounterCount = detail.encounters.length;
     detail.item.lastSeenAt = now;
     if (input.translation) detail.item.translation = input.translation;
+    this.captureUndo.set(encounter.id, { before, after:JSON.stringify(detail), wordId:detail.item.id });
     return { wordId: detail.item.id, encounterId: encounter.id,
       displayForm: detail.item.displayForm, translation: detail.item.translation,
       context: encounter.sentence, encounterCount: detail.encounters.length,
@@ -156,65 +191,57 @@ export class DemoBackend implements Backend {
   }
 
   async undoCapture(encounterId: string) {
-    if (!this.words.some(word => word.encounters.some(encounter => encounter.id === encounterId))) return;
+    const snapshot = this.captureUndo.get(encounterId);
+    if (!snapshot) throw new Error("Capture cannot be undone");
+    const current = this.words.find(w => w.item.id === snapshot.wordId);
+    if (JSON.stringify(current) !== snapshot.after) throw new Error("Cannot undo: this Vocabulary Item changed after capture. No changes were undone.");
     const savedDate = this.savedDates.get(encounterId);
-    if (savedDate) {
-      this.dailyCounts.set(savedDate, Math.max(0, (this.dailyCounts.get(savedDate) ?? 0) - 1));
-      this.savedDates.delete(encounterId);
-    }
-    for (const word of this.words) {
-      word.encounters = word.encounters.filter((encounter) => encounter.id !== encounterId);
-      word.item.encounterCount = word.encounters.length;
-      if (word.encounters.length) word.item.lastSeenAt = word.encounters[0].capturedAt;
-    }
-    this.words = this.words.filter((word) => word.encounters.length > 0);
+    if (savedDate) { this.dailyCounts.set(savedDate, (this.dailyCounts.get(savedDate) ?? 1)-1); this.savedDates.delete(encounterId); }
+    this.words = [...this.words.filter(w => w.item.id !== snapshot.wordId), ...structuredClone(snapshot.before)];
+    this.captureUndo.delete(encounterId);
   }
 
   async getToday(): Promise<TodayView> {
-    const allDue = this.words.filter((word) => word.due);
+    const allDue = this.words.filter((word) => word.due && !word.item.achievedAt);
     const due = allDue.slice(0, this.settings.dailyLimit);
     return {
       totalDueCount: allDue.length, plannedReviewCount: due.length,
       estimatedMinutes: due.length ? Math.max(1, Math.ceil(due.length / 3)) : 0,
       reviewQueue: due.map((word) => ({ wordId: word.item.id,
-        displayForm: word.item.displayForm, translation: word.item.translation,
+        displayForm: word.item.displayForm, translation: this.projectItem(word).translation, translationLanguage:this.projectItem(word).translationLanguage,
         context: word.encounters[0]?.sentence })),
-      recentCaptures: this.words.map((word) => ({ ...word.item }))
+      recentCaptures: this.words.map((word) => this.projectItem(word))
         .sort((a, b) => Date.parse(b.lastSeenAt) - Date.parse(a.lastSeenAt))
         .slice(0, this.settings.recentCapturesLimit),
       settings: { ...this.settings },
     };
   }
 
-  async listWords() { return this.words.filter((word) => !word.item.achievedAt).map((word) => ({ ...word.item })); }
+  async listWords() { return this.words.filter((word) => !word.item.achievedAt).map((word) => this.projectItem(word)); }
   async listAchievedWords(): Promise<AchievedWordListItem[]> {
     return this.words.filter((word) => word.item.achievedAt && word.item.deleteAfter).map((word) => ({
-      id: word.item.id, lemma: word.lemma, displayForm: word.item.displayForm, translation: word.item.translation,
+      id: word.item.id, lemma: word.lemma, displayForm: word.item.displayForm, translation: this.projectItem(word).translation, translationLanguage:this.projectItem(word).translationLanguage,
       encounterCount: word.item.encounterCount, achievedAt: word.item.achievedAt!, deleteAfter: word.item.deleteAfter!,
       ...achievedTiming(word.item.deleteAfter!),
     }));
   }
 
   async findAchievedCapture(input: CaptureInput): Promise<AchievedCaptureConflict | null> {
-    const normalized = input.selectedText.trim().toLowerCase();
-    const word = this.words.find((candidate) => candidate.lemma === normalized && candidate.item.achievedAt && candidate.item.deleteAfter);
+    const match = this.matches(input)[0];
+    const word = match?.item.achievedAt && match.item.deleteAfter ? match : undefined;
     return word ? { wordId: word.item.id, displayForm: word.item.displayForm, achievedAt: word.item.achievedAt!, deleteAfter: word.item.deleteAfter! } : null;
   }
   async restoreAchievedAndCapture(wordId: string, input: CaptureInput): Promise<CaptureCard> {
-    const word = this.words.find((candidate) => candidate.item.id === wordId && candidate.item.achievedAt);
-    if (!word) throw new Error("Achieved Vocabulary Item changed; try capturing again");
-    word.item.status = "learning";
-    word.item.achievedAt = undefined;
-    word.item.deleteAfter = undefined;
-    return this.capture(input);
+    return this.saveCapture(input, wordId);
   }
+
   async achieveWord(wordId: string): Promise<AchievedWordListItem> {
     const word = this.words.find((candidate) => candidate.item.id === wordId);
     if (!word || word.item.status !== "mastered" || word.item.achievedAt) throw new Error("only an active Mastered Vocabulary Item can be Achieved");
     const achievedAt = new Date();
     const deleteAfter = new Date(achievedAt.getTime() + (this.settings.achievedRetentionDays ?? 30) * 86_400_000);
     word.item.achievedAt = achievedAt.toISOString(); word.item.deleteAfter = deleteAfter.toISOString();
-    return { id: word.item.id, lemma: word.lemma, displayForm: word.item.displayForm, translation: word.item.translation,
+    return { id: word.item.id, lemma: word.lemma, displayForm: word.item.displayForm, translation: this.projectItem(word).translation, translationLanguage:this.projectItem(word).translationLanguage,
       encounterCount: word.item.encounterCount, achievedAt: word.item.achievedAt, deleteAfter: word.item.deleteAfter,
       ...achievedTiming(word.item.deleteAfter) };
   }
@@ -240,7 +267,7 @@ export class DemoBackend implements Backend {
   async getWord(wordId: string) {
     const word = this.words.find((candidate) => candidate.item.id === wordId);
     if (!word) throw new Error("word not found");
-    return structuredClone(word) as WordDetail;
+    return structuredClone({ ...word, item:this.projectItem(word) }) as WordDetail;
   }
   async submitReview(wordId: string, rating: ReviewRating, submissionId: string = id()): Promise<ReviewResult> {
     const existing = this.reviewSubmissions.get(submissionId);

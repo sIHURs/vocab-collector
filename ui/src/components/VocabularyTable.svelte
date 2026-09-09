@@ -18,7 +18,7 @@
     {#each words as word (word.id)}
       <Table.Row onclick={(event) => { if (!(event.target as HTMLElement).closest('button')) { const trigger = event.currentTarget.querySelector('button'); if (trigger) onSelect(word.id, trigger); } }}>
         <Table.Cell><button class="word-link" aria-label={`${word.displayForm}, Saved ${word.encounterCount} time${word.encounterCount === 1 ? '' : 's'}`} onclick={(event) => onSelect(word.id, event.currentTarget)}>{word.displayForm}</button></Table.Cell>
-        <Table.Cell><span class="translation">{word.translation ?? 'No translation'}</span></Table.Cell>
+        <Table.Cell><span class="translation">{word.translation ?? 'No translation'}{#if word.translationLanguage}<small> · {word.translationLanguage}</small>{/if}</span></Table.Cell>
         <Table.Cell><Badge variant="secondary"><span class="status">{word.status}</span></Badge></Table.Cell>
         <Table.Cell>{word.encounterCount}</Table.Cell>
         <Table.Cell><time datetime={word.lastSeenAt}>{date(word.lastSeenAt)}</time></Table.Cell>

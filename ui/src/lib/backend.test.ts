@@ -60,3 +60,18 @@ describe("browser backend contract", () => {
     expect(insight.forgottenCount).toBe(0);
   });
 });
+
+it('shares translations across target languages and undoes only an uncontested save', async () => {
+  const backend = new DemoBackend(false);
+  const first = await backend.capture({selectedText:'robust',sentence:'A robust design.',translation:'kräftig'});
+  await backend.updateSettings({...await backend.getSettings(),targetLanguage:'zh-Hans'});
+  const second = await backend.capture({selectedText:'robust',sentence:'Another robust design.',translation:'稳健的'});
+  expect(second.wordId).toBe(first.wordId);
+  expect((await backend.getWord(first.wordId)).translations).toHaveLength(2);
+  expect((await backend.listWords())[0].translation).toBe('稳健的');
+  await backend.undoCapture(second.encounterId);
+  expect((await backend.getWord(first.wordId)).translations).toHaveLength(1);
+  const third = await backend.capture({selectedText:'robust',sentence:'Third context.',translation:'强健的'});
+  await backend.submitReview(first.wordId,'remembered');
+  await expect(backend.undoCapture(third.encounterId)).rejects.toThrow('Cannot undo');
+});

@@ -35,7 +35,7 @@ fn capture_trace_explains_normalization_application_and_storage() {
         trace.observations[1].data["normalizedSentence"],
         "A lucky moment."
     );
-    assert_eq!(trace.observations[1].data["dedupeKey"], "serendipity|en|de");
+    assert_eq!(trace.observations[1].data["dedupeKey"], "serendipity|en");
     assert_eq!(trace.observations[2].stage, DebugStage::Application);
     assert_eq!(trace.observations[3].stage, DebugStage::Persistence);
     assert_eq!(trace.observations[3].data["outboxBefore"], 0);
@@ -71,8 +71,12 @@ fn session_exposes_duplicate_review_and_undo_through_core_apis() {
         Some(reviewed_at + Duration::days(3))
     );
 
-    let summary = session.undo(second.result.encounter_id).unwrap();
-    assert_eq!(summary.active_encounter_count, 1);
+    assert!(session.undo(second.result.encounter_id).is_err());
+    let newest = session
+        .capture(input("serendipity", "After review."))
+        .unwrap();
+    let summary = session.undo(newest.result.encounter_id).unwrap();
+    assert_eq!(summary.active_encounter_count, 2);
     assert_eq!(
         session
             .inspect_word(second.result.word_id)
@@ -80,7 +84,7 @@ fn session_exposes_duplicate_review_and_undo_through_core_apis() {
             .detail
             .item
             .encounter_count,
-        1
+        2
     );
 }
 

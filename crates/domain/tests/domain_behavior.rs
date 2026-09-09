@@ -41,10 +41,7 @@ fn normalization_preserves_meaning_while_making_dedupe_stable() {
         normalize_context("A   happy\n accident."),
         "A happy accident."
     );
-    assert_eq!(
-        dedupe_key("  Serendipity ", "EN", "de"),
-        "serendipity|en|de"
-    );
+    assert_eq!(dedupe_key("  Serendipity ", "EN"), "serendipity|en");
 }
 
 #[test]

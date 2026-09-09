@@ -5,11 +5,11 @@ Vocab Collector helps a reader retain vocabulary encountered while reading. The 
 ## Language
 
 **Vocabulary Item**:
-A normalized word or phrase kept for later review, with an optional translation and learning status.
+A normalized word or phrase in a particular source language kept for later review, with one shared learning status across its target-language translations. Choosing a different target translation language does not create a different Vocabulary Item.
 _Avoid_: Card, entry, capture
 
 **Encounter**:
-One occurrence of a vocabulary item in its original sentence and source context. Repeated encounters belong to the same vocabulary item.
+One occurrence of a vocabulary item in its original sentence and source context, optionally retaining the translation saved on that occasion. Repeated encounters belong to the same vocabulary item regardless of target translation language.
 _Avoid_: Duplicate, capture record
 
 **Capture Candidate**:

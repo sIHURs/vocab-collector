@@ -91,6 +91,7 @@
       if (!mounted || requestId !== activeRequest) return;
       translationStale = Boolean(translation.trim()) && selectedText.trim() !== lastTranslatedText;
       editing = false;
+      await refreshAchieved(requestId);
     } catch (cause) {
       if (!mounted || requestId !== activeRequest) return;
       error = cause instanceof Error ? cause.message : String(cause);
@@ -99,8 +100,16 @@
     }
   }
 
+  let lookupVersion = 0;
+  async function refreshAchieved(requestId: string) {
+    const version = ++lookupVersion;
+    const conflict = await captureBackend.findAchieved(requestId);
+    if (mounted && requestId === activeRequest && version === lookupVersion) achievedConflict = conflict;
+  }
+
   async function save() {
     if (!candidate || busy) return;
+    if (achievedConflict) { await restoreToLearningAndSave(); return; }
     const requestId = activeRequest;
     busy = true;
     error = "";
@@ -170,7 +179,11 @@
       translationFailed = true;
       error = "Translation is temporarily unavailable. You can retry or continue editing.";
     } finally {
-      if (mounted && requestId === activeRequest) busy = false;
+      if (mounted && requestId === activeRequest) {
+        try { await refreshAchieved(requestId); }
+        catch (cause) { error = String(cause); }
+        busy = false;
+      }
     }
   }
 
@@ -334,7 +347,7 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <main class="windows-capture capture-surface" data-presentation="windows-capture" aria-label="Capture" onmouseenter={() => { hovered = true; clearDismissTimer(); }} onmouseleave={() => { hovered = false; scheduleDismiss(); }} onfocusin={() => { focusWithin = true; clearDismissTimer(); }} onfocusout={(event) => { focusWithin = event.currentTarget.contains(event.relatedTarget as Node | null); if (!focusWithin) scheduleDismiss(); }}>
-  <header data-tauri-drag-region><span data-tauri-drag-region><i aria-hidden="true" data-tauri-drag-region></i>Vocab Collector</span>{#if !ocrNeedsConfirmation && !ocrOffer && !achievedConflict}<Button variant="ghost" size="icon" aria-label="Cancel capture" onclick={cancel}>×</Button>{/if}</header>
+  <header data-tauri-drag-region><span data-tauri-drag-region><i aria-hidden="true" data-tauri-drag-region></i>Vocab Collector</span>{#if !ocrNeedsConfirmation && !ocrOffer}<Button variant="ghost" size="icon" aria-label="Cancel capture" onclick={cancel}>×</Button>{/if}</header>
   <section class="capture-body" aria-live="polite" aria-busy={busy || ocrBusy}>
     {#if error}<Alert.Root variant="destructive"><Alert.Title>Capture needs attention</Alert.Title><Alert.Description>{error}</Alert.Description></Alert.Root>{/if}
     {#if saved}
@@ -357,7 +370,7 @@
         {:else if !translationAvailable}<p>Automatic translation is unavailable. You can add a translation manually.</p>{/if}
         <p class="context">“{sentence}”</p><CaptureSource app={candidate.sourceApp} title={candidate.sourceTitle} url={candidate.sourceUrl} />
         {#if translationStale}<Alert.Root role="status"><Alert.Title>Vocabulary changed</Alert.Title><Alert.Description>Vocabulary changed. The translation may no longer match.</Alert.Description></Alert.Root>{/if}
-        {#if achievedConflict}<Alert.Root role="status"><Alert.Title>Return to Learning?</Alert.Title><Alert.Description>This Vocabulary Item is Achieved. Return it to Learning and save this context?</Alert.Description></Alert.Root>{/if}
+        {#if achievedConflict}<Alert.Root role="status"><Alert.Title>Already learned and reviewed</Alert.Title><Alert.Description>Saving will restart learning and save this context.</Alert.Description></Alert.Root>{/if}
       {/if}
     {:else if !ocrOffer && !error}<p>Ready to capture selected text.</p>{/if}
   </section>
@@ -366,7 +379,7 @@
     {:else if candidate}
       {#if ocrNeedsConfirmation}<Button variant="outline" onclick={cancel}>Cancel OCR</Button><Button disabled={busy || !selectedText.trim()} onclick={confirmOcrCandidate}>Confirm</Button>
       {:else if editing}<Button disabled={busy || !selectedText.trim()} onclick={applyChanges}>Apply changes</Button>
-      {:else if achievedConflict}<Button variant="outline" disabled={busy} onclick={cancel}>Cancel</Button><Button disabled={busy} onclick={restoreToLearningAndSave}>Return to Learning</Button>
+
       {:else}
         {#if translationFailed}<Button variant="outline" disabled={busy} onclick={() => translateCandidate(activeRequest, selectedText.trim())}>Retry translation</Button>{/if}
         {#if translationStale}<Button variant="outline" disabled={busy} onclick={() => translateCandidate(activeRequest, selectedText.trim())}>Translate again</Button>{/if}

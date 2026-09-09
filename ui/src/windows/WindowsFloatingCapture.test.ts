@@ -102,6 +102,7 @@ describe("Windows floating capture presentation", () => {
     expect(mocks.save).not.toHaveBeenCalled();
     expect(await screen.findByText("Nuance")).toBeVisible();
 
+    await waitFor(() => expect(screen.getByRole("button", { name: /Save capture|Save without translation/ })).toBeEnabled());
     await fireEvent.click(screen.getByRole("button", { name: /Save capture|Save without translation/ }));
     expect(mocks.save).toHaveBeenCalledWith("translated-request", false);
   });
@@ -112,14 +113,12 @@ describe("Windows floating capture presentation", () => {
     await waitFor(() => expect(mocks.ready).toBeTypeOf("function"));
     mocks.ready?.({ requestId: "achieved-request", candidate: { selectedText: "nuance", sentence: "A useful nuance.", origin: "accessibility" } });
 
-    const save = await screen.findByRole("button", { name: /Save capture|Save without translation/ });
+    expect(await screen.findByText("Achieved")).toBeVisible();
+    expect(screen.getByText(/Saving will restart learning/)).toBeVisible();
+    expect(mocks.save).not.toHaveBeenCalled();
+    const save = screen.getByRole("button", { name: /Save capture|Save without translation/ });
     await waitFor(() => expect(save).toBeEnabled());
     await fireEvent.click(save);
-
-    expect(await screen.findByText("Achieved")).toBeVisible();
-    expect(screen.getByText(/Return it to Learning/)).toBeVisible();
-    expect(mocks.save).not.toHaveBeenCalled();
-    await fireEvent.click(screen.getByRole("button", { name: "Return to Learning" }));
     expect(mocks.restoreAchievedAndSave).toHaveBeenCalledWith("achieved-request", "word-1", true);
     expect(await screen.findByText("Saved")).toBeVisible();
   });
@@ -183,7 +182,7 @@ describe("Windows floating capture presentation", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Translation is temporarily unavailable");
     expect(screen.queryByText(/secret provider response/i)).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Retry translation" })).toBeEnabled();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Retry translation" })).toBeEnabled());
     expect(screen.getByRole("button", { name: "Edit capture" })).toBeEnabled();
     expect(screen.getByRole("button", { name: /Save capture|Save without translation/ })).toBeEnabled();
 
@@ -191,11 +190,13 @@ describe("Windows floating capture presentation", () => {
     await fireEvent.input(screen.getByLabelText("Selected text"), { target: { value: "subtlety" } });
     await fireEvent.click(screen.getByRole("button", { name: "Apply changes" }));
     mocks.translate.mockResolvedValueOnce({ translatedText: "Feinheit", sourceLanguage: "en", targetLanguage: "de" });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Retry translation" })).toBeEnabled());
     await fireEvent.click(screen.getByRole("button", { name: "Retry translation" }));
 
     await waitFor(() => expect(mocks.translate).toHaveBeenLastCalledWith("retry-request", "subtlety", "auto", "de"));
     expect(await screen.findByText("Feinheit")).toBeVisible();
     expect(mocks.save).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByRole("button", { name: /Save capture|Save without translation/ })).toBeEnabled());
     await fireEvent.click(screen.getByRole("button", { name: /Save capture|Save without translation/ }));
     expect(mocks.save).toHaveBeenCalledTimes(1);
   });
@@ -298,6 +299,7 @@ describe("Windows floating capture presentation", () => {
     await fireEvent.input(screen.getByLabelText("Context"), { target: { value: "A useful nuance." } });
     await fireEvent.input(screen.getByLabelText("Translation (optional)"), { target: { value: "Feinheit" } });
     await fireEvent.click(screen.getByRole("button", { name: "Apply changes" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: /Save capture|Save without translation/ })).toBeEnabled());
     await fireEvent.click(screen.getByRole("button", { name: /Save capture|Save without translation/ }));
 
     expect(mocks.apply).toHaveBeenCalledWith("request-10", { selectedText: "nuance", sentence: "A useful nuance.", translation: "Feinheit" });
@@ -326,6 +328,7 @@ describe("Windows floating capture presentation", () => {
     await fireEvent.input(screen.getByLabelText("Selected text"), { target: { value: "nuance" } });
 
     await fireEvent.click(screen.getByRole("button", { name: "Apply changes" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: /Save capture|Save without translation/ })).toBeEnabled());
     await fireEvent.click(screen.getByRole("button", { name: /Save capture|Save without translation/ }));
 
     expect(mocks.apply).toHaveBeenCalledWith("no-context", { selectedText: "nuance", sentence: "" });
@@ -420,6 +423,7 @@ describe("Windows floating capture presentation", () => {
     expect(mocks.focus).toHaveBeenCalled();
 
     await fireEvent.click(screen.getByRole("button", { name: "Apply changes" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: /Save capture|Save without translation/ })).toBeEnabled());
     await fireEvent.click(screen.getByRole("button", { name: /Save capture|Save without translation/ }));
     expect(mocks.releaseFocus).not.toHaveBeenCalled();
 
