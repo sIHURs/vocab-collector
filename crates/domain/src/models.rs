@@ -86,6 +86,21 @@ pub enum LifecycleError {
 }
 
 impl Word {
+    pub fn change_learning_status(&mut self, status: WordStatus, now: DateTime<Utc>) -> bool {
+        if self.status == status {
+            return false;
+        }
+        if status == WordStatus::Mastered {
+            self.enter_mastered(now);
+        } else {
+            if self.status == WordStatus::Mastered {
+                self.review_state = Some(ReviewState::initial(now));
+            }
+            self.unmaster(now, status);
+        }
+        true
+    }
+
     pub fn is_achieved(&self) -> bool {
         self.achieved_at.is_some() && self.delete_after.is_some() && self.deleted_at.is_none()
     }

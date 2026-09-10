@@ -11,6 +11,26 @@ use vocab_domain::{
 use crate::bootstrap::AppState;
 
 #[tauri::command]
+pub fn change_learning_status(
+    state: State<'_, AppState>,
+    word_id: Uuid,
+    status: vocab_domain::WordStatus,
+) -> Result<Option<Uuid>, String> {
+    state
+        .application()
+        .change_learning_status(word_id, status, Utc::now())
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn undo_learning_status(state: State<'_, AppState>, token: Uuid) -> Result<Uuid, String> {
+    state
+        .application()
+        .undo_learning_status(token, Utc::now())
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 pub fn capture_word(
     state: State<'_, AppState>,
     request: CaptureRequest,

@@ -19,6 +19,7 @@ use vocab_domain::{
 
 mod capture_undo;
 mod identity;
+mod learning_status;
 mod references;
 mod translations;
 
@@ -160,7 +161,7 @@ impl SqliteStore {
         let version: u32 = connection
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .map_err(repo_error)?;
-        if version > 8 {
+        if version > 9 {
             return Err(RepositoryError::Persistence(
                 "Database was created by a newer app version".into(),
             ));
@@ -285,6 +286,7 @@ impl SqliteStore {
         translations::migrate(&connection)?;
         identity::migrate(&connection)?;
         capture_undo::migrate(&connection)?;
+        learning_status::migrate(&connection)?;
         connection
             .execute_batch("RELEASE schema_upgrade;")
             .map_err(repo_error)?;

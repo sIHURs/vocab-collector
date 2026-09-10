@@ -389,6 +389,8 @@ pub fn run() {
             library::delete_achieved_words,
             library::run_lifecycle_sweep,
             library::get_word,
+            library::change_learning_status,
+            library::undo_learning_status,
             library::submit_review,
             library::get_review_session_insight,
             library::get_settings,

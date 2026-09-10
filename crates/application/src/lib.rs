@@ -63,6 +63,23 @@ pub struct AppService {
 }
 
 impl AppService {
+    pub fn change_learning_status(
+        &self,
+        word_id: Uuid,
+        status: WordStatus,
+        now: DateTime<Utc>,
+    ) -> Result<Option<Uuid>, ApplicationError> {
+        Ok(self.store.change_learning_status(word_id, status, now)?)
+    }
+
+    pub fn undo_learning_status(
+        &self,
+        token: Uuid,
+        now: DateTime<Utc>,
+    ) -> Result<Uuid, ApplicationError> {
+        Ok(self.store.undo_learning_status(token, now)?)
+    }
+
     pub fn new(store: Arc<SqliteStore>, device_id: Uuid) -> Self {
         Self { store, device_id }
     }

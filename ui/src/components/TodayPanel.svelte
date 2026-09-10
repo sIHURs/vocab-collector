@@ -25,7 +25,7 @@
     </Card.Content>
     <Card.Footer>
       {#if refreshRequired}<Alert.Root role="status"><Alert.Title>Review paused</Alert.Title><Alert.Description>Refresh Today before continuing so the due queue stays current.<Button disabled={loading} onclick={onretry}>Retry Review refresh</Button></Alert.Description></Alert.Root>
-      {:else if today?.reviewQueue.length}<Button disabled={loading} onclick={onstart}>{paused ? 'Resume review' : `Start review (${today.plannedReviewCount})`}</Button>
+      {:else if paused || today?.reviewQueue.length}<Button disabled={loading} onclick={onstart}>{paused ? 'Resume review' : `Start review (${today?.plannedReviewCount})`}</Button>
       {:else if today}<p class="muted"><span>Nothing due</span>. You're all caught up.</p>{:else if loading}<Skeleton class="h-8 w-40" />{/if}
     </Card.Footer>
   </Card.Root>

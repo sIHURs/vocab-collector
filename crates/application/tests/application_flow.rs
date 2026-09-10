@@ -26,6 +26,281 @@ fn request(word: &str, translation: &str) -> CaptureRequest {
 }
 
 #[test]
+fn user_can_pause_and_resume_a_vocabulary_item_without_losing_its_schedule() {
+    let store = Arc::new(SqliteStore::open_in_memory().unwrap());
+    let service = AppService::new(store.clone(), Uuid::now_v7());
+    let card = service.capture(request("Pause", "Pause")).unwrap();
+    let now = Utc.with_ymd_and_hms(2026, 9, 10, 12, 0, 0).unwrap();
+    let before = service.get_word(card.word_id).unwrap();
+    service
+        .change_learning_status(card.word_id, WordStatus::Paused, now)
+        .unwrap();
+    assert_eq!(
+        service.get_word(card.word_id).unwrap().item.status,
+        WordStatus::Paused
+    );
+    assert_eq!(service.get_today(now).unwrap().total_due_count, 0);
+    service
+        .change_learning_status(card.word_id, WordStatus::Learning, now)
+        .unwrap();
+    let after = service.get_word(card.word_id).unwrap();
+    assert_eq!(after.item.next_review_at, before.item.next_review_at);
+    assert_eq!(after.encounters, before.encounters);
+    assert_eq!(service.get_today(now).unwrap().total_due_count, 1);
+}
+
+#[test]
+fn manual_mastery_and_relearning_preserve_history_and_obey_the_achieve_timer() {
+    let store = Arc::new(SqliteStore::open_in_memory().unwrap());
+    let service = AppService::new(store.clone(), Uuid::now_v7());
+    let card = service
+        .capture(request("Mastery", "Meisterschaft"))
+        .unwrap();
+    let now = Utc.with_ymd_and_hms(2026, 9, 10, 12, 0, 0).unwrap();
+    service
+        .submit_review(card.word_id, ReviewRating::Remembered, now)
+        .unwrap();
+    let before = WordRepository::get(store.as_ref(), card.word_id)
+        .unwrap()
+        .unwrap();
+    for from in [WordStatus::Learning, WordStatus::Paused] {
+        service
+            .change_learning_status(card.word_id, from, now)
+            .unwrap();
+        service
+            .change_learning_status(card.word_id, WordStatus::Mastered, now)
+            .unwrap();
+        let mastered = WordRepository::get(store.as_ref(), card.word_id)
+            .unwrap()
+            .unwrap();
+        assert_eq!(mastered.mastered_at, Some(now));
+        assert!(
+            !mastered.is_automatic_achieve_due(now + Duration::days(30) - Duration::seconds(1))
+        );
+        assert!(mastered.is_automatic_achieve_due(now + Duration::days(30)));
+        service
+            .change_learning_status(card.word_id, WordStatus::Mastered, now + Duration::days(1))
+            .unwrap();
+        assert_eq!(
+            WordRepository::get(store.as_ref(), card.word_id)
+                .unwrap()
+                .unwrap(),
+            mastered
+        );
+    }
+    for target in [WordStatus::Learning, WordStatus::Paused] {
+        service
+            .change_learning_status(card.word_id, WordStatus::Mastered, now)
+            .unwrap();
+        service
+            .change_learning_status(card.word_id, target, now + Duration::hours(1))
+            .unwrap();
+        let reset = WordRepository::get(store.as_ref(), card.word_id)
+            .unwrap()
+            .unwrap();
+        assert_eq!(reset.mastered_at, None);
+        assert_eq!(
+            reset.review_state,
+            Some(vocab_domain::ReviewState::initial(now + Duration::hours(1)))
+        );
+        service
+            .change_learning_status(card.word_id, WordStatus::Learning, now + Duration::hours(2))
+            .unwrap();
+        assert_eq!(
+            service
+                .get_today(now + Duration::hours(2))
+                .unwrap()
+                .total_due_count,
+            1
+        );
+    }
+    assert_eq!(
+        ReviewRepository::list_for_word(store.as_ref(), card.word_id)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(service.get_word(card.word_id).unwrap().encounters.len(), 1);
+    assert_eq!(before.review_state.unwrap().stability, 3.0);
+    let mut settings = service.get_settings().unwrap();
+    settings.automatic_achieve_enabled = true;
+    service.update_settings(settings).unwrap();
+    service
+        .change_learning_status(card.word_id, WordStatus::Mastered, now)
+        .unwrap();
+    assert_eq!(
+        service
+            .run_lifecycle_sweep(now + Duration::days(30))
+            .unwrap()
+            .achieved_count,
+        1
+    );
+    assert!(
+        service
+            .change_learning_status(card.word_id, WordStatus::Learning, now)
+            .is_err()
+    );
+    assert!(
+        service
+            .change_learning_status(Uuid::now_v7(), WordStatus::Paused, now)
+            .is_err()
+    );
+}
+
+#[test]
+fn manual_learning_status_survives_reopening_and_is_shared_by_translations() {
+    let path = std::env::temp_dir().join(format!("vocab-status-{}.db", Uuid::now_v7()));
+    let now = Utc::now();
+    let word_id;
+    {
+        let store = Arc::new(SqliteStore::open(&path).unwrap());
+        let service = AppService::new(store, Uuid::now_v7());
+        word_id = service
+            .capture(request("Shared", "geteilt"))
+            .unwrap()
+            .word_id;
+        service
+            .change_learning_status(word_id, WordStatus::Paused, now)
+            .unwrap();
+        let mut other = request("Shared", "partagé");
+        other.target_language = "fr".into();
+        assert_eq!(service.capture(other).unwrap().word_id, word_id);
+    }
+    {
+        let store = Arc::new(SqliteStore::open(&path).unwrap());
+        let service = AppService::new(store, Uuid::now_v7());
+        let detail = service.get_word(word_id).unwrap();
+        assert_eq!(detail.item.status, WordStatus::Paused);
+        assert_eq!(detail.translations.len(), 2);
+        assert_eq!(detail.encounters.len(), 2);
+    }
+    std::fs::remove_file(path).unwrap();
+}
+
+#[test]
+fn learning_status_undo_restores_exact_mastery_and_scheduling_once() {
+    let store = Arc::new(SqliteStore::open_in_memory().unwrap());
+    let service = AppService::new(store.clone(), Uuid::now_v7());
+    let card = service.capture(request("Undo", "rückgängig")).unwrap();
+    let now = Utc::now();
+    service
+        .submit_review(card.word_id, ReviewRating::Remembered, now)
+        .unwrap();
+    service
+        .change_learning_status(card.word_id, WordStatus::Mastered, now)
+        .unwrap();
+    let before = WordRepository::get(store.as_ref(), card.word_id)
+        .unwrap()
+        .unwrap();
+    let token = service
+        .change_learning_status(card.word_id, WordStatus::Learning, now + Duration::days(5))
+        .unwrap()
+        .unwrap();
+    service
+        .undo_learning_status(token, now + Duration::days(6))
+        .unwrap();
+    let restored = WordRepository::get(store.as_ref(), card.word_id)
+        .unwrap()
+        .unwrap();
+    assert_eq!(restored.status, before.status);
+    assert_eq!(restored.mastered_at, before.mastered_at);
+    assert_eq!(restored.review_state, before.review_state);
+    assert!(
+        service
+            .undo_learning_status(token, now + Duration::days(7))
+            .is_err()
+    );
+    assert_eq!(
+        ReviewRepository::list_for_word(store.as_ref(), card.word_id)
+            .unwrap()
+            .len(),
+        1
+    );
+}
+
+#[test]
+fn learning_status_undo_rejects_later_changes_reviews_and_deletion() {
+    for action in ["status", "review", "achieve", "delete", "capture"] {
+        let store = Arc::new(SqliteStore::open_in_memory().unwrap());
+        let service = AppService::new(store.clone(), Uuid::now_v7());
+        let word_id = service.capture(request("Guard", "Schutz")).unwrap().word_id;
+        let now = Utc::now();
+        let target = if matches!(action, "achieve" | "delete") {
+            WordStatus::Mastered
+        } else {
+            WordStatus::Learning
+        };
+        service
+            .change_learning_status(word_id, WordStatus::Paused, now)
+            .unwrap();
+        let token = service
+            .change_learning_status(word_id, target, now)
+            .unwrap()
+            .unwrap();
+        match action {
+            "status" => {
+                service
+                    .change_learning_status(word_id, WordStatus::Paused, now)
+                    .unwrap();
+            }
+            "review" => {
+                service
+                    .submit_review(word_id, ReviewRating::Remembered, now)
+                    .unwrap();
+            }
+            "capture" => {
+                service.capture(request("Guard", "Schutz")).unwrap();
+            }
+            _ => {
+                service.achieve_word(word_id, now).unwrap();
+                if action == "delete" {
+                    service.delete_achieved_words(&[word_id], now).unwrap();
+                }
+            }
+        }
+        let before = WordRepository::get(store.as_ref(), word_id).unwrap();
+        assert!(
+            service.undo_learning_status(token, now).is_err(),
+            "{action}"
+        );
+        assert_eq!(
+            WordRepository::get(store.as_ref(), word_id).unwrap(),
+            before,
+            "{action}"
+        );
+    }
+}
+
+#[test]
+fn same_status_selection_and_unrelated_work_keep_learning_status_undo_valid() {
+    let store = Arc::new(SqliteStore::open_in_memory().unwrap());
+    let service = AppService::new(store, Uuid::now_v7());
+    let word_id = service.capture(request("Keep", "halten")).unwrap().word_id;
+    let now = Utc::now();
+    let token = service
+        .change_learning_status(word_id, WordStatus::Paused, now)
+        .unwrap()
+        .unwrap();
+    assert!(
+        service
+            .change_learning_status(word_id, WordStatus::Paused, now + Duration::days(1))
+            .unwrap()
+            .is_none()
+    );
+    service.capture(request("Other", "andere")).unwrap();
+    assert!(
+        service
+            .change_learning_status(Uuid::now_v7(), WordStatus::Mastered, now)
+            .is_err()
+    );
+    service.undo_learning_status(token, now).unwrap();
+    assert_eq!(
+        service.get_word(word_id).unwrap().item.status,
+        WordStatus::Learning
+    );
+}
+
+#[test]
 fn capture_today_review_and_vocabulary_flow_share_one_source_of_truth() {
     let store = Arc::new(SqliteStore::open_in_memory().unwrap());
     let service = AppService::new(store.clone(), Uuid::now_v7());

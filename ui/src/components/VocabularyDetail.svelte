@@ -1,5 +1,8 @@
 <script lang="ts">
-  import type { WordDetail } from '../lib/types';
+  import type { WordDetail, WordStatus } from '../lib/types';
+  import * as NativeSelect from '$lib/components/ui/native-select';
+  import * as Field from '$lib/components/ui/field';
+  import * as Alert from '$lib/components/ui/alert';
   import * as Sheet from '$lib/components/ui/sheet';
   import { Badge } from '$lib/components/ui/badge';
   import { Button } from '$lib/components/ui/button';
@@ -8,6 +11,12 @@
   export let trigger: HTMLElement | null;
   export let onclose: () => void;
   export let onachieve: () => void;
+  export let onstatuschange: ((status: WordStatus) => Promise<void>) | undefined = undefined;
+  export let statusSaving = false;
+  export let statusError = '';
+  export let onstatusretry: (() => void) | undefined = undefined;
+  let selectedStatus: WordStatus = 'learning';
+  $: if (detail && !statusSaving) selectedStatus = detail.item.status;
   let closeButton: HTMLButtonElement;
 </script>
 
@@ -19,7 +28,18 @@
       <Sheet.Description>{detail.item.translation ?? 'No translation'}</Sheet.Description>
       <section aria-label="Saved translations">{#each detail.translations ?? [] as translation}<p><small>{translation.targetLanguage}</small> <span>{translation.text}</span></p>{/each}</section>
       <div class="detail-status"><Badge variant="secondary"><span class="status">{detail.item.status}</span></Badge><span>Saved {detail.item.encounterCount} time{detail.item.encounterCount === 1 ? '' : 's'}</span></div>
-      {#if detail.item.status === 'mastered'}<div><Button variant="destructiveOutline" onclick={onachieve}>Achieve</Button></div>{/if}
+      {#if onstatuschange && !detail.item.achievedAt}
+        <Field.FieldGroup><Field.Field data-disabled={statusSaving} data-invalid={!!statusError}>
+          <Field.FieldLabel for="learning-status">Learning status</Field.FieldLabel>
+          <NativeSelect.Root id="learning-status" bind:value={selectedStatus} disabled={statusSaving} aria-invalid={!!statusError} onchange={() => onstatuschange?.(selectedStatus)}>
+            <NativeSelect.Option value="learning">Learning</NativeSelect.Option>
+            <NativeSelect.Option value="mastered">Mastered</NativeSelect.Option>
+            <NativeSelect.Option value="paused">Paused</NativeSelect.Option>
+          </NativeSelect.Root>
+        </Field.Field></Field.FieldGroup>
+        {#if statusError}<Alert.Root variant="destructive"><Alert.Title>Learning status</Alert.Title><Alert.Description>{statusError}{#if onstatusretry}<Button variant="outline" disabled={statusSaving} onclick={onstatusretry}>Retry status update</Button>{/if}</Alert.Description></Alert.Root>{/if}
+      {/if}
+      {#if detail.item.status === 'mastered' && !detail.item.achievedAt}<div><Button variant="destructiveOutline" disabled={statusSaving} onclick={onachieve}>Achieve</Button></div>{/if}
       <section class="timeline" aria-label="Capture history"><h3>Capture history</h3>
         {#each detail.encounters as encounter (encounter.id)}
           <article><p>{encounter.sentence}</p>{#if encounter.savedTranslation}<p><small>{encounter.savedTranslation.targetLanguage}</small> <span>{encounter.savedTranslation.text}</span></p>{/if}<small>{[encounter.sourceApp, encounter.sourceTitle, encounter.sourceUrl].filter(Boolean).join(' · ') || 'Manual entry'}</small></article>

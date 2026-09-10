@@ -9,6 +9,10 @@ pub enum RepositoryError {
     NotFound,
     #[error("This word is achieved. Unachieve it before saving another context.")]
     Achieved,
+    #[error(
+        "Cannot undo: this Vocabulary Item changed after the status update. No changes were undone."
+    )]
+    StaleLearningStatusUndo,
     #[error("persistence failure: {0}")]
     Persistence(String),
 }

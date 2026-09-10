@@ -15,6 +15,7 @@
   import SettingsForm from '../components/SettingsForm.svelte';
   import VocabularyTable from '../components/VocabularyTable.svelte';
   import VocabularyDetail from '../components/VocabularyDetail.svelte';
+  import type { WordStatus } from '../lib/types';
   import { applyAppearance } from '../lib/appearance';
   import CalendarDays from '@lucide/svelte/icons/calendar-days';
   import BookOpen from '@lucide/svelte/icons/book-open';
@@ -39,6 +40,12 @@
   let selectedAchievedIds = new Set<string>();
   let lastUnachievedIds: string[] = [];
   let selectedDetail: WordDetail | null = null;
+  let statusSaving = false;
+  let statusError = '';
+  let pendingStatus: WordStatus | null = null;
+  let statusUndo: { token: string; before: WordListItem; status: WordStatus } | null = null;
+  let statusUndoBusy = false;
+  let statusUndoError = '';
   let savedCard: CaptureCard | null = null;
   let captureOpen = false;
   let loading = true;
@@ -101,6 +108,7 @@
   let reviewCompleteHeading: HTMLHeadingElement;
 
   const savedToastId = crypto.randomUUID();
+  const statusToastId = crypto.randomUUID();
   const unachievedToastId = crypto.randomUUID();
   const settingsToastId = crypto.randomUUID();
   const notificationHostId = crypto.randomUUID();
@@ -112,7 +120,11 @@
     id: unachievedToastId, toasterId: notificationHostId, duration: Infinity, dismissible: false,
     componentProps: { title: lastUnachievedIds.length + " Unachieved", description: "Returned to Mastered", label: "Vocabulary Unachieved", dismissLabel: "Dismiss Unachieve result", onundo: undoUnachieve, ondismiss: () => { lastUnachievedIds = []; } },
   }); else toast.dismiss(unachievedToastId);
-  onDestroy(() => { toast.dismiss(savedToastId); toast.dismiss(unachievedToastId); toast.dismiss(settingsToastId); });
+  $: if (statusUndo) toast.custom(UndoNotification, {
+    id: statusToastId, toasterId: notificationHostId, duration: Infinity, dismissible: false,
+    componentProps: { title: statusUndo.before.displayForm, description: `${statusUndo.status} · Shown in ${statusUndo.status === 'mastered' ? 'Mastered' : 'Active'}`, label: 'Learning status changed', dismissLabel: 'Dismiss status change', onundo: undoLearningStatus, ondismiss: () => { statusUndo = null; }, busy: statusUndoBusy || statusSaving, error: statusUndoError },
+  }); else toast.dismiss(statusToastId);
+  onDestroy(() => { toast.dismiss(savedToastId); toast.dismiss(unachievedToastId); toast.dismiss(settingsToastId); toast.dismiss(statusToastId); });
 
   $: if (appliedSettings) applyAppearance(appliedSettings);
   $: visibleWords = words.filter((word) => vocabularyView === "active" ? word.status !== "mastered" : word.status === "mastered");
@@ -242,6 +254,8 @@
 
   async function showDetail(wordId: string, trigger: HTMLElement) {
     error = "";
+    statusError = '';
+    pendingStatus = null;
     detailTrigger = trigger;
     try {
       selectedDetail = await api.getWord(wordId);
@@ -251,6 +265,7 @@
   }
 
   async function closeDetail() {
+    if (statusSaving) return;
     selectedDetail = null;
     await tick();
     detailTrigger?.focus();
@@ -263,6 +278,47 @@
     if (!confirm(`Achieve ${selectedDetail.item.displayForm}? It will be permanently deleted on ${deletion}.`)) return;
     try { if (!api.achieveWord) throw new Error("Achieve is unavailable"); await api.achieveWord(selectedDetail.item.id); selectedDetail = null; vocabularyView = "achieved"; await refresh(); }
     catch (cause) { error = cause instanceof Error ? cause.message : String(cause); }
+  }
+
+  async function changeLearningStatus(status: WordStatus) {
+    if (!selectedDetail || statusSaving || statusUndoBusy || selectedDetail.item.status === status || !api.changeLearningStatus) return;
+    const item = selectedDetail.item;
+    statusSaving = true;
+    statusError = '';
+    pendingStatus = status;
+    try {
+      const token = await api.changeLearningStatus(item.id, status);
+      if (token) { statusUndo = { token, before: { ...item }, status }; statusUndoError = ''; }
+      pendingStatus = null;
+      selectedDetail = { ...selectedDetail, item: { ...item, status } };
+      words = words.map(word => word.id === item.id ? { ...word, status } : word);
+      if (!(await refresh())) statusError = 'Status saved. Could not refresh vocabulary. Retry to refresh.';
+    } catch (cause) {
+      statusError = cause instanceof Error ? cause.message : String(cause);
+    } finally { statusSaving = false; }
+  }
+
+  async function retryStatusUpdate() {
+    if (pendingStatus) await changeLearningStatus(pendingStatus);
+    else if (await refresh()) statusError = '';
+  }
+
+  async function undoLearningStatus() {
+    if (!statusUndo || statusUndoBusy || statusSaving || !api.undoLearningStatus) return;
+    const undo = statusUndo;
+    statusUndoBusy = true;
+    statusUndoError = '';
+    try {
+      await api.undoLearningStatus(undo.token);
+      if (selectedDetail?.item.id === undo.before.id) selectedDetail = { ...selectedDetail, item: { ...selectedDetail.item, status: undo.before.status, nextReviewAt: undo.before.nextReviewAt } };
+      words = words.map(word => word.id === undo.before.id ? { ...word, status: undo.before.status, nextReviewAt: undo.before.nextReviewAt } : word);
+      statusUndo = null;
+      if (!(await refresh())) {
+        statusError = 'Status restored. Could not refresh vocabulary. Retry to refresh.';
+        toast.error(statusError, { toasterId: notificationHostId });
+      }
+    } catch (cause) { statusUndoError = cause instanceof Error ? cause.message : String(cause); }
+    finally { statusUndoBusy = false; }
   }
 
   async function achieveWordFromRow(word: WordListItem) {
@@ -308,7 +364,19 @@
   }
 
   async function startReview() {
-    if (loading || !today?.reviewQueue.length || reviewRefreshRequired) return;
+    if (loading || reviewRefreshRequired) return;
+    if (reviewPaused) {
+      if (!(await refresh())) { reviewRefreshRequired = true; return; }
+      if (!today) return;
+      const completed = new Set(reviewSessionResults.map(result => result.wordId));
+      today = { ...today, reviewQueue: today.reviewQueue.filter(card => !completed.has(card.wordId)) };
+      reviewIndex = 0;
+      reviewRequestVersion += 1;
+      for (const card of today.reviewQueue) {
+        if (!reviewSessionCards.some(existing => existing.wordId === card.wordId)) reviewSessionCards = [...reviewSessionCards, card];
+      }
+      if (!today.reviewQueue.length) { route = 'Review'; await finishReview(); return; }
+    } else if (!today?.reviewQueue.length) return;
     route = "Review";
     reviewOpen = true;
     reviewComplete = false;
@@ -374,6 +442,7 @@
     reviewError = "";
     try {
       const result = await api.submitReview(wordId, rating, reviewSubmissionId);
+      if (statusUndo?.before.id === wordId) statusUndo = null;
       if (requestVersion === reviewRequestVersion && activeReview?.wordId === wordId) {
         reviewResult = result;
         if (!reviewSessionResults.some((item) => item.wordId === result.wordId)) {
@@ -413,28 +482,39 @@
       await tick();
       reviewCardElement?.querySelector<HTMLButtonElement>(".review-actions button")?.focus();
     } else {
-        const nextDayEnd = new Date();
-        nextDayEnd.setDate(nextDayEnd.getDate() + 2);
-        nextDayEnd.setHours(0, 0, 0, 0);
-        try {
-          reviewSessionInsight = await api.getReviewSessionInsight(
-            reviewSessionResults.map((result) => result.submissionId), nextDayEnd.toISOString()
-          );
-        } catch (cause) {
-          reviewError = cause instanceof Error ? cause.message : String(cause);
-          return;
-        }
-        reviewOpen = false;
-        reviewPaused = false;
-        reviewCompleting = true;
-        if (await refresh()) {
-          reviewIndex = 0;
-          reviewCompleting = false;
-          reviewComplete = true;
-          await tick();
-          reviewCompleteHeading?.focus();
-        } else reviewRefreshRequired = true;
+      await finishReview();
     }
+  }
+
+  async function finishReview() {
+    const nextDayEnd = new Date();
+    nextDayEnd.setDate(nextDayEnd.getDate() + 2);
+    nextDayEnd.setHours(0, 0, 0, 0);
+    try {
+      reviewSessionInsight = await api.getReviewSessionInsight(
+        reviewSessionResults.map((result) => result.submissionId), nextDayEnd.toISOString()
+      );
+    } catch (cause) {
+      reviewError = cause instanceof Error ? cause.message : String(cause);
+      if (!today?.reviewQueue.length) {
+        reviewOpen = false;
+        reviewPaused = true;
+        reviewRefreshRequired = true;
+        route = 'Today';
+        error = reviewError;
+      }
+      return;
+    }
+    reviewOpen = false;
+    reviewPaused = false;
+    reviewCompleting = true;
+    if (await refresh()) {
+      reviewIndex = 0;
+      reviewCompleting = false;
+      reviewComplete = true;
+      await tick();
+      reviewCompleteHeading?.focus();
+    } else reviewRefreshRequired = true;
   }
 
   async function returnToToday() {
@@ -623,7 +703,7 @@
 
 <Toaster id={notificationHostId} position="bottom-right" />
 
-<VocabularyDetail detail={selectedDetail} trigger={detailTrigger} onclose={closeDetail} onachieve={achieveSelectedWord} />
+<VocabularyDetail detail={selectedDetail} trigger={detailTrigger} onclose={closeDetail} onachieve={achieveSelectedWord} onstatuschange={api.changeLearningStatus ? changeLearningStatus : undefined} statusSaving={statusSaving || statusUndoBusy} {statusError} onstatusretry={retryStatusUpdate} />
 </div>
 
 <style>
@@ -682,3 +762,4 @@
   :global(.manual-capture-content textarea) { min-height:96px; }
   :global(.manual-capture-content [data-slot=dialog-title]) { font-size:1.5rem; line-height:1.2; font-weight:600; margin-top:8px; }
 </style>
+

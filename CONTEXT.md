@@ -8,6 +8,10 @@ Vocab Collector helps a reader retain vocabulary encountered while reading. The 
 A normalized word or phrase in a particular source language kept for later review, with one shared learning status across its target-language translations. Choosing a different target translation language does not create a different Vocabulary Item.
 _Avoid_: Card, entry, capture
 
+**Learning Status**:
+The user-selected learning stage of a Vocabulary Item: Learning, Mastered, or Paused. It is shared across the item's target-language translations and is distinct from its Achieved lifecycle state.
+_Avoid_: Review rating, achievement state
+
 **Encounter**:
 One occurrence of a vocabulary item in its original sentence and source context, optionally retaining the translation saved on that occasion. Repeated encounters belong to the same vocabulary item regardless of target translation language.
 _Avoid_: Duplicate, capture record

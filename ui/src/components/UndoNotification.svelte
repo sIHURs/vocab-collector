@@ -8,13 +8,15 @@
   export let dismissLabel: string;
   export let onundo: () => void;
   export let ondismiss: () => void;
+  export let busy = false;
+  export let error = '';
 </script>
 
 <div class="notification" role="dialog" aria-label={label}>
   <Check size={18} aria-hidden="true" />
-  <div><strong>{title}</strong><span>{description}</span></div>
-  <Button variant="outline" onclick={onundo}>Undo</Button>
-  <Button variant="ghost" size="icon" aria-label={dismissLabel} onclick={ondismiss}><X size={16} /></Button>
+  <div><strong>{title}</strong><span>{description}</span>{#if error}<span role="alert">{error}</span>{/if}</div>
+  <Button variant="outline" disabled={busy} onclick={onundo}>Undo</Button>
+  <Button variant="ghost" size="icon" disabled={busy} aria-label={dismissLabel} onclick={ondismiss}><X size={16} /></Button>
 </div>
 
 <style>

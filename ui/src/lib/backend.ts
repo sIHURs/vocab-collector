@@ -4,7 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import type {
   AchievedCaptureConflict, AchievedWordListItem, CaptureCard, CaptureInput, Encounter, GlobalInsight, PlatformCapabilities, ReviewRating, ReviewResult, ReviewSessionInsight, Settings,
   SettingsApplyResult, SystemSettingsStatus, TodayView,
-  WordDetail, WordListItem, VocabularyLog,
+  WordDetail, WordListItem, WordStatus, VocabularyLog,
 } from "./types";
 
 export interface Backend {
@@ -20,6 +20,8 @@ export interface Backend {
   deleteAchievedWords?(wordIds: string[]): Promise<number>;
   runLifecycleSweep?(): Promise<{ achievedCount: number; purgedCount: number }>;
   getWord(wordId: string): Promise<WordDetail>;
+  changeLearningStatus?(wordId: string, status: WordStatus): Promise<string | null>;
+  undoLearningStatus?(token: string): Promise<string>;
   submitReview(wordId: string, rating: ReviewRating, submissionId?: string): Promise<ReviewResult>;
   getReviewSessionInsight(submissionIds: string[], nextDayEnd: string): Promise<ReviewSessionInsight>;
   getGlobalInsight?(): Promise<GlobalInsight>;
@@ -74,6 +76,10 @@ const achievedTiming = (deleteAfter: string) => {
 };
 
 export class DemoBackend implements Backend {
+  private statusUndo = new Map<string, { before: DemoWord; after: string }>();
+  private invalidateStatusUndo(wordId: string) {
+    for (const [token, snapshot] of this.statusUndo) if (snapshot.before.item.id === wordId) this.statusUndo.delete(token);
+  }
   private words: DemoWord[] = [];
   private captureUndo = new Map<string, { before: DemoWord[]; after: string; wordId: string }>();
   private logStarted = localDate();
@@ -172,6 +178,7 @@ export class DemoBackend implements Backend {
     detail.item.lastSeenAt = now;
     if (input.translation) detail.item.translation = input.translation;
     this.captureUndo.set(encounter.id, { before, after:JSON.stringify(detail), wordId:detail.item.id });
+    this.invalidateStatusUndo(detail.item.id);
     return { wordId: detail.item.id, encounterId: encounter.id,
       displayForm: detail.item.displayForm, translation: detail.item.translation,
       context: encounter.sentence, encounterCount: detail.encounters.length,
@@ -199,10 +206,12 @@ export class DemoBackend implements Backend {
     if (savedDate) { this.dailyCounts.set(savedDate, (this.dailyCounts.get(savedDate) ?? 1)-1); this.savedDates.delete(encounterId); }
     this.words = [...this.words.filter(w => w.item.id !== snapshot.wordId), ...structuredClone(snapshot.before)];
     this.captureUndo.delete(encounterId);
+    this.invalidateStatusUndo(snapshot.wordId);
   }
 
   async getToday(): Promise<TodayView> {
-    const allDue = this.words.filter((word) => word.due && !word.item.achievedAt);
+    const allDue = this.words.filter((word) => word.item.status === 'learning' && !word.item.achievedAt &&
+      (word.item.nextReviewAt ? Date.parse(word.item.nextReviewAt) <= Date.now() : word.due));
     const due = allDue.slice(0, this.settings.dailyLimit);
     return {
       totalDueCount: allDue.length, plannedReviewCount: due.length,
@@ -241,6 +250,7 @@ export class DemoBackend implements Backend {
     const achievedAt = new Date();
     const deleteAfter = new Date(achievedAt.getTime() + (this.settings.achievedRetentionDays ?? 30) * 86_400_000);
     word.item.achievedAt = achievedAt.toISOString(); word.item.deleteAfter = deleteAfter.toISOString();
+    this.invalidateStatusUndo(wordId);
     return { id: word.item.id, lemma: word.lemma, displayForm: word.item.displayForm, translation: this.projectItem(word).translation, translationLanguage:this.projectItem(word).translationLanguage,
       encounterCount: word.item.encounterCount, achievedAt: word.item.achievedAt, deleteAfter: word.item.deleteAfter,
       ...achievedTiming(word.item.deleteAfter) };
@@ -251,6 +261,7 @@ export class DemoBackend implements Backend {
       if (!word) throw new Error("Vocabulary Item is not Achieved");
     }
     for (const word of this.words.filter((candidate) => wordIds.includes(candidate.item.id))) {
+      this.invalidateStatusUndo(word.item.id);
       word.item.achievedAt = undefined; word.item.deleteAfter = undefined;
     }
     return wordIds.length;
@@ -264,6 +275,34 @@ export class DemoBackend implements Backend {
     return wordIds.length;
   }
   async runLifecycleSweep() { return { achievedCount: 0, purgedCount: 0 }; }
+  async changeLearningStatus(wordId: string, status: WordStatus): Promise<string | null> {
+    const word = this.words.find(candidate => candidate.item.id === wordId);
+    if (!word) throw new Error('Vocabulary Item not found');
+    if (word.item.achievedAt) throw new Error('Unachieve this Vocabulary Item before changing its status');
+    if (word.item.status === status) return null;
+    const before = structuredClone(word);
+    this.invalidateStatusUndo(wordId);
+    if (word.item.status === 'mastered' && status !== 'mastered') {
+      word.item.nextReviewAt = new Date().toISOString();
+      word.due = true;
+    }
+    word.item.status = status;
+    const token = id();
+    this.statusUndo.set(token, { before, after: JSON.stringify(word) });
+    return token;
+  }
+  async undoLearningStatus(token: string): Promise<string> {
+    const snapshot = this.statusUndo.get(token);
+    const word = snapshot && this.words.find(candidate => candidate.item.id === snapshot.before.item.id);
+    if (!snapshot || !word || word.item.achievedAt || JSON.stringify(word) !== snapshot.after) {
+      throw new Error('Cannot undo: this Vocabulary Item changed after the status update. No changes were undone.');
+    }
+    word.item.status = snapshot.before.item.status;
+    word.item.nextReviewAt = snapshot.before.item.nextReviewAt;
+    word.due = snapshot.before.due;
+    this.statusUndo.delete(token);
+    return word.item.id;
+  }
   async getWord(wordId: string) {
     const word = this.words.find((candidate) => candidate.item.id === wordId);
     if (!word) throw new Error("word not found");
@@ -281,6 +320,7 @@ export class DemoBackend implements Backend {
     const previousDueAt = word.item.nextReviewAt ?? reviewedAt;
     const nextDueAt = new Date(Date.now() + (rating === "forgot" ? 86_400_000 : 259_200_000)).toISOString();
     word.due = false;
+    this.invalidateStatusUndo(wordId);
     word.item.nextReviewAt = nextDueAt;
     const result = { submissionId, wordId, rating, reviewedAt, previousDueAt, nextDueAt,
       previousStability: 1, stability: rating === "forgot" ? 0.5 : 3,
@@ -345,6 +385,8 @@ class TauriBackend implements Backend {
   deleteAchievedWords(wordIds: string[]) { return invoke<number>("delete_achieved_words", { wordIds }); }
   runLifecycleSweep() { return invoke<{ achievedCount: number; purgedCount: number }>("run_lifecycle_sweep"); }
   getWord(wordId: string) { return invoke<WordDetail>("get_word", { wordId }); }
+  changeLearningStatus(wordId: string, status: WordStatus) { return invoke<string | null>('change_learning_status', { wordId, status }); }
+  undoLearningStatus(token: string) { return invoke<string>('undo_learning_status', { token }); }
   submitReview(wordId: string, rating: ReviewRating, submissionId = id()) {
     return invoke<ReviewResult>("submit_review", { submissionId, wordId, rating });
   }

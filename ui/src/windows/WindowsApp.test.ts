@@ -348,7 +348,7 @@ describe("Windows main presentation", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Today" })).toBeVisible();
     expect(await screen.findByText("2 words remaining.")).toBeVisible();
     await fireEvent.click(screen.getByRole("button", { name: "Resume review" }));
-    expect(screen.getByRole("heading", { name: "nuance" })).toBeVisible();
+    expect(await screen.findByRole("heading", { name: "nuance" })).toBeVisible();
 
     await revealAndRate("Remembered");
     await fireEvent.click(await screen.findByRole("button", { name: "Next" }));
@@ -474,8 +474,8 @@ describe("Windows main presentation", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Resume review" })).toBeEnabled());
     await fireEvent.click(screen.getByRole("button", { name: "Resume review" }));
 
+    expect(await screen.findByRole("button", { name: "Show answer" })).toBeVisible();
     expect(screen.queryByText("glücklicher Zufall")).toBeNull();
-    expect(screen.getByRole("button", { name: "Show answer" })).toBeVisible();
     expect(api.ratings).toHaveLength(0);
   });
 
@@ -514,7 +514,7 @@ describe("Windows main presentation", () => {
     await fireEvent.click(screen.getByRole("button", { name: "Today" }));
     await fireEvent.click(screen.getByRole("button", { name: "Try again" }));
     await fireEvent.click(await screen.findByRole("button", { name: "Resume review" }));
-    expect(screen.getByRole("heading", { name: "nuance" })).toBeVisible();
+    expect(await screen.findByRole("heading", { name: "nuance" })).toBeVisible();
   });
 
   it("does not allow Close while a rating submission is pending", async () => {
@@ -819,7 +819,7 @@ describe("Paper Today and Review", () => {
     expect(await screen.findByRole("heading", { name: "Today" })).toBeVisible();
     await waitFor(() => expect(screen.getByRole("button", { name: "Resume review" })).toBeEnabled());
     await fireEvent.click(screen.getByRole("button", { name: "Resume review" }));
-    expect(screen.getByRole("button", { name: "Show answer" })).toBeVisible();
+    expect(await screen.findByRole("button", { name: "Show answer" })).toBeVisible();
     expect(screen.queryByRole("button", { name: "Remembered" })).toBeNull();
   });
   it("keeps Today available when optional Insight fails", async () => {
@@ -846,3 +846,4 @@ describe("Paper Today and Review", () => {
     } finally { view.unmount(); vi.useRealTimers(); }
   });
 });
+
