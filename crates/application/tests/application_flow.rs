@@ -856,3 +856,54 @@ fn deleted_previewed_achieved_item_is_not_silently_replaced() {
     );
     assert!(service.list_words().unwrap().is_empty());
 }
+
+#[test]
+fn achieved_notice_survives_a_learning_auto_alias_and_undo_restores_both() {
+    let store = Arc::new(SqliteStore::open_in_memory().unwrap());
+    let service = AppService::new(store.clone(), Uuid::now_v7());
+    let first = service.capture(request("notion", "Vorstellung")).unwrap();
+    let mut english = WordRepository::get(store.as_ref(), first.word_id)
+        .unwrap()
+        .unwrap();
+    let mut unresolved = english.clone();
+    unresolved.id = Uuid::from_u128(1);
+    unresolved.source_language = "auto".into();
+    unresolved.target_language = "zh-hans".into();
+    WordRepository::save(store.as_ref(), &unresolved).unwrap();
+    english.enter_mastered(Utc::now());
+    WordRepository::save(store.as_ref(), &english).unwrap();
+    service.achieve_word(english.id, Utc::now()).unwrap();
+    let mut input = request("Notion", "概念");
+    input.target_language = "zh-Hans".into();
+    let matched = service
+        .find_achieved_capture(&input)
+        .unwrap()
+        .expect("Learning auto alias must not hide the Achieved English item");
+    assert_eq!(matched.word_id, english.id);
+    assert!(
+        service.capture(input.clone()).is_err(),
+        "Achieved history still requires explicit recapture"
+    );
+    let saved = service
+        .restore_achieved_and_capture(matched.word_id, input)
+        .unwrap();
+    assert_eq!(
+        saved.word_id, unresolved.id,
+        "The older auto identity can survive the merge"
+    );
+    assert_eq!(service.list_words().unwrap().len(), 1);
+    assert!(service.list_achieved_words().unwrap().is_empty());
+    assert_eq!(
+        service.get_word(saved.word_id).unwrap().item.status,
+        WordStatus::Learning
+    );
+    service.undo_capture(saved.encounter_id).unwrap();
+    assert_eq!(service.list_achieved_words().unwrap().len(), 1);
+    assert_eq!(
+        WordRepository::get(store.as_ref(), unresolved.id)
+            .unwrap()
+            .unwrap()
+            .source_language,
+        "auto"
+    );
+}

@@ -104,6 +104,15 @@ impl PlatformCaptureWorkflow {
     ) -> Result<(), PlatformCaptureError> {
         let settings = self.application.get_settings()?;
         let mut candidate = self.coordinator.candidate(request_id)?;
+        // Applying/editing a translation for the same word must retain the
+        // provider's detected language, rather than replacing it with `auto`.
+        let previous_translation = if vocab_domain::normalize_lemma(&candidate.selected_text)
+            == vocab_domain::normalize_lemma(&selected_text)
+        {
+            self.coordinator.translation(request_id)?
+        } else {
+            None
+        };
         candidate.selected_text = selected_text;
         candidate.sentence = sentence;
         let translation = manual_translation
@@ -111,8 +120,14 @@ impl PlatformCaptureWorkflow {
             .filter(|value| !value.is_empty())
             .map(|translated_text| TranslationResult {
                 translated_text,
-                source_language: settings.source_language,
-                target_language: settings.target_language,
+                source_language: previous_translation.as_ref().map_or_else(
+                    || settings.source_language.clone(),
+                    |value| value.source_language.clone(),
+                ),
+                target_language: previous_translation.as_ref().map_or_else(
+                    || settings.target_language.clone(),
+                    |value| value.target_language.clone(),
+                ),
             });
         self.coordinator
             .correct(request_id, candidate, translation)?;

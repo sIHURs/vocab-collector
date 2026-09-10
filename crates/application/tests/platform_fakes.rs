@@ -619,3 +619,85 @@ fn selection_and_confirmed_ocr_recapture_share_identity_and_complete_undo() {
         assert_eq!(app.get_word(first.word_id).unwrap().encounters.len(), 1);
     }
 }
+
+#[test]
+fn applying_translated_draft_preserves_detected_language_for_achieved_lookup() {
+    use vocab_domain::WordRepository;
+    let store = Arc::new(SqliteStore::open_in_memory().unwrap());
+    let app = Arc::new(AppService::new(store.clone(), Uuid::now_v7()));
+    let workflow = PlatformCaptureWorkflow::new(
+        app.clone(),
+        platform_services(
+            Ok(candidate("Notion")),
+            Arc::new(CountingTranslationProvider {
+                calls: Arc::new(AtomicUsize::new(0)),
+            }),
+        ),
+    );
+    let mut english_id = None;
+    for language in ["en", "fr"] {
+        let mut settings = app.get_settings().unwrap();
+        settings.source_language = language.into();
+        app.update_settings(settings).unwrap();
+        let request = workflow.start_request();
+        workflow
+            .set_candidate(request, candidate("notion"))
+            .unwrap();
+        workflow
+            .correct(
+                request,
+                "notion".into(),
+                "context".into(),
+                Some("Vorstellung".into()),
+            )
+            .unwrap();
+        let saved = workflow.save(request, false, captured_at()).unwrap();
+        if language == "en" {
+            english_id = Some(saved.word_id);
+            let mut word = WordRepository::get(store.as_ref(), saved.word_id)
+                .unwrap()
+                .unwrap();
+            word.enter_mastered(Utc::now());
+            WordRepository::save(store.as_ref(), &word).unwrap();
+            app.achieve_word(word.id, Utc::now()).unwrap();
+        }
+    }
+    let mut settings = app.get_settings().unwrap();
+    settings.source_language = "auto".into();
+    app.update_settings(settings).unwrap();
+    let request = workflow.start_request();
+    workflow
+        .set_candidate(request, candidate("Notion"))
+        .unwrap();
+    let translated = block_on(workflow.translate(request, "Notion", "auto", "de")).unwrap();
+    assert_eq!(
+        workflow
+            .find_achieved_capture(request, Utc::now())
+            .unwrap()
+            .map(|m| m.word_id),
+        english_id
+    );
+    // The floating window applies the editable draft immediately after translation.
+    workflow
+        .correct(
+            request,
+            "Notion".into(),
+            "context".into(),
+            Some(translated.translated_text),
+        )
+        .unwrap();
+    assert_eq!(
+        workflow
+            .find_achieved_capture(request, Utc::now())
+            .unwrap()
+            .map(|m| m.word_id),
+        english_id,
+        "Applying the draft must not lose the detected source language and hide Achieved"
+    );
+    let saved = workflow
+        .restore_achieved_and_save(request, english_id.unwrap(), false, Utc::now())
+        .unwrap();
+    assert_eq!(saved.word_id, english_id.unwrap());
+    workflow.undo(request, saved.encounter_id).unwrap();
+    assert_eq!(app.list_achieved_words().unwrap().len(), 1);
+}

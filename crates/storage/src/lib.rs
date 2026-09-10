@@ -306,12 +306,16 @@ impl SqliteStore {
         let mut connection = self.lock()?;
         let transaction = connection.transaction().map_err(repo_error)?;
         let key = dedupe_key(&input.lemma, &input.source_language);
+        let matched_words = identity::candidates(&transaction, input)?;
         if let Some(id) = expected
-            && identity::preview(&transaction, input)?.is_none_or(|w| w.id != id)
+            && !matched_words.iter().any(|word| word.id == id)
         {
             return Err(RepositoryError::Persistence(
                 "Vocabulary Item changed; recheck the capture before saving".into(),
             ));
+        }
+        if expected.is_none() && matched_words.iter().any(Word::is_achieved) {
+            return Err(RepositoryError::Achieved);
         }
         let before = capture_undo::before(&transaction, input)?;
         let existing = identity::resolve(&transaction, input)?;

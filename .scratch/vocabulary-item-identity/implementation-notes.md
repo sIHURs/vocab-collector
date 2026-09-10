@@ -49,3 +49,13 @@ Initial review found two P2 interaction issues. Both were fixed and passed targe
 Dedicated regression tests cover both cases. No remaining definite specification regression was found in the targeted re-review.
 
 Review totals: Standards 3 heuristic findings resolved, 0 remaining; Spec 2 P2 findings resolved, 0 remaining. All six local tickets are complete. The original running app and its database were not switched to the new build during implementation.
+
+## Notion recapture follow-up
+
+A temporary identity-only trace from the running desktop connection confirmed schema 8 and two live `notion` records: an unresolved-source Learning item and an English Achieved item. `foster` had only the English Achieved item. Earlier external database reads did not reflect this runtime state and are not evidence that the running app was on schema 4.
+
+The concrete failure was preview consolidation: Learning won over Achieved before the notice check. Capture lookup now returns a matched Achieved record before state consolidation. Save revalidates that record against the candidate set, allowing a different canonical ID to survive the merge; ordinary save without explicit recapture is rejected whenever a matched item is Achieved. The existing Learning-first consolidation policy remains unchanged. Complete Undo restores both pre-save records.
+
+An additional native workflow defect was fixed: applying a translation draft for an unchanged word preserves the detected source/target language rather than overwriting it with settings (especially `auto`).
+
+Both regression tests failed before their fixes and passed afterward. The runtime-shape regression also covers an older auto ID surviving the merge, normal-save refusal, consolidation and complete Undo. All storage/application tests and Clippy passed. Temporary runtime tracing and its output files were removed; no direct edits were made to user vocabulary data. Native visual confirmation still requires recapturing in the rebuilt app.

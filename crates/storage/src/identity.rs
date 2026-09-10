@@ -31,17 +31,6 @@ pub(super) fn candidates(
         .collect())
 }
 
-pub(super) fn preview(
-    connection: &Connection,
-    input: &CaptureRecord,
-) -> Result<Option<Word>, RepositoryError> {
-    let words = candidates(connection, input)?;
-    Ok(words.first().cloned().map(|mut word| {
-        apply_state(&mut word, &words);
-        word
-    }))
-}
-
 pub(super) fn resolve(
     connection: &Connection,
     input: &CaptureRecord,
@@ -67,7 +56,14 @@ pub(super) fn resolve(
 
 impl SqliteStore {
     pub fn capture_match(&self, input: &CaptureRecord) -> Result<Option<Word>, RepositoryError> {
-        preview(&*self.lock()?, input)
+        let words = candidates(&*self.lock()?, input)?;
+        // The notice describes matched history, not the state chosen for merging.
+        // A Learning auto alias must not conceal a known-language Achieved item.
+        Ok(words
+            .iter()
+            .find(|word| word.is_achieved())
+            .or(words.first())
+            .cloned())
     }
 }
 
