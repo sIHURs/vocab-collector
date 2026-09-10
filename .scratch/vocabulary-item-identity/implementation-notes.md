@@ -59,3 +59,19 @@ The concrete failure was preview consolidation: Learning won over Achieved befor
 An additional native workflow defect was fixed: applying a translation draft for an unchanged word preserves the detected source/target language rather than overwriting it with settings (especially `auto`).
 
 Both regression tests failed before their fixes and passed afterward. The runtime-shape regression also covers an older auto ID surviving the merge, normal-save refusal, consolidation and complete Undo. All storage/application tests and Clippy passed. Temporary runtime tracing and its output files were removed; no direct edits were made to user vocabulary data. Native visual confirmation still requires recapturing in the rebuilt app.
+
+## Resolved external schema 4 discrepancy
+
+Windows file-handle inspection established the source of the contradictory reads. The external Python process requested the standard Roaming path, but `GetFinalPathNameByHandleW` resolved its handle to:
+
+`C:\Users\yifan\AppData\Local\Packages\OpenAI.Codex_2p2nqsd0c76g0\LocalCache\Roaming\app.vocabcollector.desktop\guest.db`
+
+That package-local file is 176128 bytes, volume serial 160692624, file ID 6473924464764085. Opening that explicit location read schema 4 and 35 words.
+
+The running desktop process's duplicated database handle resolved to:
+
+`C:\Users\yifan\AppData\Roaming\app.vocabcollector.desktop\guest.db`
+
+It is 458752 bytes, on the same volume but file ID 281474977489805. The runtime export already confirmed schema 8. These are distinct physical files, caused by the external process's packaged-app filesystem redirection, not a single SQLite database supporting simultaneous schemas or a stale SQLite transaction cache.
+
+Consequently the earlier schema-4 backup migration check validated the package-local historical copy, not a backup of the live desktop database. Future external investigations must verify the handle's final path and file identity, or export through the running app. No database was deleted, merged, or upgraded during this source investigation. The historical action that first created the package-local copy was not determined.
