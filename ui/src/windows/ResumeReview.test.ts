@@ -68,3 +68,40 @@ it('uses persisted Undo results when resuming', async () => {
   expect(screen.getByRole('button', { name: 'Show answer' })).toBeVisible();
 });
 
+it('fills the remaining plan even when an already reviewed item becomes due again', async () => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  try {
+    vi.setSystemTime(new Date('2026-09-10T12:00:00Z'));
+    const api = new DemoBackend();
+    await pauseAfterOneReview(api);
+    const remaining = (await api.getToday()).reviewQueue;
+    vi.setSystemTime(new Date('2026-09-11T12:00:00Z'));
+    await api.submitReview(remaining[0].wordId, 'remembered');
+    await api.changeLearningStatus(remaining[1].wordId, 'paused');
+    await api.updateSettings({ ...(await api.getSettings()), dailyLimit: 1 });
+    vi.setSystemTime(new Date('2026-09-15T12:00:00Z'));
+    await fireEvent.click(screen.getByRole('button', { name: 'Resume review' }));
+    expect(await screen.findByRole('heading', { name: remaining[0].displayForm })).toBeVisible();
+    expect(screen.getByText('1 of 1')).toBeVisible();
+  } finally { vi.useRealTimers(); }
+});
+
+it('keeps the submitted card paired with its result when its status is edited from Review contexts', async () => {
+  const api = new DemoBackend();
+  const submit = api.submitReview.bind(api);
+  api.submitReview = async (...args) => ({ ...(await submit(...args)), repeatedForgetting: true });
+  render(WindowsApp, { api });
+  await fireEvent.click(await screen.findByRole('button', { name: /Start review/ }));
+  await fireEvent.click(screen.getByRole('button', { name: 'Show answer' }));
+  await fireEvent.click(screen.getByRole('button', { name: 'Forgot' }));
+  await fireEvent.click(await screen.findByRole('button', { name: 'Review contexts' }));
+  await fireEvent.change(await screen.findByRole('combobox', { name: 'Learning status' }), { target: { value: 'paused' } });
+  await waitFor(() => expect(screen.getByRole('combobox', { name: 'Learning status' })).toBeEnabled());
+  await fireEvent.click(screen.getByRole('button', { name: 'Close vocabulary detail' }));
+  expect(screen.getByRole('heading', { name: 'serendipity' })).toBeVisible();
+  await fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+  expect(await screen.findByRole('heading', { name: 'nuance' })).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Show answer' })).toBeVisible();
+  expect(screen.queryByText(/Next review/)).toBeNull();
+});
+

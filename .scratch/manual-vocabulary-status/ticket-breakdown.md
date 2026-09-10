@@ -1,8 +1,8 @@
 # Manual Vocabulary Item learning status: approved ticket breakdown
 
-Status: approved-and-published
+Status: implemented
 
-The user approved this three-ticket breakdown. The individual issues are published under the feature's issues directory with ready-for-agent status. No standalone prefactor is necessary based on the current exploration. Keep any enabling refactor narrow and within its slice.
+The user approved this three-ticket breakdown. The individual issues are published under the feature's issues directory with complete status. No standalone prefactor is necessary based on the current exploration. Keep any enabling refactor narrow and within its slice.
 
 ## 01: Edit an individual Vocabulary Item's Learning Status in Windows
 
@@ -10,7 +10,7 @@ The user approved this three-ticket breakdown. The individual issues are publish
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** complete
 
 - [ ] The detail dropdown is the only new editing entry point. It saves one item immediately on selection; there is no bulk editing or custom status definition.
 - [ ] The selected status persists across reload/restart and applies to the entire Vocabulary Item across target-language translations. Existing records need no user intervention.
@@ -31,7 +31,7 @@ The user approved this three-ticket breakdown. The individual issues are publish
 
 **Blocked by:** 01: Edit an individual Vocabulary Item's Learning Status in Windows.
 
-**Status:** ready-for-agent
+**Status:** complete
 
 - [ ] The status-change notification offers Undo with styling, placement, and interaction conventions consistent with existing bottom-right Undo notifications.
 - [ ] Undo atomically restores the prior Learning Status, complete review scheduling state, and mastery start time. It preserves historical Reviews, Encounters, and unrelated item data.
@@ -47,7 +47,7 @@ The user approved this three-ticket breakdown. The individual issues are publish
 
 **Blocked by:** 01: Edit an individual Vocabulary Item's Learning Status in Windows.
 
-**Status:** ready-for-agent
+**Status:** complete
 
 - [ ] Resuming a paused Review fetches/recomputes the remaining queue using current status and due times. Paused and Mastered are absent; eligible Learning items can enter under existing queue ordering and daily-limit behavior.
 - [ ] Completed session results remain available for the session summary and Review Insight. A refresh does not discard, duplicate, or resubmit completed Reviews.

@@ -301,6 +301,28 @@ fn same_status_selection_and_unrelated_work_keep_learning_status_undo_valid() {
 }
 
 #[test]
+fn resumed_review_excludes_completed_items_before_applying_the_daily_limit() {
+    let store = Arc::new(SqliteStore::open_in_memory().unwrap());
+    let service = AppService::new(store, Uuid::now_v7());
+    let now = Utc.with_ymd_and_hms(2026, 9, 10, 12, 0, 0).unwrap();
+    let completed = service.capture(request("First", "erste")).unwrap().word_id;
+    service
+        .submit_review(completed, ReviewRating::Remembered, now)
+        .unwrap();
+    let mut later = request("Later", "später");
+    later.captured_at = now + Duration::days(4);
+    let remaining = service.capture(later).unwrap().word_id;
+    let mut settings = service.get_settings().unwrap();
+    settings.daily_limit = 1;
+    service.update_settings(settings).unwrap();
+    let resumed = service
+        .get_today_excluding(now + Duration::days(5), &[completed])
+        .unwrap();
+    assert_eq!(resumed.planned_review_count, 1);
+    assert_eq!(resumed.review_queue[0].word_id, remaining);
+}
+
+#[test]
 fn capture_today_review_and_vocabulary_flow_share_one_source_of_truth() {
     let store = Arc::new(SqliteStore::open_in_memory().unwrap());
     let service = AppService::new(store.clone(), Uuid::now_v7());

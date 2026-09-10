@@ -73,6 +73,7 @@
   let reviewRequestVersion = 0;
   let reviewSessionResults: ReviewResult[] = [];
   let reviewSessionCards: ReviewCard[] = [];
+  let reviewQueue: ReviewCard[] = [];
   let reviewSessionInsight: ReviewSessionInsight | null = null;
   let globalInsight: GlobalInsight | null = null;
   let insightError = "";
@@ -135,7 +136,7 @@
   $: if (vocabularyPage > vocabularyPageCount) vocabularyPage = vocabularyPageCount;
   $: vocabularyPageInput = String(vocabularyPage);
   $: pagedWords = filteredWords.slice((vocabularyPage - 1) * vocabularyPageSize, vocabularyPage * vocabularyPageSize);
-  $: activeReview = today?.reviewQueue[reviewIndex] as ReviewCard | undefined;
+  $: activeReview = reviewQueue[reviewIndex] as ReviewCard | undefined;
 
   async function loadInsight() {
     insightError = "";
@@ -143,12 +144,12 @@
     catch (cause) { insightError = cause instanceof Error ? cause.message : String(cause); return null; }
   }
 
-  async function refresh() {
+  async function refresh(completedWordIds?: string[]) {
     loading = true;
     void loadLog();
     error = "";
     try {
-      const [nextToday, nextWords, nextAchievedWords, nextSettings, nextGlobalInsight] = await Promise.all([api.getToday(), api.listWords(), api.listAchievedWords?.() ?? Promise.resolve([]), api.getSettings(), loadInsight()]);
+      const [nextToday, nextWords, nextAchievedWords, nextSettings, nextGlobalInsight] = await Promise.all([api.getToday(completedWordIds), api.listWords(), api.listAchievedWords?.() ?? Promise.resolve([]), api.getSettings(), loadInsight()]);
       today = nextToday;
       words = nextWords;
       achievedWords = nextAchievedWords;
@@ -366,10 +367,8 @@
   async function startReview() {
     if (loading || reviewRefreshRequired) return;
     if (reviewPaused) {
-      if (!(await refresh())) { reviewRefreshRequired = true; return; }
+      if (!(await refresh(reviewSessionResults.map(result => result.wordId)))) { reviewRefreshRequired = true; return; }
       if (!today) return;
-      const completed = new Set(reviewSessionResults.map(result => result.wordId));
-      today = { ...today, reviewQueue: today.reviewQueue.filter(card => !completed.has(card.wordId)) };
       reviewIndex = 0;
       reviewRequestVersion += 1;
       for (const card of today.reviewQueue) {
@@ -377,6 +376,8 @@
       }
       if (!today.reviewQueue.length) { route = 'Review'; await finishReview(); return; }
     } else if (!today?.reviewQueue.length) return;
+    reviewQueue = [...(today?.reviewQueue ?? [])];
+    reviewIndex = 0;
     route = "Review";
     reviewOpen = true;
     reviewComplete = false;
@@ -472,7 +473,7 @@
 
   async function nextReview() {
     if (!reviewResult) return;
-    if (reviewIndex + 1 < (today?.reviewQueue.length ?? 0)) {
+    if (reviewIndex + 1 < reviewQueue.length) {
       reviewIndex += 1;
       reviewRevealed = false;
       reviewResult = null;
@@ -679,7 +680,7 @@
         {#if filteredWords.length}<nav class="pagination" aria-label="Vocabulary pages"><button class="secondary" disabled={vocabularyPage === 1} onclick={() => goToVocabularyPage(1)}>First</button><button class="secondary" disabled={vocabularyPage === 1} onclick={() => goToVocabularyPage(vocabularyPage - 1)}>Previous</button><form aria-label="Go to vocabulary page" onsubmit={(event) => { event.preventDefault(); goToVocabularyPage(vocabularyPageInput); }}><label><span>Page</span><input aria-label="Page number" type="number" min="1" max={vocabularyPageCount} bind:value={vocabularyPageInput} onblur={() => goToVocabularyPage(vocabularyPageInput)} /><span>of {vocabularyPageCount}</span></label></form><button class="secondary" disabled={vocabularyPage === vocabularyPageCount} onclick={() => goToVocabularyPage(vocabularyPage + 1)}>Next</button><button class="secondary" disabled={vocabularyPage === vocabularyPageCount} onclick={() => goToVocabularyPage(vocabularyPageCount)}>Last</button></nav>{/if}{/if}
       {:else if route === "Review"}
         {#if reviewOpen && activeReview}
-          <div class="review-card" aria-live="polite" bind:this={reviewCardElement}><div class="review-progress"><span>{reviewIndex + 1} of {today?.reviewQueue.length}</span><Button variant="ghost" size="icon" aria-label="Close review" disabled={reviewSubmitting} onclick={closeReview}>×</Button></div><Progress value={reviewIndex} max={today?.reviewQueue.length ?? 1} aria-label="Review progress" /><span class="eyebrow">Do you remember this word?</span><h2>{activeReview.displayForm}</h2><p>{activeReview.context ?? "No saved context"}</p>{#if reviewResult}<div class="review-translation" role="status"><small>{reviewResult.rating === "remembered" ? "Remembered" : "Forgot"}</small><strong>Next review {new Date(reviewResult.nextDueAt).toLocaleDateString()}</strong><span>{`Saved ${reviewResult.encounterCount} time${reviewResult.encounterCount === 1 ? "" : "s"}`}</span>{#if reviewResult.repeatedForgetting}<p>This Vocabulary Item has been repeatedly forgotten. Another context or a translation check may help.</p>{/if}</div>{:else if reviewRevealed}<div class="review-translation" role="status"><small>Translation</small><strong>{activeReview.translation ?? "Unavailable"}{#if activeReview.translationLanguage}<small> · {activeReview.translationLanguage}</small>{/if}</strong></div>{/if}{#if reviewError}<div class="dialog-error" role="alert">{reviewError}</div>{/if}<div class="review-actions">{#if reviewResult}{#if reviewResult.repeatedForgetting}<Button variant="outline" onclick={(event) => showDetail(activeReview.wordId, event.currentTarget)}>Review contexts</Button>{/if}<Button onclick={nextReview}>Next</Button>{:else if reviewRevealed}{#if reviewError && reviewSubmissionRating}<Button disabled={reviewSubmitting} onclick={retryReviewSubmission}>Retry {reviewSubmissionRating === "remembered" ? "Remembered" : "Forgot"}</Button>{:else}<Button variant="outline" disabled={reviewSubmitting} onclick={() => rateReview("forgot")}>Forgot</Button><Button disabled={reviewSubmitting} onclick={() => rateReview("remembered")}>Remembered</Button>{/if}{:else}<Button onclick={revealReview}>Show answer</Button>{/if}</div></div>
+          <div class="review-card" aria-live="polite" bind:this={reviewCardElement}><div class="review-progress"><span>{reviewIndex + 1} of {reviewQueue.length}</span><Button variant="ghost" size="icon" aria-label="Close review" disabled={reviewSubmitting} onclick={closeReview}>×</Button></div><Progress value={reviewIndex} max={reviewQueue.length || 1} aria-label="Review progress" /><span class="eyebrow">Do you remember this word?</span><h2>{activeReview.displayForm}</h2><p>{activeReview.context ?? "No saved context"}</p>{#if reviewResult}<div class="review-translation" role="status"><small>{reviewResult.rating === "remembered" ? "Remembered" : "Forgot"}</small><strong>Next review {new Date(reviewResult.nextDueAt).toLocaleDateString()}</strong><span>{`Saved ${reviewResult.encounterCount} time${reviewResult.encounterCount === 1 ? "" : "s"}`}</span>{#if reviewResult.repeatedForgetting}<p>This Vocabulary Item has been repeatedly forgotten. Another context or a translation check may help.</p>{/if}</div>{:else if reviewRevealed}<div class="review-translation" role="status"><small>Translation</small><strong>{activeReview.translation ?? "Unavailable"}{#if activeReview.translationLanguage}<small> · {activeReview.translationLanguage}</small>{/if}</strong></div>{/if}{#if reviewError}<div class="dialog-error" role="alert">{reviewError}</div>{/if}<div class="review-actions">{#if reviewResult}{#if reviewResult.repeatedForgetting}<Button variant="outline" onclick={(event) => showDetail(activeReview.wordId, event.currentTarget)}>Review contexts</Button>{/if}<Button onclick={nextReview}>Next</Button>{:else if reviewRevealed}{#if reviewError && reviewSubmissionRating}<Button disabled={reviewSubmitting} onclick={retryReviewSubmission}>Retry {reviewSubmissionRating === "remembered" ? "Remembered" : "Forgot"}</Button>{:else}<Button variant="outline" disabled={reviewSubmitting} onclick={() => rateReview("forgot")}>Forgot</Button><Button disabled={reviewSubmitting} onclick={() => rateReview("remembered")}>Remembered</Button>{/if}{:else}<Button onclick={revealReview}>Show answer</Button>{/if}</div></div>
         {:else if reviewComplete && reviewSessionInsight}
           <div class="state" aria-live="polite"><h2 tabindex="-1" bind:this={reviewCompleteHeading}>Review complete</h2><strong>{reviewSessionInsight.reviewedCount} reviewed</strong><span>{reviewSessionInsight.rememberedCount} remembered · {reviewSessionInsight.forgottenCount} forgot</span><span>Estimated due by the end of tomorrow: {reviewSessionInsight.nextDayDueCount}</span>{#if reviewSessionInsight.attentionWordIds.length}<div><strong>Worth another context</strong>{#each reviewSessionInsight.attentionWordIds as wordId}<span>{attentionLabel(wordId)} may benefit from another context or a translation check.</span>{/each}</div>{/if}<Button onclick={returnToToday}>Back to Today</Button></div>
         {:else if reviewRefreshRequired}
@@ -762,4 +763,3 @@
   :global(.manual-capture-content textarea) { min-height:96px; }
   :global(.manual-capture-content [data-slot=dialog-title]) { font-size:1.5rem; line-height:1.2; font-weight:600; margin-top:8px; }
 </style>
-

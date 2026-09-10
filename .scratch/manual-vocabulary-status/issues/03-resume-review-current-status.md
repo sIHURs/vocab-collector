@@ -4,7 +4,7 @@
 
 **Blocked by:** 01: Edit an individual Vocabulary Item's Learning Status in Windows.
 
-**Status:** implemented
+**Status:** complete
 
 - [x] Resuming a paused Review fetches/recomputes the remaining queue using current status and due times. Paused and Mastered are absent; eligible Learning items can enter under existing queue ordering and daily-limit behavior.
 - [x] Completed session results remain available for the session summary and Review Insight. A refresh does not discard, duplicate, or resubmit completed Reviews.
@@ -15,5 +15,4 @@
 
 ## Verification
 
-Four new Resume Review tests passed. Existing Windows Review tests updated to await fresh queue loading and passed targeted checks. Full regression and final review remain pending.
-
+Completed and reviewed. All 123 UI tests and 203 host-compatible Rust tests passed; Svelte typecheck and production build passed. See the feature implementation notes for the review findings, fixes, and macOS-on-Windows test limitation.

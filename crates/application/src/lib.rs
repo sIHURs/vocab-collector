@@ -161,6 +161,14 @@ impl AppService {
     }
 
     pub fn get_today(&self, now: DateTime<Utc>) -> Result<TodayView, ApplicationError> {
+        self.get_today_excluding(now, &[])
+    }
+
+    pub fn get_today_excluding(
+        &self,
+        now: DateTime<Utc>,
+        completed_word_ids: &[Uuid],
+    ) -> Result<TodayView, ApplicationError> {
         let mut settings = SettingsRepository::get(self.store.as_ref())?;
         settings.normalize_languages();
         let words = self.words_with_captures()?;
@@ -168,6 +176,7 @@ impl AppService {
         let total_due_count = due.len();
         let planned = due
             .into_iter()
+            .filter(|word| !completed_word_ids.contains(&word.id))
             .take(settings.daily_limit)
             .collect::<Vec<_>>();
         let review_queue = planned

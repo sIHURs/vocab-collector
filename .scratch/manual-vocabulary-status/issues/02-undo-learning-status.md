@@ -4,7 +4,7 @@
 
 **Blocked by:** 01: Edit an individual Vocabulary Item's Learning Status in Windows.
 
-**Status:** implemented
+**Status:** complete
 
 - [x] The status-change notification offers Undo with styling, placement, and interaction conventions consistent with existing bottom-right Undo notifications.
 - [x] Undo atomically restores the prior Learning Status, complete review scheduling state, and mastery start time. It preserves historical Reviews, Encounters, and unrelated item data.
@@ -16,5 +16,4 @@
 
 ## Verification
 
-Exact Undo and invalidation: 3 application tests passed. SQLite migration/repository: 11 passed. Windows status/Undo: 5 passed. Final cross-feature review remains pending.
-
+Completed and reviewed. All 123 UI tests and 203 host-compatible Rust tests passed; Svelte typecheck and production build passed. See the feature implementation notes for the review findings, fixes, and macOS-on-Windows test limitation.

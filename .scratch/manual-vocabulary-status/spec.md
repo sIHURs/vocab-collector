@@ -1,6 +1,6 @@
 # Manual Vocabulary Item learning status
 
-Status: implemented-awaiting-review
+Status: implemented
 
 ## Confirmed decisions
 
@@ -58,7 +58,7 @@ Historical Reviews and Encounters are preserved in every transition. Undo restor
 
 ## Confirmation
 
-All interview questions Q1-Q11 and the ticket breakdown were confirmed by the user. The user authorized sequential implementation of tickets 01-03; implementation is complete and final verification/review is in progress.
+All interview questions Q1-Q11 and the ticket breakdown were confirmed by the user. The user authorized sequential implementation of tickets 01-03; implementation, final verification, and code review are complete.
 
 ## Discussion
 

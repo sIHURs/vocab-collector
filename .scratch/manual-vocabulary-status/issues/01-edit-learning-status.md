@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately).
 
-**Status:** implemented
+**Status:** complete
 
 - [x] The detail dropdown is the only new editing entry point. It saves one item immediately on selection; there is no bulk editing or custom status definition.
 - [x] The selected status persists across reload/restart and applies to the entire Vocabulary Item across target-language translations. Existing records need no user intervention.
@@ -21,5 +21,4 @@
 
 ## Verification
 
-Application flow: 36 passed. Windows Learning Status: 3 passed. Svelte check: 0 errors/warnings. Desktop cargo check passed. Final cross-feature review remains pending.
-
+Completed and reviewed. All 123 UI tests and 203 host-compatible Rust tests passed; Svelte typecheck and production build passed. See the feature implementation notes for the review findings, fixes, and macOS-on-Windows test limitation.

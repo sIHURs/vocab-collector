@@ -12,7 +12,7 @@ export interface Backend {
   findAchievedCapture?(input: CaptureInput): Promise<AchievedCaptureConflict | null>;
   restoreAchievedAndCapture?(wordId: string, input: CaptureInput): Promise<CaptureCard>;
   undoCapture(encounterId: string): Promise<void>;
-  getToday(): Promise<TodayView>;
+  getToday(completedWordIds?: string[]): Promise<TodayView>;
   listWords(): Promise<WordListItem[]>;
   listAchievedWords?(): Promise<AchievedWordListItem[]>;
   achieveWord?(wordId: string): Promise<AchievedWordListItem>;
@@ -209,10 +209,10 @@ export class DemoBackend implements Backend {
     this.invalidateStatusUndo(snapshot.wordId);
   }
 
-  async getToday(): Promise<TodayView> {
+  async getToday(completedWordIds: string[] = []): Promise<TodayView> {
     const allDue = this.words.filter((word) => word.item.status === 'learning' && !word.item.achievedAt &&
       (word.item.nextReviewAt ? Date.parse(word.item.nextReviewAt) <= Date.now() : word.due));
-    const due = allDue.slice(0, this.settings.dailyLimit);
+    const due = allDue.filter(word => !completedWordIds.includes(word.item.id)).slice(0, this.settings.dailyLimit);
     return {
       totalDueCount: allDue.length, plannedReviewCount: due.length,
       estimatedMinutes: due.length ? Math.max(1, Math.ceil(due.length / 3)) : 0,
@@ -377,7 +377,7 @@ class TauriBackend implements Backend {
   async findAchievedCapture(input: CaptureInput) { return invoke<AchievedCaptureConflict | null>("find_achieved_capture", { request: await this.captureRequest(input) }); }
   async restoreAchievedAndCapture(wordId: string, input: CaptureInput) { return invoke<CaptureCard>("restore_achieved_and_capture", { wordId, request: await this.captureRequest(input) }); }
   undoCapture(encounterId: string) { return invoke<void>("undo_capture", { encounterId }); }
-  getToday() { return invoke<TodayView>("get_today"); }
+  getToday(completedWordIds: string[] = []) { return invoke<TodayView>("get_today", { completedWordIds }); }
   listWords() { return invoke<WordListItem[]>("list_words"); }
   listAchievedWords() { return invoke<AchievedWordListItem[]>("list_achieved_words"); }
   achieveWord(wordId: string) { return invoke<AchievedWordListItem>("achieve_word", { wordId }); }

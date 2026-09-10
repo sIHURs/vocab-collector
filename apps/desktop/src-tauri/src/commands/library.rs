@@ -133,14 +133,17 @@ pub fn undo_capture(state: State<'_, AppState>, encounter_id: Uuid) -> Result<()
 }
 
 #[tauri::command]
-pub fn get_today(state: State<'_, AppState>) -> Result<TodayView, String> {
+pub fn get_today(
+    state: State<'_, AppState>,
+    completed_word_ids: Option<Vec<Uuid>>,
+) -> Result<TodayView, String> {
     state
         .application()
         .run_lifecycle_sweep(Utc::now())
         .map_err(|error| error.to_string())?;
     state
         .application()
-        .get_today(Utc::now())
+        .get_today_excluding(Utc::now(), &completed_word_ids.unwrap_or_default())
         .map_err(|error| error.to_string())
 }
 
