@@ -88,7 +88,7 @@ describe("Windows floating capture presentation", () => {
     mocks.ready?.({ requestId: "translated-request", candidate: { selectedText: "nuance", sentence: "A useful nuance.", origin: "accessibility" } });
 
     expect(await screen.findByText("Feinheit")).toBeVisible();
-    expect(screen.getByText("en → de")).toBeVisible();
+    expect(screen.getByText("English → Deutsch")).toBeVisible();
     expect(mocks.translate).toHaveBeenCalledWith("translated-request", "nuance", "auto", "de");
     expect(mocks.save).not.toHaveBeenCalled();
 

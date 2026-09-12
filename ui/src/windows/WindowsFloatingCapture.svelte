@@ -7,6 +7,7 @@
   import * as Field from '$lib/components/ui/field';
   import * as Alert from '$lib/components/ui/alert';
   import CaptureSource from '../components/CaptureSource.svelte';
+  import { languageLabel } from '../lib/language-label';
   import { onMount } from "svelte";
   import type { AchievedCaptureConflict, CaptureCandidate, CaptureCard } from "../lib/types";
   import {
@@ -363,7 +364,7 @@
       {:else}
         {#if achievedConflict}<Badge variant="secondary">Achieved</Badge>{/if}
         <h1>{selectedText}</h1>
-        {#if translation}<p class="translation">{translation}</p><small>{translationSource} → {translationTarget}</small>
+        {#if translation}<p class="translation">{translation}</p><small>{languageLabel(translationSource)} → {languageLabel(translationTarget)}</small>
         {:else if busy && translationAvailable}<p>Translating…</p>
         {:else if !translationAvailable}<p>Automatic translation is unavailable. You can add a translation manually.</p>{/if}
         <p class="context">“{sentence}”</p><CaptureSource app={candidate.sourceApp} title={candidate.sourceTitle} url={candidate.sourceUrl} />

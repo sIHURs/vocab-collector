@@ -1,4 +1,4 @@
-<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Capture UI verification</title></head><body><div id="app"></div><script type="module">
+<!doctype html><html lang="en" data-window="capture"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Capture UI verification</title></head><body><div id="app"></div><script type="module">
 import { mount } from 'svelte';
 import WindowsFloatingCapture from '../windows/WindowsFloatingCapture.svelte';
 import { DemoBackend } from '../lib/backend';
@@ -19,3 +19,4 @@ getCapabilities:async()=>({selectionCapture:true,selectionBounds:true,screenshot
 };
 mount(WindowsFloatingCapture,{target:document.getElementById('app'),props:{captureBackend:backend}});
 </script></body></html>
+

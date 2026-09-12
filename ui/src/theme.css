@@ -147,6 +147,9 @@ button, input, textarea, select { font:inherit; }
 button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible { outline:2px solid var(--ring); outline-offset:2px; }
 [data-slot=button] { line-height:1.45; border-radius:var(--radius-md); }
 [data-slot=input], [data-slot=native-select] { background:var(--card); border-radius:var(--radius-md); }
+/* Transparent auxiliary windows must override the :root theme background.
+   Otherwise the page paints a rectangle behind the capture surface's corners. */
+:root[data-window=capture], :root[data-window=capture] body, :root[data-window=capture] #app,
 :root[data-window=ocr-overlay], :root[data-window=ocr-overlay] body, :root[data-window=ocr-overlay] #app { min-width:0; min-height:0; background:transparent; }
 @media(prefers-reduced-motion:reduce) { *, *::before, *::after { animation-duration:0.01ms!important; transition-duration:0.01ms!important; scroll-behavior:auto!important; } }
 :root[data-reduced-motion=true] *, :root[data-reduced-motion=true] *::before, :root[data-reduced-motion=true] *::after { animation-duration:0.01ms!important; transition-duration:0.01ms!important; scroll-behavior:auto!important; }

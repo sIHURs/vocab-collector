@@ -232,6 +232,12 @@ pub fn run() {
             if let Some(window) = app.get_webview_window("main") {
                 window.set_decorations(false)?;
             }
+            // Windows adds a native 1px border when shadows are enabled on an
+            // undecorated window. Capture already draws its own rounded border.
+            #[cfg(target_os = "windows")]
+            if let Some(window) = app.get_webview_window("capture") {
+                window.set_shadow(false)?;
+            }
             let data_dir = app.path().app_data_dir()?;
             fs::create_dir_all(&data_dir)?;
             let store = Arc::new(
