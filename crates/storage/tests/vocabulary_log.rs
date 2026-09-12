@@ -102,6 +102,10 @@ fn migration_does_not_reconstruct_history_and_timezone_changes_do_not_rebucket()
         store.vocabulary_log().unwrap().days.last().unwrap().count,
         Some(0)
     );
+    assert_eq!(
+        store.vocabulary_log().unwrap().days.last().unwrap().coverage,
+        vocab_domain::LogCoverage::Complete
+    );
     store.soft_delete(old.encounter.id, Utc::now()).unwrap();
     store.capture(&record()).unwrap();
     *clock.lock().unwrap() = day("2026-09-08"); // Travel west across the date boundary.
@@ -114,7 +118,7 @@ fn migration_does_not_reconstruct_history_and_timezone_changes_do_not_rebucket()
             .last()
             .unwrap()
             .coverage,
-        vocab_domain::LogCoverage::Partial
+        vocab_domain::LogCoverage::Complete
     );
     *clock.lock().unwrap() = day("2026-09-10");
     let log = store.vocabulary_log().unwrap();

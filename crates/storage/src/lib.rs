@@ -1123,14 +1123,8 @@ impl vocab_domain::VocabularyLogRepository for SqliteStore {
             .take_while(|date| *date <= end_date)
             .map(|date| {
                 let recorded = counts.get(&date.to_string()).copied();
-                let coverage = if date < started {
-                    if recorded.is_some() {
-                        LogCoverage::Partial
-                    } else {
-                        LogCoverage::Unknown
-                    }
-                } else if date == started {
-                    LogCoverage::Partial
+                let coverage = if date < started && recorded.is_none() {
+                    LogCoverage::Unknown
                 } else {
                     LogCoverage::Complete
                 };

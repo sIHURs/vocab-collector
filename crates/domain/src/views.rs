@@ -150,7 +150,6 @@ pub struct WordDetail {
 #[serde(rename_all = "camelCase")]
 pub enum LogCoverage {
     Unknown,
-    Partial,
     Complete,
 }
 

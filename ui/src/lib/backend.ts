@@ -191,7 +191,7 @@ export class DemoBackend implements Backend {
     const days: VocabularyLog['days'] = [];
     for (let date = startDate; date <= endDate; date = shiftDate(date, 1)) {
       const count = this.dailyCounts.get(date);
-      const coverage = date < this.logStarted ? count == null ? 'unknown' : 'partial' : date === this.logStarted ? 'partial' : 'complete';
+      const coverage = date < this.logStarted && count == null ? 'unknown' : 'complete';
       days.push({ date, count: coverage === 'unknown' ? null : count ?? 0, coverage });
     }
     return { startDate, endDate, days };

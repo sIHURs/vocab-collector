@@ -25,7 +25,7 @@
     {#if !insight.lifetimeRatingBreakdownComplete}<p>Remembered and Forgot totals exclude anonymous review history deleted before this app version.</p>{/if}
     {:else}<p>All-time history is unavailable. No totals have been assumed.</p>{/if}
   </section>
-  <section aria-label="Vocabulary log"><VocabularyLog {log} loading={logLoading} error={logError} onretry={onlogretry} /></section>
+  <section aria-label="Vocabulary Activity"><VocabularyLog {log} loading={logLoading} error={logError} onretry={onlogretry} /></section>
   <section aria-label="Latest review session"><h2>Latest review session</h2>
     {#if session}<p>{session.reviewedCount} reviewed · {session.rememberedCount} remembered · {session.forgottenCount} forgot</p><p>Estimated due by the end of tomorrow: {session.nextDayDueCount}</p>
     {:else}<p>No review session yet. Complete a review to see its summary here.</p>{/if}

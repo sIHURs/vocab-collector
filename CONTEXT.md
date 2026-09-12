@@ -61,7 +61,7 @@ A short explanation or actionable suggestion derived from completed reviews and 
 _Avoid_: Hint, score, AI explanation
 
 **Vocabulary log**:
-A daily history of successful vocabulary saves that have not been undone, including repeated saves of the same Vocabulary Item. It distinguishes known daily counts from incomplete or unknown history.
+A daily history of successful vocabulary saves that have not been undone, including repeated saves of the same Vocabulary Item. It distinguishes recorded daily counts from dates with no recorded history.
 _Avoid_: Unique-word count, review activity, streak
 
 **Mastered Vocabulary Item**:

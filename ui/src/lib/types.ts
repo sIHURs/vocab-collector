@@ -198,7 +198,7 @@ export interface WordDetail {
 export interface VocabularyLogDay {
   date: string;
   count: number | null;
-  coverage: 'unknown' | 'partial' | 'complete';
+  coverage: 'unknown' | 'complete';
 }
 export interface VocabularyLog {
   startDate: string;
