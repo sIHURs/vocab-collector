@@ -1,4 +1,33 @@
 <script lang="ts">
+  import * as AlertDialog from '$lib/components/ui/alert-dialog';
+  let achieveCandidate: { id: string; displayForm: string } | null = null;
+  let achieveDeletion = '';
+  let achieveBusy = false;
+  let achieveError = '';
+  let achieveTrigger: HTMLElement | null = null;
+
+  function requestAchieve(word: { id: string; displayForm: string }) {
+    achieveTrigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    achieveCandidate = word;
+    achieveError = '';
+    achieveDeletion = new Date(Date.now() + (settingsDraft?.achievedRetentionDays ?? 30) * 86_400_000).toLocaleDateString();
+  }
+
+  async function confirmAchieve() {
+    if (!achieveCandidate || achieveBusy) return;
+    achieveBusy = true;
+    achieveError = '';
+    try {
+      if (!api.achieveWord) throw new Error('Achieve is unavailable');
+      await api.achieveWord(achieveCandidate.id);
+      achieveCandidate = null;
+      selectedDetail = null;
+      vocabularyView = 'achieved';
+      await refresh();
+    } catch (cause) {
+      achieveError = cause instanceof Error ? cause.message : String(cause);
+    } finally { achieveBusy = false; }
+  }
   import { onMount, onDestroy, tick } from "svelte";
   import { createBackend, type Backend } from "../lib/backend";
   import type { AchievedCaptureConflict, AchievedWordListItem, CaptureCard, GlobalInsight, ReviewCard, ReviewRating, ReviewResult, ReviewSessionInsight, Settings, SystemSettingsStatus, TodayView, WordDetail, WordListItem } from "../lib/types";
@@ -11,9 +40,12 @@
   import { toast } from 'svelte-sonner';
   import { Toaster } from '$lib/components/ui/sonner';
   import UndoNotification from '../components/UndoNotification.svelte';
-  import Plus from '@lucide/svelte/icons/plus';
+  import WindowsTitlebar from './WindowsTitlebar.svelte';
+  let sidebarOpen = true;
   import SettingsForm from '../components/SettingsForm.svelte';
   import VocabularyTable from '../components/VocabularyTable.svelte';
+  import TranslationText from '../components/TranslationText.svelte';
+  import { sortVocabulary, type VocabularySortKey, type SortDirection } from '../lib/vocabulary-sort';
   import VocabularyDetail from '../components/VocabularyDetail.svelte';
   import type { WordStatus } from '../lib/types';
   import { applyAppearance } from '../lib/appearance';
@@ -53,6 +85,15 @@
   let error = "";
   let search = "";
   let vocabularyPage = 1;
+  let vocabularySortKey: VocabularySortKey = 'lastSeenAt';
+  let vocabularySortDirection: SortDirection = 'descending';
+  function changeVocabularySort(key: VocabularySortKey) {
+    vocabularySortDirection = key === vocabularySortKey
+      ? vocabularySortDirection === 'ascending' ? 'descending' : 'ascending'
+      : key === 'displayForm' ? 'ascending' : 'descending';
+    vocabularySortKey = key;
+    vocabularyPage = 1;
+  }
   let vocabularyPageInput = "1";
   const vocabularyPageSize = 10;
   let captureError = "";
@@ -114,15 +155,18 @@
   const settingsToastId = crypto.randomUUID();
   const notificationHostId = crypto.randomUUID();
   $: if (savedCard) toast.custom(UndoNotification, {
-    id: savedToastId, toasterId: notificationHostId, duration: Infinity, dismissible: false,
+    id: savedToastId, toasterId: notificationHostId, duration: 2000, dismissible: false,
+    onAutoClose: () => { savedCard = null; },
     componentProps: { title: savedCard.displayForm, description: encounterLabel(savedCard.encounterCount), label: "Capture saved", dismissLabel: "Dismiss saved capture", onundo: undoSaved, ondismiss: () => { savedCard = null; } },
   }); else toast.dismiss(savedToastId);
   $: if (lastUnachievedIds.length) toast.custom(UndoNotification, {
-    id: unachievedToastId, toasterId: notificationHostId, duration: Infinity, dismissible: false,
+    id: unachievedToastId, toasterId: notificationHostId, duration: 2000, dismissible: false,
+    onAutoClose: () => { lastUnachievedIds = []; },
     componentProps: { title: lastUnachievedIds.length + " Unachieved", description: "Returned to Mastered", label: "Vocabulary Unachieved", dismissLabel: "Dismiss Unachieve result", onundo: undoUnachieve, ondismiss: () => { lastUnachievedIds = []; } },
   }); else toast.dismiss(unachievedToastId);
   $: if (statusUndo) toast.custom(UndoNotification, {
-    id: statusToastId, toasterId: notificationHostId, duration: Infinity, dismissible: false,
+    id: statusToastId, toasterId: notificationHostId, duration: statusUndoBusy || statusSaving ? Infinity : 2000, dismissible: false,
+    onAutoClose: () => { statusUndo = null; },
     componentProps: { title: statusUndo.before.displayForm, description: `${statusUndo.status} · Shown in ${statusUndo.status === 'mastered' ? 'Mastered' : 'Active'}`, label: 'Learning status changed', dismissLabel: 'Dismiss status change', onundo: undoLearningStatus, ondismiss: () => { statusUndo = null; }, busy: statusUndoBusy || statusSaving, error: statusUndoError },
   }); else toast.dismiss(statusToastId);
   onDestroy(() => { toast.dismiss(savedToastId); toast.dismiss(unachievedToastId); toast.dismiss(settingsToastId); toast.dismiss(statusToastId); });
@@ -135,7 +179,8 @@
   $: vocabularyPageCount = Math.max(1, Math.ceil(filteredWords.length / vocabularyPageSize));
   $: if (vocabularyPage > vocabularyPageCount) vocabularyPage = vocabularyPageCount;
   $: vocabularyPageInput = String(vocabularyPage);
-  $: pagedWords = filteredWords.slice((vocabularyPage - 1) * vocabularyPageSize, vocabularyPage * vocabularyPageSize);
+  $: sortedWords = sortVocabulary(filteredWords, vocabularySortKey, vocabularySortDirection);
+  $: pagedWords = sortedWords.slice((vocabularyPage - 1) * vocabularyPageSize, vocabularyPage * vocabularyPageSize);
   $: activeReview = reviewQueue[reviewIndex] as ReviewCard | undefined;
 
   async function loadInsight() {
@@ -198,7 +243,7 @@
   }
 
   function handleWindowKeydown(event: KeyboardEvent) {
-    if (event.key !== "Escape") return;
+    if (event.key !== "Escape" || achieveCandidate || deleteCandidates.length) return;
     if (captureOpen) {
       event.preventDefault();
       void closeCapture();
@@ -272,13 +317,8 @@
     detailTrigger?.focus();
   }
 
-  async function achieveSelectedWord() {
-    if (!selectedDetail || selectedDetail.item.status !== "mastered") return;
-    const retention = settingsDraft?.achievedRetentionDays ?? 30;
-    const deletion = new Date(Date.now() + retention * 86_400_000).toLocaleDateString();
-    if (!confirm(`Achieve ${selectedDetail.item.displayForm}? It will be permanently deleted on ${deletion}.`)) return;
-    try { if (!api.achieveWord) throw new Error("Achieve is unavailable"); await api.achieveWord(selectedDetail.item.id); selectedDetail = null; vocabularyView = "achieved"; await refresh(); }
-    catch (cause) { error = cause instanceof Error ? cause.message : String(cause); }
+  function achieveSelectedWord() {
+    if (selectedDetail?.item.status === 'mastered') requestAchieve(selectedDetail.item);
   }
 
   async function changeLearningStatus(status: WordStatus) {
@@ -322,12 +362,8 @@
     finally { statusUndoBusy = false; }
   }
 
-  async function achieveWordFromRow(word: WordListItem) {
-    const retention = settingsDraft?.achievedRetentionDays ?? 30;
-    const deletion = new Date(Date.now() + retention * 86_400_000).toLocaleDateString();
-    if (!confirm(`Achieve ${word.displayForm}? It will be permanently deleted on ${deletion}.`)) return;
-    try { if (!api.achieveWord) throw new Error("Achieve is unavailable"); await api.achieveWord(word.id); vocabularyView = "achieved"; await refresh(); }
-    catch (cause) { error = cause instanceof Error ? cause.message : String(cause); }
+  function achieveWordFromRow(word: WordListItem) {
+    requestAchieve(word);
   }
 
   function toggleAchieved(wordId: string, checked: boolean) {
@@ -350,11 +386,29 @@
     catch (cause) { error = cause instanceof Error ? cause.message : String(cause); }
   }
 
-  async function deleteSelectedAchieved() {
-    const ids = [...selectedAchievedIds]; if (!ids.length || !api.deleteAchievedWords) return;
-    if (!confirm(`Permanently delete ${ids.length} Achieved Vocabulary Item${ids.length === 1 ? "" : "s"}? Word-level history cannot be recovered.`)) return;
-    try { await api.deleteAchievedWords(ids); selectedAchievedIds = new Set(); await refresh(); }
-    catch (cause) { error = cause instanceof Error ? cause.message : String(cause); }
+  let deleteCandidates: string[] = [];
+  let deleteBusy = false;
+  let deleteError = '';
+  let deleteTrigger: HTMLElement | null = null;
+
+  function deleteSelectedAchieved() {
+    if (!selectedAchievedIds.size || !api.deleteAchievedWords) return;
+    deleteTrigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    deleteCandidates = [...selectedAchievedIds];
+    deleteError = '';
+  }
+
+  async function confirmDeleteAchieved() {
+    if (deleteBusy || !deleteCandidates.length || !api.deleteAchievedWords) return;
+    deleteBusy = true;
+    deleteError = '';
+    try {
+      await api.deleteAchievedWords([...deleteCandidates]);
+      selectedAchievedIds = new Set();
+      deleteCandidates = [];
+      await refresh();
+    } catch (cause) { deleteError = cause instanceof Error ? cause.message : String(cause); }
+    finally { deleteBusy = false; }
   }
 
   async function undoSaved() {
@@ -659,14 +713,15 @@
 <svelte:window onkeydown={handleWindowKeydown} />
 
 <div class="windows-presentation" data-settings-ready={initialLoadComplete} data-appearance={appliedSettings?.appearance ?? "system"} data-reduced-motion={appliedSettings?.reducedMotion ?? false}>
-<div class="windows-shell" data-presentation="windows-main" data-appearance={appliedSettings?.appearance ?? "system"} data-reduced-motion={appliedSettings?.reducedMotion ?? false}>
-  <aside>
-    <div class="brand"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24"><path d="M3 4h6l3 5 3-5h6l-9 17Z M6 4l6 11 6-11" fill="none" stroke="currentColor" stroke-width="1.6" /></svg><strong>Vocab Collector</strong></div>
+<div class="windows-shell" class:sidebar-collapsed={!sidebarOpen} data-presentation="windows-main" data-appearance={appliedSettings?.appearance ?? "system"} data-reduced-motion={appliedSettings?.reducedMotion ?? false}>
+  <WindowsTitlebar bind:sidebarOpen {search} onsearch={(value) => { selectRoute("Vocabulary"); updateSearch(value); }} oncapture={openCapture} onerror={(message) => { error = message; }} />
+  <aside id="windows-sidebar" hidden={!sidebarOpen}>
+    <div class="sidebar-brand"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24"><path d="M3 4h6l3 5 3-5h6l-9 17Z M6 4l6 11 6-11" fill="none" stroke="currentColor" stroke-width="1.6" /></svg><strong>Vocab Collector</strong></div>
     <nav aria-label="Main navigation">{#each navigation as item}<button class:active={route === item.title || (route === "Review" && item.title === "Today")} aria-current={route === item.title || (route === "Review" && item.title === "Today") ? "page" : undefined} onclick={() => selectRoute(item.title)}><svelte:component this={item.icon} size={18} aria-hidden="true" />{item.title}</button>{/each}</nav>
     <div class="local-status"><Monitor size={16} aria-hidden="true" /><span>Local mode</span></div>
   </aside>
   <main>
-    <header><div><h1 id="windows-page-title">{route}</h1><p>{route === "Today" ? "Your words, ready when you are" : route === "Settings" ? "Make Vocab Collector fit your reading." : route === "Vocabulary" ? "Every word, with the context you found it in." : route === "Insights" ? "Your learning, over time." : "One word at a time."}</p></div>{#if route === "Today" || route === "Vocabulary" || route === "Insights"}<Button aria-label="Manual capture" size="icon" onclick={openCapture}><Plus /></Button>{/if}</header>
+    <header><div><h1 id="windows-page-title" tabindex="-1">{route}</h1><p>{route === "Today" ? "Your words, ready when you are" : route === "Settings" ? "Make Vocab Collector fit your reading." : route === "Vocabulary" ? "Every word, with the context you found it in." : route === "Insights" ? "Your learning, over time." : "One word at a time."}</p></div></header>
     <section aria-labelledby="windows-page-title" aria-busy={loading}>
       {#if error}<div class="error" role="alert"><span>{error}</span><button onclick={retryError}>Try again</button></div>{/if}
       {#if route === "Today"}
@@ -675,12 +730,12 @@
         <div role="status">Loading your vocabulary...<Skeleton class="h-40 w-full" /></div>
       {:else if route === "Vocabulary"}
         <Tabs.Root value={vocabularyView} onValueChange={(value) => { vocabularyView = value as typeof vocabularyView; updateSearch(""); }}><Tabs.List aria-label="Vocabulary views"><Tabs.Trigger value="active">Active</Tabs.Trigger><Tabs.Trigger value="mastered">Mastered</Tabs.Trigger><Tabs.Trigger value="achieved">Achieved ({achievedWords.length})</Tabs.Trigger></Tabs.List></Tabs.Root>
-        <div class="tools"><label><span>Search</span><Input aria-label="Search vocabulary" value={search} oninput={(event) => updateSearch(event.currentTarget.value)} placeholder="Word or translation" /></label><span>{vocabularyView === "achieved" ? filteredAchievedWords.length : filteredWords.length} items</span></div>
-        {#if vocabularyView === "achieved"}<div class="list vocabulary-list">{#if filteredAchievedWords.length}<label class="select-all"><input type="checkbox" aria-label="Select all filtered Achieved vocabulary" checked={allFilteredAchievedSelected} onchange={(event) => toggleAllAchieved(event.currentTarget.checked)} /> Select all filtered</label>{/if}{#each filteredAchievedWords as word}<label class:urgent={word.urgency === "urgent"} class:warning={word.urgency === "warning"} class="achieved-row"><input type="checkbox" aria-label={`Select ${word.displayForm}`} checked={selectedAchievedIds.has(word.id)} onchange={(event) => toggleAchieved(word.id, event.currentTarget.checked)} /><span><strong>{word.displayForm}</strong><small>{word.translation ?? "No translation"}{#if word.translationLanguage}<small> · {word.translationLanguage}</small>{/if}</small><small>Achieved {new Date(word.achievedAt).toLocaleDateString()}</small></span><span>{word.remainingDays} days remaining · Deletes {new Date(word.deleteAfter).toLocaleDateString()}</span></label>{:else}<div class="state"><strong>{achievedWords.length ? "No matching vocabulary" : "No Achieved vocabulary"}</strong><span>{achievedWords.length ? "Try a different word or translation." : "Mastered words you Achieve will wait here before deletion."}</span></div>{/each}</div>{#if selectedAchievedIds.size}<div class="bulk-actions"><strong>{selectedAchievedIds.size} selected</strong><Button variant="outline" onclick={unachieveSelected}>Unachieve</Button><Button variant="destructiveOutline" onclick={deleteSelectedAchieved}>Delete permanently</Button></div>{/if}{:else}<div class="list vocabulary-list">{#if pagedWords.length}<VocabularyTable words={pagedWords} onSelect={showDetail} onAchieve={achieveWordFromRow} />{:else}{#if visibleWords.length}<div class="state"><strong>No matching vocabulary</strong><span>Try a different word or translation.</span></div>{:else}<div class="state"><strong>No {vocabularyView} vocabulary</strong><span>Vocabulary Items in this state will appear here.</span></div>{/if}{/if}</div>
+        <div class="tools"><div class="vocabulary-search"><Field.Field><Field.FieldLabel for="vocabulary-search">Search</Field.FieldLabel><Input id="vocabulary-search" aria-label="Filter vocabulary" value={search} oninput={(event) => updateSearch(event.currentTarget.value)} placeholder="Word or translation" /></Field.Field></div><span>{vocabularyView === "achieved" ? filteredAchievedWords.length : filteredWords.length} items</span></div>
+        {#if vocabularyView === "achieved"}<div class="list vocabulary-list">{#if filteredAchievedWords.length}<label class="select-all"><input type="checkbox" aria-label="Select all filtered Achieved vocabulary" checked={allFilteredAchievedSelected} onchange={(event) => toggleAllAchieved(event.currentTarget.checked)} /> Select all filtered</label>{/if}{#each filteredAchievedWords as word}<label class:urgent={word.urgency === "urgent"} class:warning={word.urgency === "warning"} class="achieved-row"><input type="checkbox" aria-label={`Select ${word.displayForm}`} checked={selectedAchievedIds.has(word.id)} onchange={(event) => toggleAchieved(word.id, event.currentTarget.checked)} /><span><strong>{word.displayForm}</strong><small><TranslationText translation={word.translation} language={word.translationLanguage} targetLanguage={appliedSettings?.targetLanguage} /></small><small>Achieved {new Date(word.achievedAt).toLocaleDateString()}</small></span><span>{word.remainingDays} days remaining · Deletes {new Date(word.deleteAfter).toLocaleDateString()}</span></label>{:else}<div class="state"><strong>{achievedWords.length ? "No matching vocabulary" : "No Achieved vocabulary"}</strong><span>{achievedWords.length ? "Try a different word or translation." : "Mastered words you Achieve will wait here before deletion."}</span></div>{/each}</div>{#if selectedAchievedIds.size}<div class="bulk-actions"><strong>{selectedAchievedIds.size} selected</strong><Button variant="outline" onclick={unachieveSelected}>Unachieve</Button><Button variant="destructiveOutline" onclick={deleteSelectedAchieved}>Delete permanently</Button></div>{/if}{:else}<div class="list vocabulary-list">{#if pagedWords.length}<VocabularyTable targetLanguage={appliedSettings?.targetLanguage} sortKey={vocabularySortKey} sortDirection={vocabularySortDirection} onSort={changeVocabularySort} words={pagedWords} onSelect={showDetail} onAchieve={achieveWordFromRow} />{:else}{#if visibleWords.length}<div class="state"><strong>No matching vocabulary</strong><span>Try a different word or translation.</span></div>{:else}<div class="state"><strong>No {vocabularyView} vocabulary</strong><span>Vocabulary Items in this state will appear here.</span></div>{/if}{/if}</div>
         {#if filteredWords.length}<nav class="pagination" aria-label="Vocabulary pages"><button class="secondary" disabled={vocabularyPage === 1} onclick={() => goToVocabularyPage(1)}>First</button><button class="secondary" disabled={vocabularyPage === 1} onclick={() => goToVocabularyPage(vocabularyPage - 1)}>Previous</button><form aria-label="Go to vocabulary page" onsubmit={(event) => { event.preventDefault(); goToVocabularyPage(vocabularyPageInput); }}><label><span>Page</span><input aria-label="Page number" type="number" min="1" max={vocabularyPageCount} bind:value={vocabularyPageInput} onblur={() => goToVocabularyPage(vocabularyPageInput)} /><span>of {vocabularyPageCount}</span></label></form><button class="secondary" disabled={vocabularyPage === vocabularyPageCount} onclick={() => goToVocabularyPage(vocabularyPage + 1)}>Next</button><button class="secondary" disabled={vocabularyPage === vocabularyPageCount} onclick={() => goToVocabularyPage(vocabularyPageCount)}>Last</button></nav>{/if}{/if}
       {:else if route === "Review"}
         {#if reviewOpen && activeReview}
-          <div class="review-card" aria-live="polite" bind:this={reviewCardElement}><div class="review-progress"><span>{reviewIndex + 1} of {reviewQueue.length}</span><Button variant="ghost" size="icon" aria-label="Close review" disabled={reviewSubmitting} onclick={closeReview}>×</Button></div><Progress value={reviewIndex} max={reviewQueue.length || 1} aria-label="Review progress" /><span class="eyebrow">Do you remember this word?</span><h2>{activeReview.displayForm}</h2><p>{activeReview.context ?? "No saved context"}</p>{#if reviewResult}<div class="review-translation" role="status"><small>{reviewResult.rating === "remembered" ? "Remembered" : "Forgot"}</small><strong>Next review {new Date(reviewResult.nextDueAt).toLocaleDateString()}</strong><span>{`Saved ${reviewResult.encounterCount} time${reviewResult.encounterCount === 1 ? "" : "s"}`}</span>{#if reviewResult.repeatedForgetting}<p>This Vocabulary Item has been repeatedly forgotten. Another context or a translation check may help.</p>{/if}</div>{:else if reviewRevealed}<div class="review-translation" role="status"><small>Translation</small><strong>{activeReview.translation ?? "Unavailable"}{#if activeReview.translationLanguage}<small> · {activeReview.translationLanguage}</small>{/if}</strong></div>{/if}{#if reviewError}<div class="dialog-error" role="alert">{reviewError}</div>{/if}<div class="review-actions">{#if reviewResult}{#if reviewResult.repeatedForgetting}<Button variant="outline" onclick={(event) => showDetail(activeReview.wordId, event.currentTarget)}>Review contexts</Button>{/if}<Button onclick={nextReview}>Next</Button>{:else if reviewRevealed}{#if reviewError && reviewSubmissionRating}<Button disabled={reviewSubmitting} onclick={retryReviewSubmission}>Retry {reviewSubmissionRating === "remembered" ? "Remembered" : "Forgot"}</Button>{:else}<Button variant="outline" disabled={reviewSubmitting} onclick={() => rateReview("forgot")}>Forgot</Button><Button disabled={reviewSubmitting} onclick={() => rateReview("remembered")}>Remembered</Button>{/if}{:else}<Button onclick={revealReview}>Show answer</Button>{/if}</div></div>
+          <div class="review-card" aria-live="polite" bind:this={reviewCardElement}><div class="review-progress"><span>{reviewIndex + 1} of {reviewQueue.length}</span><Button variant="ghost" size="icon" aria-label="Close review" disabled={reviewSubmitting} onclick={closeReview}>×</Button></div><Progress value={reviewIndex} max={reviewQueue.length || 1} aria-label="Review progress" /><span class="eyebrow">Do you remember this word?</span><h2>{activeReview.displayForm}</h2><p>{activeReview.context ?? "No saved context"}</p>{#if reviewResult}<div class="review-translation" role="status"><small>{reviewResult.rating === "remembered" ? "Remembered" : "Forgot"}</small><strong>Next review {new Date(reviewResult.nextDueAt).toLocaleDateString()}</strong><span>{`Saved ${reviewResult.encounterCount} time${reviewResult.encounterCount === 1 ? "" : "s"}`}</span>{#if reviewResult.repeatedForgetting}<p>This Vocabulary Item has been repeatedly forgotten. Another context or a translation check may help.</p>{/if}</div>{:else if reviewRevealed}<div class="review-translation" role="status"><small>Translation</small><strong><TranslationText translation={activeReview.translation ?? "Unavailable"} language={activeReview.translationLanguage} targetLanguage={appliedSettings?.targetLanguage} /></strong></div>{/if}{#if reviewError}<div class="dialog-error" role="alert">{reviewError}</div>{/if}<div class="review-actions">{#if reviewResult}{#if reviewResult.repeatedForgetting}<Button variant="outline" onclick={(event) => showDetail(activeReview.wordId, event.currentTarget)}>Review contexts</Button>{/if}<Button onclick={nextReview}>Next</Button>{:else if reviewRevealed}{#if reviewError && reviewSubmissionRating}<Button disabled={reviewSubmitting} onclick={retryReviewSubmission}>Retry {reviewSubmissionRating === "remembered" ? "Remembered" : "Forgot"}</Button>{:else}<Button variant="outline" disabled={reviewSubmitting} onclick={() => rateReview("forgot")}>Forgot</Button><Button disabled={reviewSubmitting} onclick={() => rateReview("remembered")}>Remembered</Button>{/if}{:else}<Button onclick={revealReview}>Show answer</Button>{/if}</div></div>
         {:else if reviewComplete && reviewSessionInsight}
           <div class="state" aria-live="polite"><h2 tabindex="-1" bind:this={reviewCompleteHeading}>Review complete</h2><strong>{reviewSessionInsight.reviewedCount} reviewed</strong><span>{reviewSessionInsight.rememberedCount} remembered · {reviewSessionInsight.forgottenCount} forgot</span><span>Estimated due by the end of tomorrow: {reviewSessionInsight.nextDayDueCount}</span>{#if reviewSessionInsight.attentionWordIds.length}<div><strong>Worth another context</strong>{#each reviewSessionInsight.attentionWordIds as wordId}<span>{attentionLabel(wordId)} may benefit from another context or a translation check.</span>{/each}</div>{/if}<Button onclick={returnToToday}>Back to Today</Button></div>
         {:else if reviewRefreshRequired}
@@ -700,7 +755,7 @@
 </div>
 
 
-<Dialog.Root open={captureOpen} onOpenChange={(open) => { if (!open) closeCapture(); }}><Dialog.Content showCloseButton={false} class="manual-capture-content" onInteractOutside={(event) => event.preventDefault()} onOpenAutoFocus={(event) => { event.preventDefault(); captureFirstField?.focus(); }} onCloseAutoFocus={(event) => { event.preventDefault(); captureTrigger?.focus(); }} onkeydown={trapDialogFocus} bind:ref={captureDialog}><form onsubmit={(event) => { event.preventDefault(); saveCapture(); }}><div class="dialog-heading"><div><span class="eyebrow">Manual Capture</span><Dialog.Title>Save a reading context</Dialog.Title></div></div>{#if achievedCaptureConflict}<div class="achieved-capture-notice" role="status"><span>Achieved</span><p>Already learned and reviewed. Saving will restart learning and save this context.</p></div>{/if}{#if captureError}<div class="dialog-error" role="alert">{captureError}</div>{/if}<Field.FieldGroup><Field.Field><label>Word or phrase<Input bind:ref={captureFirstField} bind:value={captureInput.selectedText} /></label></Field.Field><Field.Field><label>Translation <small>Optional</small><Input bind:value={captureInput.translation} /></label></Field.Field><Field.Field><label>Context<Textarea bind:value={captureInput.sentence}></Textarea></label></Field.Field></Field.FieldGroup><div class="actions"><Button variant="outline" onclick={closeCapture}>Cancel</Button><Button type="submit" disabled={saving || !captureInput.selectedText.trim() || !captureInput.sentence.trim()}>{saving ? "Saving..." : "Save capture"}</Button></div></form></Dialog.Content></Dialog.Root>
+<Dialog.Root open={captureOpen} onOpenChange={(open) => { if (!open) closeCapture(); }}><Dialog.Content showCloseButton={false} class="manual-capture-content" onOpenAutoFocus={(event) => { event.preventDefault(); captureFirstField?.focus(); }} onCloseAutoFocus={(event) => { event.preventDefault(); captureTrigger?.focus(); }} onkeydown={trapDialogFocus} bind:ref={captureDialog}><form onsubmit={(event) => { event.preventDefault(); saveCapture(); }}><div class="dialog-heading"><div><span class="eyebrow">Manual Capture</span><Dialog.Title>Save a reading context</Dialog.Title></div></div>{#if achievedCaptureConflict}<div class="achieved-capture-notice" role="status"><span>Achieved</span><p>Already learned and reviewed. Saving will restart learning and save this context.</p></div>{/if}{#if captureError}<div class="dialog-error" role="alert">{captureError}</div>{/if}<Field.FieldGroup><Field.Field><label>Word or phrase<Input bind:ref={captureFirstField} bind:value={captureInput.selectedText} /></label></Field.Field><Field.Field><label>Translation <small>Optional</small><Input bind:value={captureInput.translation} /></label></Field.Field><Field.Field><label>Context<Textarea bind:value={captureInput.sentence}></Textarea></label></Field.Field></Field.FieldGroup><div class="actions"><Button variant="outline" onclick={closeCapture}>Cancel</Button><Button type="submit" disabled={saving || !captureInput.selectedText.trim() || !captureInput.sentence.trim()}>{saving ? "Saving..." : "Save capture"}</Button></div></form></Dialog.Content></Dialog.Root>
 
 <Toaster id={notificationHostId} position="bottom-right" />
 
@@ -715,7 +770,6 @@
 
   .windows-shell { min-height: 100vh; display: grid; grid-template-columns: 220px minmax(0, 1fr); color: var(--text); background: var(--page); }
   aside { display: flex; flex-direction: column; padding: 18px 12px 14px; border-right: 1px solid var(--line); background: var(--sidebar); }
-  .brand { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 0 8px 18px; }.brand strong { font-size:0.8125rem; }
   nav { display: grid; gap: 3px; } nav button { min-height: 36px; padding: 0 10px; border: 0; border-radius: 6px; color: var(--muted-foreground); background: transparent; text-align: left; cursor: pointer; } nav button:hover, nav button.active { color: var(--text); background: var(--surface-raised); }
   .local-status { display: flex; align-items: center; gap: 8px; margin-top: auto; padding: 10px 8px; color: var(--muted-foreground); font-size:0.75rem; }
   main { min-width: 0; } header { display: flex; align-items: center; justify-content: space-between; height: 86px; padding: 0 28px; border-bottom: 1px solid var(--line); } h1, h2, p { margin: 0; } h1 { font-size:1.375rem; } header p { margin-top: 5px; color: var(--muted-foreground); font-size:0.75rem; } section { min-height: calc(100vh - 87px); padding: 26px 28px; }
@@ -726,10 +780,12 @@
 
   .vocabulary-list { max-height: calc(100vh - 244px); overflow-y: auto; scrollbar-gutter: stable; }
   .vocabulary-list :global([data-slot=table-container]) { overflow:visible; }
+  .vocabulary-list :global([data-slot=table-header]) { position:sticky; top:0; z-index:1; background:var(--surface); box-shadow:0 1px 0 var(--line); }
   .pagination { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 12px; color: var(--muted-foreground); font-size:0.75rem; }
   .pagination form, .pagination label { display: flex; align-items: center; gap: 6px; }.pagination input { width: 54px; height: 32px; padding: 0 6px; border: 1px solid var(--line); border-radius: 5px; color: var(--text); background: var(--field); text-align: center; }
   .state { min-height: 220px; display: grid; place-content: center; justify-items: center; gap: 8px; color: var(--muted-foreground); text-align: center; }.state strong { color: var(--text); font-size:1rem; }
-  .tools { margin-top:20px; display: flex; align-items: end; justify-content: space-between; margin-bottom: 12px; color: var(--muted-foreground); font-size:0.6875rem; }.tools label { display: grid; gap: 6px; }.tools :global(input) { width: 310px; height: 34px; padding: 0 10px; border: 1px solid var(--line); border-radius: 6px; color: var(--text); background: var(--surface); }
+  .tools { margin-top:20px; display: flex; align-items: end; justify-content: space-between; margin-bottom: 12px; color: var(--muted-foreground); font-size:0.6875rem; }
+  .vocabulary-search { width:310px; max-width:100%; }
   .select-all,.achieved-row { display:grid; align-items:center; gap:12px; padding:12px 14px; border-bottom:1px solid var(--line); }.select-all { grid-template-columns:auto 1fr; color:var(--muted-foreground); }.achieved-row { grid-template-columns:auto minmax(0,1fr) auto; color:var(--text); }.achieved-row.warning { border-left:3px solid var(--warning); }.achieved-row.urgent { border-left:3px solid var(--destructive); }.achieved-row span { display:grid; gap:3px; overflow-wrap:anywhere; }.achieved-row > span:last-child { max-width:210px; font-size:0.75rem; color:var(--muted-foreground); }.achieved-row small { color:var(--muted-foreground); }.bulk-actions { flex-wrap:wrap; position:sticky; bottom:12px; display:flex; justify-content:flex-end; align-items:center; gap:10px; margin-top:12px; padding:12px; border:1px solid var(--line); border-radius:7px; background:var(--surface-raised); }
   .error { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 14px; padding: 11px 13px; border: 1px solid var(--destructive); border-radius: 6px; color: var(--destructive); background: var(--card); }.error button { border: 0; color: var(--foreground); background: transparent; cursor: pointer; }
   .dialog-error { padding: 9px 10px; border: 1px solid var(--destructive); border-radius: 6px; color: var(--destructive); background: var(--card); font-size:0.75rem; }
@@ -744,11 +800,14 @@
   @media (prefers-reduced-motion: reduce) { .windows-presentation, .windows-presentation * { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
   @media (forced-colors: active) { .windows-presentation { --page: Canvas; --sidebar: Canvas; --surface: Canvas; --surface-raised: Canvas; --field: Field; --text: CanvasText; --muted: CanvasText; --line: CanvasText; }  }
   @media (max-width: 760px), (min-resolution: 1.5dppx) and (max-width: 1100px) { .windows-shell { grid-template-columns: 10rem minmax(0,1fr); } header, section { height: auto; min-height: 5.4rem; padding-left: 1.125rem; padding-right: 1.125rem; } }
-  @media (max-width: 560px) { .windows-shell { display: block; } aside { position: static; } nav { grid-template-columns: repeat(2, minmax(0, 1fr)); } .local-status { margin-top: 0; } header { align-items: flex-start; gap: 1rem; padding-top: 1rem; padding-bottom: 1rem; } section { min-height: auto; } .tools { align-items: stretch; flex-direction: column; gap: .75rem; } .tools :global(input) { width: 100%; } .pagination { flex-wrap: wrap; justify-content: center; }.pagination form { order: -1; width: 100%; justify-content: center; } }
-  .windows-shell { grid-template-columns:184px minmax(0,1fr); height:100vh; overflow:hidden; border-radius:14px; }
-  aside { padding:16px 8px; gap:24px; }
-  .brand { padding:0 8px; min-height:32px; gap:8px; }
-  .brand strong { font-size:0.875rem; }
+  @media (max-width: 560px) { .windows-shell { display: block; } aside { position: static; } nav { grid-template-columns: repeat(2, minmax(0, 1fr)); } .local-status { margin-top: 0; } header { align-items: flex-start; gap: 1rem; padding-top: 1rem; padding-bottom: 1rem; } section { min-height: auto; } .tools { align-items: stretch; flex-direction: column; gap: .75rem; }  .pagination { flex-wrap: wrap; justify-content: center; }.pagination form { order: -1; width: 100%; justify-content: center; } }
+  .windows-shell { grid-template-columns:184px minmax(0,1fr); height:100vh; overflow:hidden; grid-template-rows:auto minmax(0,1fr); }
+  aside { padding:16px 8px; gap:24px; min-height:0; overflow:auto; }
+  .sidebar-brand { display:flex; align-items:center; gap:8px; min-height:32px; padding:0 8px; color:var(--foreground); }
+  .sidebar-brand svg { flex-shrink:0; }
+  .sidebar-brand strong { font-size:0.875rem; }
+  aside[hidden] { display:none; }
+  .windows-shell.sidebar-collapsed { grid-template-columns:minmax(0,1fr); }
   nav button { display:flex; align-items:center; gap:8px; border-radius:10px; }
   nav button.active { background:var(--accent); color:var(--accent-foreground); }
   main { overflow:auto; background:var(--background); }
@@ -763,3 +822,33 @@
   :global(.manual-capture-content textarea) { min-height:96px; }
   :global(.manual-capture-content [data-slot=dialog-title]) { font-size:1.5rem; line-height:1.2; font-weight:600; margin-top:8px; }
 </style>
+
+<AlertDialog.Root open={achieveCandidate !== null} onOpenChange={(open) => { if (!open && !achieveBusy) achieveCandidate = null; }}>
+  <AlertDialog.Content onCloseAutoFocus={(event) => { event.preventDefault(); if (achieveTrigger?.isConnected) achieveTrigger.focus(); }}>
+    <AlertDialog.Header>
+      <AlertDialog.Title>Achieve {achieveCandidate?.displayForm}?</AlertDialog.Title>
+      <AlertDialog.Description>This word will move to Achieved and be permanently deleted on {achieveDeletion}. You can Unachieve it before then to keep it.</AlertDialog.Description>
+    </AlertDialog.Header>
+    {#if achieveError}<p role="alert" class="text-destructive text-sm">{achieveError}</p>{/if}
+    <AlertDialog.Footer>
+      <AlertDialog.Cancel disabled={achieveBusy}>Cancel</AlertDialog.Cancel>
+      <AlertDialog.Action variant="destructiveOutline" disabled={achieveBusy} onclick={(event) => { event.preventDefault(); void confirmAchieve(); }}>{achieveBusy ? 'Achieving…' : 'Achieve'}</AlertDialog.Action>
+    </AlertDialog.Footer>
+  </AlertDialog.Content>
+</AlertDialog.Root>
+
+
+<AlertDialog.Root open={deleteCandidates.length > 0} onOpenChange={(open) => { if (!open && !deleteBusy) deleteCandidates = []; }}>
+  <AlertDialog.Content onCloseAutoFocus={(event) => { event.preventDefault(); if (deleteTrigger?.isConnected) deleteTrigger.focus(); else document.getElementById('windows-page-title')?.focus(); }}>
+    <AlertDialog.Header>
+      <AlertDialog.Title>Delete {deleteCandidates.length} Achieved Vocabulary Item{deleteCandidates.length === 1 ? '' : 's'} permanently?</AlertDialog.Title>
+      <AlertDialog.Description>This will permanently delete the selected vocabulary and its word-level history. This action cannot be undone.</AlertDialog.Description>
+    </AlertDialog.Header>
+    {#if deleteError}<p role="alert" class="text-destructive text-sm">{deleteError}</p>{/if}
+    <AlertDialog.Footer>
+      <AlertDialog.Cancel disabled={deleteBusy}>Cancel</AlertDialog.Cancel>
+      <AlertDialog.Action variant="destructiveOutline" disabled={deleteBusy} onclick={(event) => { event.preventDefault(); void confirmDeleteAchieved(); }}>{deleteBusy ? 'Deleting…' : 'Delete permanently'}</AlertDialog.Action>
+    </AlertDialog.Footer>
+  </AlertDialog.Content>
+</AlertDialog.Root>
+

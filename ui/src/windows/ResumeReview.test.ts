@@ -95,8 +95,9 @@ it('keeps the submitted card paired with its result when its status is edited fr
   await fireEvent.click(screen.getByRole('button', { name: 'Show answer' }));
   await fireEvent.click(screen.getByRole('button', { name: 'Forgot' }));
   await fireEvent.click(await screen.findByRole('button', { name: 'Review contexts' }));
-  await fireEvent.change(await screen.findByRole('combobox', { name: 'Learning status' }), { target: { value: 'paused' } });
-  await waitFor(() => expect(screen.getByRole('combobox', { name: 'Learning status' })).toBeEnabled());
+  await fireEvent.keyDown(await screen.findByLabelText('Learning status'), { key: 'ArrowDown' });
+  await fireEvent.pointerUp(await screen.findByRole('option', { name: 'Paused' }));
+  await waitFor(() => expect(screen.getByLabelText('Learning status')).toBeEnabled());
   await fireEvent.click(screen.getByRole('button', { name: 'Close vocabulary detail' }));
   expect(screen.getByRole('heading', { name: 'serendipity' })).toBeVisible();
   await fireEvent.click(screen.getByRole('button', { name: 'Next' }));

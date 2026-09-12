@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { WordDetail, WordStatus } from '../lib/types';
-  import * as NativeSelect from '$lib/components/ui/native-select';
+  import * as Select from '$lib/components/ui/select';
   import * as Field from '$lib/components/ui/field';
   import * as Alert from '$lib/components/ui/alert';
   import * as Sheet from '$lib/components/ui/sheet';
@@ -21,7 +21,7 @@
 </script>
 
 <Sheet.Root open={detail !== null} onOpenChange={(open) => { if (!open) onclose(); }}>
-  <Sheet.Content showCloseButton={false} class="vocabulary-detail" onInteractOutside={(event) => event.preventDefault()} onOpenAutoFocus={(event) => { event.preventDefault(); closeButton?.focus(); }} onCloseAutoFocus={(event) => { event.preventDefault(); trigger?.focus(); }}>
+  <Sheet.Content showCloseButton={false} class="vocabulary-detail" onOpenAutoFocus={(event) => { event.preventDefault(); closeButton?.focus(); }} onCloseAutoFocus={(event) => { event.preventDefault(); trigger?.focus(); }}>
     {#if detail}
       <div class="detail-heading"><span>Vocabulary detail</span><button bind:this={closeButton} class="close" aria-label="Close vocabulary detail" onclick={onclose}><X size={18} /></button></div>
       <Sheet.Title>{detail.item.displayForm}</Sheet.Title>
@@ -31,11 +31,18 @@
       {#if onstatuschange && !detail.item.achievedAt}
         <Field.FieldGroup><Field.Field data-disabled={statusSaving} data-invalid={!!statusError}>
           <Field.FieldLabel for="learning-status">Learning status</Field.FieldLabel>
-          <NativeSelect.Root id="learning-status" bind:value={selectedStatus} disabled={statusSaving} aria-invalid={!!statusError} onchange={() => onstatuschange?.(selectedStatus)}>
-            <NativeSelect.Option value="learning">Learning</NativeSelect.Option>
-            <NativeSelect.Option value="mastered">Mastered</NativeSelect.Option>
-            <NativeSelect.Option value="paused">Paused</NativeSelect.Option>
-          </NativeSelect.Root>
+          <Select.Root type="single" value={selectedStatus} disabled={statusSaving} onValueChange={(value) => { selectedStatus = value as WordStatus; void onstatuschange?.(selectedStatus); }}>
+            <Select.Trigger id="learning-status" aria-invalid={!!statusError} class="w-full">
+              {selectedStatus === 'mastered' ? 'Mastered' : selectedStatus === 'paused' ? 'Paused' : 'Learning'}
+            </Select.Trigger>
+            <Select.Content>
+              <Select.Group>
+                <Select.Item value="learning" label="Learning" />
+                <Select.Item value="mastered" label="Mastered" />
+                <Select.Item value="paused" label="Paused" />
+              </Select.Group>
+            </Select.Content>
+          </Select.Root>
         </Field.Field></Field.FieldGroup>
         {#if statusError}<Alert.Root variant="destructive"><Alert.Title>Learning status</Alert.Title><Alert.Description>{statusError}{#if onstatusretry}<Button variant="outline" disabled={statusSaving} onclick={onstatusretry}>Retry status update</Button>{/if}</Alert.Description></Alert.Root>{/if}
       {/if}

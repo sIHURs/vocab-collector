@@ -10,7 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@lucide/svelte": "^1.42.0",
+    "@lucide/svelte": "^1.44.0",
     "@tauri-apps/api": "^2.0.0",
     "bits-ui": "^2.19.0",
     "clsx": "^2.1.1",

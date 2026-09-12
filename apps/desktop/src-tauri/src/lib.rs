@@ -228,6 +228,10 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init());
     builder
         .setup(|app| {
+            #[cfg(target_os = "windows")]
+            if let Some(window) = app.get_webview_window("main") {
+                window.set_decorations(false)?;
+            }
             let data_dir = app.path().app_data_dir()?;
             fs::create_dir_all(&data_dir)?;
             let store = Arc::new(

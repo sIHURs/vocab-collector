@@ -3,6 +3,14 @@ import { describe, expect, it } from "vitest";
 import { DemoBackend, captureRequestFor } from "./backend";
 
 describe("browser backend contract", () => {
+  it('preserves the saved language with a manual translation in both list and review', async () => {
+    const backend = new DemoBackend(false);
+    await backend.updateSettings({ ...await backend.getSettings(), targetLanguage: 'de' });
+    await backend.capture({ selectedText: 'today', sentence: '测试', translation: '今天' });
+    await backend.updateSettings({ ...await backend.getSettings(), targetLanguage: 'zh-Hans' });
+    expect((await backend.listWords())[0]).toMatchObject({ translation: '今天', translationLanguage: 'de' });
+    expect((await backend.getToday()).reviewQueue[0]).toMatchObject({ translation: '今天', translationLanguage: 'de' });
+  });
   it("uses the saved language pair when constructing a desktop Manual Capture request", () => {
     const capturedAt = "2026-09-05T12:00:00.000Z";
     const request = captureRequestFor(

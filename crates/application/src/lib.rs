@@ -242,7 +242,8 @@ impl AppService {
     }
 
     pub fn list_words(&self) -> Result<Vec<WordListItem>, ApplicationError> {
-        self.words_with_captures()?
+        let mut items = self
+            .words_with_captures()?
             .into_iter()
             .filter(|word| !word.is_achieved())
             .map(|word| {
@@ -264,8 +265,13 @@ impl AppService {
                     delete_after: word.delete_after,
                 })
             })
-            .collect::<Result<Vec<_>, RepositoryError>>()
-            .map_err(Into::into)
+            .collect::<Result<Vec<_>, RepositoryError>>()?;
+        items.sort_by(|a, b| {
+            b.last_seen_at
+                .cmp(&a.last_seen_at)
+                .then_with(|| a.id.cmp(&b.id))
+        });
+        Ok(items)
     }
 
     pub fn achieve_word(

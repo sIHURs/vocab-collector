@@ -1,0 +1,69 @@
+$ pnpm --dir ui test
+$ vitest run
+11:18:38 PM [vite-plugin-svelte] no Svelte config found at C:/Users/yifan/project/vocab-collector/ui - using default configuration.
+
+ RUN  v3.2.7 C:/Users/yifan/project/vocab-collector/ui
+
+ ✓ src/App.test.ts (3 tests) 597ms
+   ✓ application shell > provides compact navigation for the main product areas  305ms
+ ✓ src/FloatingCapture.test.ts (22 tests) 935ms
+ ✓ src/windows/WindowsOcrOverlay.test.ts (3 tests) 129ms
+ ✓ src/lib/appearance.test.ts (3 tests) 196ms
+ ✓ src/components/ShortcutRecorder.test.ts (2 tests) 121ms
+ ✓ src/components/VocabularyDetail.test.ts (1 test) 322ms
+   ✓ shows saved target languages and the translation saved with an Encounter  320ms
+ ✓ src/windows/WindowsFloatingCapture.test.ts (24 tests) 1316ms
+   ✓ Windows floating capture presentation > automatically previews a native translation, applies independent edits, and saves only on confirmation  355ms
+ ✓ src/lib/presentation.test.ts (2 tests) 76ms
+ ✓ src/lib/backend.test.ts (5 tests) 17ms
+ ✓ src/windows/LearningStatus.test.ts (5 tests) 2027ms
+   ✓ saves the selected Learning Status and moves the item without leaving its detail  898ms
+   ✓ retains the saved state on write failure and allows retry while preventing repeat submission  301ms
+   ✓ reports a saved status separately from a failed refresh  318ms
+ ✓ src/components/VocabularyLog.test.ts (6 tests) 4727ms
+   ✓ Vocabulary log > uses one tab stop, moves through days and weeks, labels partial and unknown days  4608ms
+ ✓ src/windows/ResumeReview.test.ts (6 tests) 2563ms
+   ✓ resumes from current status and completes with earlier Review results intact  801ms
+   ✓ includes a newly due Learning item and excludes Paused and Mastered within the existing limit  396ms
+   ✓ blocks stale Resume on refresh failure and retries without losing completed results  474ms
+   ✓ keeps the submitted card paired with its result when its status is edited from Review contexts  336ms
+ ✓ src/windows/WindowsApp.test.ts (41 tests) 10888ms
+   ✓ Windows main presentation > keeps Manual Capture drafts after save and Achieved-restore failures  608ms
+   ✓ Windows main presentation > keeps native Achieve confirmation and shows the resulting Achieved list  337ms
+   ✓ Windows main presentation > saves repeat encounters, shows detail, and refreshes after Undo  410ms
+   ✓ Windows main presentation > shows archived-aware lifetime Insight on Insights  2733ms
+   ✓ Paper Today and Review > keeps Today available when optional Insight fails  2685ms
+⎯⎯⎯⎯⎯⎯ Unhandled Errors ⎯⎯⎯⎯⎯⎯
+
+Vitest caught 1 unhandled error during the test run.
+This might cause false positive tests. Resolve unhandled errors to make sure your tests are not affected.
+
+⎯⎯⎯⎯⎯ Uncaught Exception ⎯⎯⎯⎯⎯
+ReferenceError: document is not defined
+ ❯ Proxy.resetBodyStyle ../node_modules/.pnpm/bits-ui@2.19.0_@internationalized+date@3.12.4_svelte@5.56.10/node_modules/bits-ui/dist/internal/body-scroll-lock.svelte.js:34:9
+     32|         if (!BROWSER)
+     33|             return;
+     34|         document.body.setAttribute("style", initialBodyStyle ?? "");
+       |         ^
+     35|         document.body.style.removeProperty("--scrollbar-width");
+     36|         isIOS && stopTouchMoveListener?.();
+
+ Test Files  13 passed (13)
+      Tests  123 passed (123)
+     Errors  1 error
+   Start at  23:18:38
+   Duration  26.81s (transform 10.13s, setup 17.46s, collect 59.31s, tests 23.91s, environment 16.46s, prepare 2.90s)
+
+ ❯ ../node_modules/.pnpm/bits-ui@2.19.0_@internationalized+date@3.12.4_svelte@5.56.10/node_modules/bits-ui/dist/internal/body-scroll-lock.svelte.js:185:34
+ ❯ Timeout.cleanupFn [as _onTimeout] ../node_modules/.pnpm/bits-ui@2.19.0_@internationalized+date@3.12.4_svelte@5.56.10/node_modules/bits-ui/dist/internal/body-scroll-lock.svelte.js:69:17
+ ❯ listOnTimeout node:internal/timers:635:17
+ ❯ processTimers node:internal/timers:571:7
+
+This error originated in "src/components/VocabularyDetail.test.ts" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.
+This error was caught after test environment was torn down. Make sure to cancel any running tasks before test finishes:
+- cancel timeouts using clearTimeout and clearInterval
+- wait for promises to resolve using the await keyword
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+
+[ELIFECYCLE] Test failed. See above for more details.
+[ELIFECYCLE] Test failed. See above for more details.

@@ -226,7 +226,11 @@ export class DemoBackend implements Backend {
     };
   }
 
-  async listWords() { return this.words.filter((word) => !word.item.achievedAt).map((word) => this.projectItem(word)); }
+  async listWords() {
+    return this.words.filter((word) => !word.item.achievedAt)
+      .map((word) => this.projectItem(word))
+      .sort((a, b) => Date.parse(b.lastSeenAt) - Date.parse(a.lastSeenAt) || a.id.localeCompare(b.id));
+  }
   async listAchievedWords(): Promise<AchievedWordListItem[]> {
     return this.words.filter((word) => word.item.achievedAt && word.item.deleteAfter).map((word) => ({
       id: word.item.id, lemma: word.lemma, displayForm: word.item.displayForm, translation: this.projectItem(word).translation, translationLanguage:this.projectItem(word).translationLanguage,
