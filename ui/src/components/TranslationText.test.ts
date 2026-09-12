@@ -6,7 +6,7 @@ it('shows the saved language name only when it differs from the current preferen
   const { container, rerender } = render(TranslationText, {
     translation: '今天', language: 'de', targetLanguage: 'zh-Hans',
   });
-  expect(container.textContent).toBe('今天 (Deutsch)');
+  expect(container.textContent).toBe('今天 (German)');
   await rerender({ translation: '今天', language: 'de', targetLanguage: 'de' });
   expect(container.textContent).toBe('今天');
 });
@@ -17,7 +17,7 @@ it('treats legacy zh as simplified Chinese when comparing and displaying languag
   });
   expect(container.textContent).toBe('修理');
   await rerender({ translation: '修理', language: 'zh', targetLanguage: 'en' });
-  expect(container.textContent).toBe('修理 (简体中文)');
+  expect(container.textContent).toBe('修理 (Chinese (Simplified))');
   await rerender({ translation: '修理', language: 'zh-Hant', targetLanguage: 'zh' });
-  expect(container.textContent).toBe('修理 (繁体中文)');
+  expect(container.textContent).toBe('修理 (Chinese (Traditional))');
 });

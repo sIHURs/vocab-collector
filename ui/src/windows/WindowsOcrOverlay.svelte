@@ -69,7 +69,7 @@
 
 <svelte:window onkeydown={(event) => { if (event.key === "Escape") void cancel(); }} />
 <button type="button" aria-label="Region OCR selection" onmousedown={begin} onmousemove={move} onmouseup={() => void finish()}>
-  {#if !selecting}<div class="instruction" role="status"><strong>请框取一个词汇</strong><span>拖动鼠标框选 · Esc 取消</span></div>{/if}
+  {#if !selecting}<div class="instruction" role="status"><strong>Select a word or phrase</strong><span>Drag to select · Esc to cancel</span></div>{/if}
   {#if rectangle}<div class="selection" style={`left:${rectangle.x}px;top:${rectangle.y}px;width:${rectangle.width}px;height:${rectangle.height}px`}></div>{/if}
 </button>
 

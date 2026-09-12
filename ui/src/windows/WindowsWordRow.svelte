@@ -4,7 +4,7 @@
   export let onSelect: (wordId: string, trigger: HTMLButtonElement) => void;
   export let onAchieve: ((word: WordListItem) => void) | undefined = undefined;
   const encounters = (count: number) => `Saved ${count} time${count === 1 ? "" : "s"}`;
-  const lastSeen = (value: string) => new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(value));
+  const lastSeen = (value: string) => new Intl.DateTimeFormat('en', { dateStyle: "medium" }).format(new Date(value));
 </script>
 
 <div class="word-row-wrap"><button class="word-row" aria-label={`${word.displayForm}, ${encounters(word.encounterCount)}`} onclick={(event) => onSelect(word.id, event.currentTarget)}>

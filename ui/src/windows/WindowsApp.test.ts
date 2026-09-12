@@ -859,7 +859,7 @@ describe("Windows main presentation", () => {
     await fireEvent.click(screen.getByRole("button", { name: "Vocabulary" }));
     await fireEvent.click(screen.getByRole("tab", { name: "Achieved (1)" }));
 
-    expect(screen.getByText(`Achieved ${new Date(achievedAt).toLocaleDateString()}`)).toBeVisible();
+    expect(screen.getByText(`Achieved ${new Date(achievedAt).toLocaleDateString('en')}`)).toBeVisible();
   });
 });
 

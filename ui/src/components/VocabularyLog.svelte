@@ -23,7 +23,7 @@
   }
   $: offset = log ? calendarDate(log.startDate).getUTCDay() : 0;
   $: weeks = log ? Array.from({ length: Math.ceil((offset + log.days.length) / 7) }, (_, week) => Array.from({ length: 7 }, (_, day) => log?.days[week * 7 + day - offset] ?? null)) : [];
-  const month = (date: string) => calendarDate(date).toLocaleDateString(undefined, { month: 'short', timeZone: 'UTC' });
+  const month = (date: string) => calendarDate(date).toLocaleDateString('en', { month: 'short', timeZone: 'UTC' });
   async function navigate(event: KeyboardEvent, date: string) {
     const delta = { ArrowLeft: -7, ArrowRight: 7, ArrowUp: -1, ArrowDown: 1 }[event.key];
     if (delta == null || !log) return;

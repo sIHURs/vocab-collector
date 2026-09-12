@@ -88,7 +88,7 @@ describe("Windows floating capture presentation", () => {
     mocks.ready?.({ requestId: "translated-request", candidate: { selectedText: "nuance", sentence: "A useful nuance.", origin: "accessibility" } });
 
     expect(await screen.findByText("Feinheit")).toBeVisible();
-    expect(screen.getByText("English → Deutsch")).toBeVisible();
+    expect(screen.getByText("English → German")).toBeVisible();
     expect(mocks.translate).toHaveBeenCalledWith("translated-request", "nuance", "auto", "de");
     expect(mocks.save).not.toHaveBeenCalled();
 
@@ -267,7 +267,7 @@ describe("Windows floating capture presentation", () => {
     mocks.error?.({ requestId: "ocr-ambiguous", failure: { code: "unsupported_element", message: "Unsupported" } });
     mocks.ocr?.({ requestId: "ocr-ambiguous", candidates, ambiguous: true });
 
-    expect(await screen.findByText("识别到多个词，请保留你要收集的词汇。")).toBeVisible();
+    expect(await screen.findByText("Multiple words detected. Keep the word or phrase you want to collect.")).toBeVisible();
     expect(screen.getByLabelText("Vocabulary")).toHaveValue("architecture heterogeneous");
     expect(screen.getByLabelText(/Context sentence/)).toHaveValue("");
     await fireEvent.input(screen.getByLabelText("Vocabulary"), { target: { value: "heterogeneous" } });

@@ -12,7 +12,7 @@
   export let onSort: (key: VocabularySortKey) => void;
   export let onSelect: (id: string, trigger: HTMLButtonElement) => void;
   export let onAchieve: (word: WordListItem) => void;
-  const date = (value: string) => new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(value));
+  const date = (value: string) => new Intl.DateTimeFormat('en', { dateStyle: 'medium' }).format(new Date(value));
 </script>
 
 <Table.Root aria-label="Vocabulary">

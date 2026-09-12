@@ -327,7 +327,7 @@
       activeRequest = event.requestId;
       candidate = null;
       saved = null;
-      error = "请框取词汇";
+      error = "Select a region containing a word or phrase.";
       ocrOffer = false;
       ocrAttempted = true;
     });
@@ -357,7 +357,7 @@
     {:else if candidate}
       <small>{ocrNeedsConfirmation ? "Confirm OCR text" : editing ? "Editing" : "Captured"}</small>
       {#if ocrNeedsConfirmation}
-        {#if ocrCandidates.length > 1}<p role="status">识别到多个词，请保留你要收集的词汇。</p>{/if}
+        {#if ocrCandidates.length > 1}<p role="status">Multiple words detected. Keep the word or phrase you want to collect.</p>{/if}
         <Field.FieldGroup><Field.Field><label>Vocabulary<Input bind:value={selectedText} /></label></Field.Field><Field.Field><label>Context sentence <small>Optional</small><Textarea bind:value={sentence} /></label></Field.Field></Field.FieldGroup>
       {:else if editing}
         <Field.FieldGroup><Field.Field><label>Selected text<Input aria-label="Selected text" bind:value={selectedText} /></label></Field.Field><Field.Field><label>Context<Textarea aria-label="Context" bind:value={sentence} /></label></Field.Field><Field.Field><label>Translation <small>Optional</small><Input aria-label="Translation (optional)" bind:value={translation} /></label></Field.Field></Field.FieldGroup>

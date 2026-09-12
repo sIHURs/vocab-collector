@@ -1,12 +1,12 @@
 const languageNames: Record<string, string> = {
   auto: 'Auto detect',
   en: 'English',
-  de: 'Deutsch',
-  fr: 'Français',
-  es: 'Español',
-  zh: '简体中文',
-  'zh-hans': '简体中文',
-  'zh-hant': '繁体中文',
+  de: 'German',
+  fr: 'French',
+  es: 'Spanish',
+  zh: 'Chinese (Simplified)',
+  'zh-hans': 'Chinese (Simplified)',
+  'zh-hant': 'Chinese (Traditional)',
 };
 
 export function languageLabel(code: string): string {
