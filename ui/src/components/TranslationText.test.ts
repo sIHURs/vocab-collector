@@ -17,7 +17,7 @@ it('treats legacy zh as simplified Chinese when comparing and displaying languag
   });
   expect(container.textContent).toBe('修理');
   await rerender({ translation: '修理', language: 'zh', targetLanguage: 'en' });
-  expect(container.textContent).toBe('修理 (Chinese (Simplified))');
+  expect(container.textContent).toBe('修理 (简体中文)');
   await rerender({ translation: '修理', language: 'zh-Hant', targetLanguage: 'zh' });
-  expect(container.textContent).toBe('修理 (Chinese (Traditional))');
+  expect(container.textContent).toBe('修理 (繁体中文)');
 });

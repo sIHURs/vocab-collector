@@ -759,7 +759,7 @@
 
 <Toaster id={notificationHostId} position="bottom-right" />
 
-<VocabularyDetail detail={selectedDetail} trigger={detailTrigger} onclose={closeDetail} onachieve={achieveSelectedWord} onstatuschange={api.changeLearningStatus ? changeLearningStatus : undefined} statusSaving={statusSaving || statusUndoBusy} {statusError} onstatusretry={retryStatusUpdate} />
+<VocabularyDetail detail={selectedDetail} targetLanguage={appliedSettings?.targetLanguage} trigger={detailTrigger} onclose={closeDetail} onachieve={achieveSelectedWord} onstatuschange={api.changeLearningStatus ? changeLearningStatus : undefined} statusSaving={statusSaving || statusUndoBusy} {statusError} onstatusretry={retryStatusUpdate} />
 </div>
 
 <style>

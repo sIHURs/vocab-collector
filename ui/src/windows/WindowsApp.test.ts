@@ -694,11 +694,11 @@ describe("Windows main presentation", () => {
     await fireEvent.click(screen.getByRole("button", { name: "Settings" }));
     await fireEvent.keyDown(screen.getByLabelText('Source language'), { key: 'ArrowDown' });
     expect(await screen.findByRole('option', { name: 'Auto detect' })).toBeVisible();
-    expect(screen.getByRole('option', { name: 'Chinese (Simplified)' })).toBeVisible();
+    expect(screen.getByRole('option', { name: '简体中文' })).toBeVisible();
     await fireEvent.pointerUp(screen.getByRole('option', { name: 'Auto detect' }));
     await fireEvent.keyDown(screen.getByLabelText('Translate into'), { key: 'ArrowDown' });
     expect(screen.queryByRole('option', { name: 'Auto detect' })).toBeNull();
-    await fireEvent.pointerUp(await screen.findByRole('option', { name: 'Chinese (Traditional)' }));
+    await fireEvent.pointerUp(await screen.findByRole('option', { name: '繁体中文' }));
     await waitFor(() => expect(screen.getByText("Settings saved")).toBeVisible());
 
     expect(api.updates.at(-1)).toMatchObject({ sourceLanguage: "auto", targetLanguage: "zh-Hant" });

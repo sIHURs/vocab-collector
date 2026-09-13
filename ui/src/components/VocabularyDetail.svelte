@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { WordDetail, WordStatus } from '../lib/types';
+  import TranslationText from './TranslationText.svelte';
   import * as Select from '$lib/components/ui/select';
   import * as Field from '$lib/components/ui/field';
   import * as Alert from '$lib/components/ui/alert';
@@ -8,6 +9,7 @@
   import { Button } from '$lib/components/ui/button';
   import X from '@lucide/svelte/icons/x';
   export let detail: WordDetail | null;
+  export let targetLanguage: string | undefined = undefined;
   export let trigger: HTMLElement | null;
   export let onclose: () => void;
   export let onachieve: () => void;
@@ -18,6 +20,7 @@
   let selectedStatus: WordStatus = 'learning';
   $: if (detail && !statusSaving) selectedStatus = detail.item.status;
   let closeButton: HTMLButtonElement;
+  const captureDate = new Intl.DateTimeFormat('en', { dateStyle: 'medium', timeStyle: 'short' });
 </script>
 
 <Sheet.Root open={detail !== null} onOpenChange={(open) => { if (!open) onclose(); }}>
@@ -25,8 +28,17 @@
     {#if detail}
       <div class="detail-heading"><span>Vocabulary detail</span><button bind:this={closeButton} class="close" aria-label="Close vocabulary detail" onclick={onclose}><X size={18} /></button></div>
       <Sheet.Title>{detail.item.displayForm}</Sheet.Title>
-      <Sheet.Description>{detail.item.translation ?? 'No translation'}</Sheet.Description>
-      <section aria-label="Saved translations">{#each detail.translations ?? [] as translation}<p><small>{translation.targetLanguage}</small> <span>{translation.text}</span></p>{/each}</section>
+      <section aria-label="Saved translations">
+        <Sheet.Description>
+          {#if detail.translations?.length}
+            {#each detail.translations as translation}
+              <span class="saved-translation"><TranslationText translation={translation.text} language={translation.targetLanguage} {targetLanguage} /></span>
+            {/each}
+          {:else}
+            <TranslationText translation={detail.item.translation} language={detail.item.translationLanguage} {targetLanguage} />
+          {/if}
+        </Sheet.Description>
+      </section>
       <div class="detail-status"><Badge variant="secondary"><span class="status">{detail.item.status}</span></Badge><span>Saved {detail.item.encounterCount} time{detail.item.encounterCount === 1 ? '' : 's'}</span></div>
       {#if onstatuschange && !detail.item.achievedAt}
         <Field.FieldGroup><Field.Field data-disabled={statusSaving} data-invalid={!!statusError}>
@@ -49,7 +61,12 @@
       {#if detail.item.status === 'mastered' && !detail.item.achievedAt}<div><Button variant="destructiveOutline" disabled={statusSaving} onclick={onachieve}>Achieve</Button></div>{/if}
       <section class="timeline" aria-label="Capture history"><h3>Capture history</h3>
         {#each detail.encounters as encounter (encounter.id)}
-          <article><p>{encounter.sentence}</p>{#if encounter.savedTranslation}<p><small>{encounter.savedTranslation.targetLanguage}</small> <span>{encounter.savedTranslation.text}</span></p>{/if}<small>{[encounter.sourceApp, encounter.sourceTitle, encounter.sourceUrl].filter(Boolean).join(' · ') || 'Manual entry'}</small></article>
+          <article>
+            <p>{encounter.sentence}</p>
+            {#if encounter.savedTranslation}<p><TranslationText translation={encounter.savedTranslation.text} language={encounter.savedTranslation.targetLanguage} {targetLanguage} /></p>{/if}
+            <small>{[encounter.sourceApp, encounter.sourceTitle, encounter.sourceUrl].filter(Boolean).join(' · ') || 'Manual entry'}</small>
+            <time datetime={encounter.capturedAt}>{captureDate.format(new Date(encounter.capturedAt))}</time>
+          </article>
         {/each}
       </section>
     {/if}
@@ -64,6 +81,9 @@
   .close { display:grid; place-items:center; width:32px; height:32px; border:0; border-radius:10px; background:transparent; color:var(--foreground); cursor:pointer; }
   .detail-status { display:flex; align-items:center; gap:8px; color:var(--muted-foreground); font-size:0.75rem; }
   .status { text-transform:capitalize; }
+  .saved-translation { display:block; }
+  .saved-translation + .saved-translation { margin-top:8px; }
+  time { display:block; margin-top:4px; color:var(--muted-foreground); font-size:0.75rem; line-height:1.5; }
   .timeline { border-top:1px solid var(--border); padding-top:24px; margin:0; }
   h3 { font-size:1rem; line-height:1.45; font-weight:600; margin:0 0 20px; text-transform:none; letter-spacing:normal; }
   article { margin:0 0 24px; padding-left:16px; border-left:2px solid var(--border); overflow-wrap:anywhere; }
