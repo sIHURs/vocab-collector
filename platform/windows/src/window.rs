@@ -118,6 +118,36 @@ pub fn restore_source_focus() -> Result<(), PlatformError> {
     }
 }
 
+/// Snapshot the source before the OCR overlay takes foreground focus. A click
+/// on the capture window's OCR/retry button should retain its original source.
+pub fn remember_ocr_source(
+    capture: NativeWindowHandle,
+    overlay: NativeWindowHandle,
+) -> Result<(), PlatformError> {
+    let foreground = NativeWindowHandle::new(unsafe { GetForegroundWindow() }.0 as isize);
+    let mut recorded = SOURCE_WINDOW
+        .lock()
+        .map_err(|_| operation("Capture focus state is unavailable"))?;
+    *recorded = source_at_ocr_start(*recorded, foreground, capture, overlay);
+    if recorded.is_none() {
+        return Err(operation("OCR source window is unavailable"));
+    }
+    Ok(())
+}
+
+fn source_at_ocr_start(
+    recorded: Option<NativeWindowHandle>,
+    foreground: NativeWindowHandle,
+    capture: NativeWindowHandle,
+    overlay: NativeWindowHandle,
+) -> Option<NativeWindowHandle> {
+    if foreground.0 == 0 || foreground == capture || foreground == overlay {
+        recorded
+    } else {
+        Some(foreground)
+    }
+}
+
 pub(crate) fn ocr_source_window() -> Result<NativeWindowHandle, PlatformError> {
     let recorded = *SOURCE_WINDOW
         .lock()
@@ -161,6 +191,26 @@ mod tests {
         assert_eq!(
             super::preferred_ocr_source(Some(recorded), later_foreground),
             recorded
+        );
+    }
+
+    #[test]
+    fn ocr_start_refreshes_source_before_overlay_focus_and_retains_it_on_retry() {
+        let old = NativeWindowHandle::new(101);
+        let current = NativeWindowHandle::new(202);
+        let capture = NativeWindowHandle::new(303);
+        let overlay = NativeWindowHandle::new(404);
+        for previous in [None, Some(old)] {
+            let recorded = super::source_at_ocr_start(previous, current, capture, overlay);
+            assert_eq!(super::preferred_ocr_source(recorded, overlay), current);
+            for foreground in [capture, overlay] {
+                let retry = super::source_at_ocr_start(recorded, foreground, capture, overlay);
+                assert_eq!(super::preferred_ocr_source(retry, overlay), current);
+            }
+        }
+        assert_eq!(
+            super::source_at_ocr_start(None, capture, capture, overlay),
+            None
         );
     }
 }

@@ -111,7 +111,12 @@ impl AppState {
         &self,
         region: vocab_platform_api::ScreenRect,
     ) -> Result<Vec<OcrCandidate>, PlatformError> {
-        self.ocr.recognize_region(region).await
+        let settings = self.application.get_settings().map_err(|_| {
+            PlatformError::Operation("OCR source language settings are unavailable".into())
+        })?;
+        self.ocr
+            .recognize_region(region, &settings.source_language)
+            .await
     }
 
     pub async fn translate(

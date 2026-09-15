@@ -123,9 +123,11 @@ impl OcrProvider for WindowsOcrProvider {
     async fn recognize_region(
         &self,
         region: ScreenRect,
+        source_language: &str,
     ) -> Result<Vec<OcrCandidate>, PlatformError> {
         let window = crate::window::ocr_source_window()?;
-        tokio::task::spawn_blocking(move || capture_and_recognize(window, region))
+        let source_language = source_language.to_owned();
+        tokio::task::spawn_blocking(move || capture_and_recognize(window, region, &source_language))
             .await
             .map_err(|_| operation("Windows OCR worker failed"))?
     }
@@ -134,8 +136,10 @@ impl OcrProvider for WindowsOcrProvider {
 fn capture_and_recognize(
     window: crate::window::NativeWindowHandle,
     region: ScreenRect,
+    source_language: &str,
 ) -> Result<Vec<OcrCandidate>, PlatformError> {
     let _apartment = ComApartment::enter()?;
+    let engine = engine_for_language(source_language)?;
     let window = crate::window::native_handle(window);
     let item = capture_item_for_window(window)?;
     let size = item
@@ -196,10 +200,10 @@ fn capture_and_recognize(
         .and_then(|operation| operation.get())
         .map_err(|_| operation("OCR bitmap copy failed"))?;
     let bitmap_guard = CloseBitmap(bitmap.clone());
-    let engine = OcrEngine::TryCreateFromUserProfileLanguages()
-        .map_err(|_| operation("Windows OCR language is unavailable"))?;
+    let (prepared, scale) = prepare_ocr_bitmap(&bitmap)?;
+    let prepared_guard = CloseBitmap(prepared.clone());
     let result = engine
-        .RecognizeAsync(&bitmap)
+        .RecognizeAsync(&prepared)
         .and_then(|operation| operation.get())
         .map_err(|_| operation("Windows OCR recognition failed"))?;
     let mut words = Vec::new();
@@ -220,10 +224,10 @@ fn capture_and_recognize(
                     .map_err(|_| operation("OCR word text is unavailable"))?
                     .to_string(),
                 bounds: ScreenRect::new(
-                    f64::from(rect.X),
-                    f64::from(rect.Y),
-                    f64::from(rect.Width),
-                    f64::from(rect.Height),
+                    f64::from(rect.X) / scale,
+                    f64::from(rect.Y) / scale,
+                    f64::from(rect.Width) / scale,
+                    f64::from(rect.Height) / scale,
                 ),
             });
         }
@@ -238,11 +242,104 @@ fn capture_and_recognize(
         }
     );
     drop(subscription_guard);
+    drop(prepared_guard);
     drop(bitmap_guard);
     drop(frame_guard);
     drop(session_guard);
     drop(pool_guard);
     Ok(candidates)
+}
+
+fn engine_for_language(requested: &str) -> Result<OcrEngine, PlatformError> {
+    // Automatic source detection supplies no language hint. Preserve the
+    // Windows profile choice for that mode rather than treating "auto" as a pack.
+    if requested.eq_ignore_ascii_case("auto") {
+        return OcrEngine::TryCreateFromUserProfileLanguages()
+            .map_err(|_| operation("Windows OCR language is unavailable"));
+    }
+    let available = OcrEngine::AvailableRecognizerLanguages()
+        .map_err(|_| operation("Windows OCR languages are unavailable"))?;
+    let languages: Vec<_> = available.into_iter().collect();
+    let tags: Vec<String> = languages
+        .iter()
+        .map(|language| {
+            language
+                .LanguageTag()
+                .map(|tag| tag.to_string())
+                .map_err(|_| operation("Windows OCR language tag is unavailable"))
+        })
+        .collect::<Result<_, _>>()?;
+    let index = select_ocr_language(requested, &tags)
+        .ok_or_else(|| operation(&missing_ocr_language_message(requested)))?;
+    OcrEngine::TryCreateFromLanguage(&languages[index])
+        .map_err(|_| operation("Windows OCR language is unavailable"))
+}
+
+fn missing_ocr_language_message(requested: &str) -> String {
+    let language = if requested
+        .split(['-', '_'])
+        .next()
+        .unwrap_or("")
+        .eq_ignore_ascii_case("en")
+    {
+        "English"
+    } else {
+        requested
+    };
+    format!(
+        "{language} OCR language pack is not installed. Open Windows language settings, add {language} and install its Optical Character Recognition (OCR) feature, then try again."
+    )
+}
+
+fn select_ocr_language(requested: &str, available: &[String]) -> Option<usize> {
+    let base = |tag: &str| {
+        tag.split(['-', '_'])
+            .next()
+            .unwrap_or("")
+            .to_ascii_lowercase()
+    };
+    available
+        .iter()
+        .position(|tag| tag.eq_ignore_ascii_case(requested))
+        .or_else(|| {
+            available
+                .iter()
+                .position(|tag| base(tag) == base(requested))
+        })
+}
+
+fn prepare_ocr_bitmap(bitmap: &SoftwareBitmap) -> Result<(SoftwareBitmap, f64), PlatformError> {
+    use windows::{
+        Graphics::Imaging::{BitmapDecoder, BitmapEncoder, BitmapInterpolationMode},
+        Storage::Streams::InMemoryRandomAccessStream,
+    };
+    let prepare = || -> windows::core::Result<_> {
+        let width = bitmap.PixelWidth()? as u32;
+        let height = bitmap.PixelHeight()? as u32;
+        let max = OcrEngine::MaxImageDimension()?;
+        let scale = if height < 64 {
+            3.min(max / width).min(max / height).max(1)
+        } else {
+            1
+        };
+        if scale == 1 {
+            return Ok((SoftwareBitmap::Copy(bitmap)?, 1.0));
+        }
+        let stream = InMemoryRandomAccessStream::new()?;
+        let encoder = BitmapEncoder::CreateAsync(BitmapEncoder::PngEncoderId()?, &stream)?.get()?;
+        encoder.SetSoftwareBitmap(bitmap)?;
+        let transform = encoder.BitmapTransform()?;
+        transform.SetScaledWidth(width * scale)?;
+        transform.SetScaledHeight(height * scale)?;
+        transform.SetInterpolationMode(BitmapInterpolationMode::Cubic)?;
+        encoder.FlushAsync()?.get()?;
+        stream.Seek(0)?;
+        let decoder = BitmapDecoder::CreateAsync(&stream)?.get()?;
+        let prepared = decoder.GetSoftwareBitmapAsync()?.get()?;
+        stream.Close()?;
+        Ok((prepared, f64::from(scale)))
+    };
+    prepare().map_err(|_| operation("OCR image preparation failed"))
 }
 
 fn logical_visible_frame_bounds(
@@ -484,6 +581,161 @@ mod tests {
     use windows::Graphics::SizeInt32;
 
     use super::{CaptureCrop, CaptureGeometry, OcrDiagnostics, RecognizedWord, normalize_words};
+
+    #[test]
+    fn source_language_selects_the_recognizer_instead_of_windows_profile_order() {
+        let tags = ["zh-Hans-CN", "de-DE", "en-US", "en-GB"].map(String::from);
+        assert_eq!(super::select_ocr_language("en-GB", &tags), Some(3));
+        assert_eq!(super::select_ocr_language("en", &tags), Some(2));
+        assert_eq!(super::select_ocr_language("de", &tags), Some(1));
+        assert_eq!(super::select_ocr_language("zh", &tags), Some(0));
+        assert_eq!(super::select_ocr_language("en", &tags[..2]), None);
+        assert_eq!(super::select_ocr_language("en", &tags[..1]), None);
+        assert_eq!(super::select_ocr_language("ja", &tags), None);
+        assert_eq!(super::select_ocr_language("en", &[]), None);
+    }
+
+    #[test]
+    #[ignore = "queries the installed Windows OCR language packs"]
+    fn native_missing_english_pack_reports_installation_instructions() {
+        let _apartment = super::ComApartment::enter().unwrap();
+        let tags: Vec<_> = super::OcrEngine::AvailableRecognizerLanguages()
+            .unwrap()
+            .into_iter()
+            .map(|language| language.LanguageTag().unwrap().to_string())
+            .collect();
+        eprintln!("Installed OCR language packs: {tags:?}");
+        match super::engine_for_language("en") {
+            Ok(_) => assert!(super::select_ocr_language("en", &tags).is_some()),
+            Err(error) => {
+                assert!(super::select_ocr_language("en", &tags).is_none());
+                let message = error.to_string();
+                assert!(message.contains("English OCR language pack is not installed"));
+                assert!(message.contains("Windows language settings"));
+                assert!(message.contains("Optical Character Recognition (OCR)"));
+            }
+        }
+    }
+
+    #[test]
+    #[ignore = "requires an interactive Windows desktop and an installed English OCR language pack"]
+    fn native_ocr_reads_consisting_from_a_known_window() {
+        use windows::{
+            Win32::{
+                Foundation::{LPARAM, WPARAM},
+                UI::{
+                    HiDpi::{
+                        DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, SetThreadDpiAwarenessContext,
+                    },
+                    WindowsAndMessaging::{
+                        CreateWindowExW, DestroyWindow, SendMessageW, WINDOW_EX_STYLE, WM_PAINT,
+                        WS_POPUP, WS_VISIBLE,
+                    },
+                },
+            },
+            core::w,
+        };
+        unsafe {
+            let previous = SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+            let hwnd = CreateWindowExW(
+                WINDOW_EX_STYLE::default(),
+                w!("STATIC"),
+                w!("\r\n    consisting\r\n"),
+                WS_POPUP | WS_VISIBLE,
+                400,
+                300,
+                600,
+                200,
+                None,
+                None,
+                None,
+                None,
+            )
+            .unwrap();
+            SendMessageW(hwnd, WM_PAINT, Some(WPARAM(0)), Some(LPARAM(0)));
+            let bounds = super::logical_visible_frame_bounds(hwnd).unwrap();
+            // The default STATIC font renders the fixture at x=16, y=20.
+            // Keep a small margin around the glyphs, like a user-drawn word crop.
+            let tight = ScreenRect::new(bounds.x + 12.0, bounds.y + 16.0, 76.0, 20.0);
+            let result = super::capture_and_recognize(
+                crate::window::NativeWindowHandle::new(hwnd.0 as isize),
+                tight,
+                "en",
+            );
+            DestroyWindow(hwnd).unwrap();
+            SetThreadDpiAwarenessContext(previous);
+            let candidates = result.unwrap();
+            assert!(
+                candidates
+                    .iter()
+                    .any(|word| word.text.to_lowercase().contains("consisting")),
+                "OCR did not find readable text in the known consisting fixture; candidates={candidates:?}"
+            );
+            for word in candidates {
+                assert!(word.bounds.x >= tight.x && word.bounds.y >= tight.y);
+                assert!(word.bounds.x + word.bounds.width <= tight.x + tight.width);
+                assert!(word.bounds.y + word.bounds.height <= tight.y + tight.height);
+            }
+        }
+    }
+
+    #[test]
+    #[ignore = "requires VOCAB_OCR_PNG pointing to the reported screenshot and an English OCR pack"]
+    fn native_ocr_reads_consisting_from_reported_image() {
+        use windows::{
+            Graphics::Imaging::{
+                BitmapAlphaMode, BitmapBounds, BitmapDecoder, BitmapPixelFormat, BitmapTransform,
+                ColorManagementMode, ExifOrientationMode,
+            },
+            Storage::Streams::{DataWriter, InMemoryRandomAccessStream},
+        };
+        let _apartment = super::ComApartment::enter().unwrap();
+        let bytes =
+            std::fs::read(std::env::var_os("VOCAB_OCR_PNG").expect("set VOCAB_OCR_PNG")).unwrap();
+        let stream = InMemoryRandomAccessStream::new().unwrap();
+        let writer = DataWriter::CreateDataWriter(&stream.GetOutputStreamAt(0).unwrap()).unwrap();
+        writer.WriteBytes(&bytes).unwrap();
+        writer.StoreAsync().unwrap().get().unwrap();
+        stream.Seek(0).unwrap();
+        let decoder = BitmapDecoder::CreateAsync(&stream).unwrap().get().unwrap();
+        let transform = BitmapTransform::new().unwrap();
+        transform
+            .SetBounds(BitmapBounds {
+                X: 11,
+                Y: 148,
+                Width: 75,
+                Height: 20,
+            })
+            .unwrap();
+        let bitmap = decoder
+            .GetSoftwareBitmapTransformedAsync(
+                BitmapPixelFormat::Bgra8,
+                BitmapAlphaMode::Ignore,
+                &transform,
+                ExifOrientationMode::IgnoreExifOrientation,
+                ColorManagementMode::DoNotColorManage,
+            )
+            .unwrap()
+            .get()
+            .unwrap();
+        let (prepared, _) = super::prepare_ocr_bitmap(&bitmap).unwrap();
+        let text = super::engine_for_language("en")
+            .unwrap()
+            .RecognizeAsync(&prepared)
+            .unwrap()
+            .get()
+            .unwrap()
+            .Text()
+            .unwrap()
+            .to_string();
+        prepared.Close().unwrap();
+        bitmap.Close().unwrap();
+        stream.Close().unwrap();
+        assert!(
+            text.to_lowercase().contains("consisting"),
+            "reported word was not recognized"
+        );
+    }
 
     #[test]
     fn recognized_words_become_portable_candidates_without_content_diagnostics() {

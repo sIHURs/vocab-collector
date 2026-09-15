@@ -18,7 +18,7 @@ it('resumes from current status and completes with earlier Review results intact
   await pauseAfterOneReview(api);
   for (const item of (await api.getToday()).reviewQueue) await api.changeLearningStatus(item.wordId, 'mastered');
   await fireEvent.click(screen.getByRole('button', { name: 'Resume review' }));
-  expect(await screen.findByText('Review complete')).toBeVisible();
+  expect(await screen.findByText('All due words reviewed')).toBeVisible();
   expect(screen.getByText(/1 reviewed/)).toBeVisible();
   expect(screen.queryByRole('button', { name: 'Show answer' })).toBeNull();
 });
@@ -106,3 +106,66 @@ it('keeps the submitted card paired with its result when its status is edited fr
   expect(screen.queryByText(/Next review/)).toBeNull();
 });
 
+
+async function completeBatch(count: number) {
+  for (let index = 0; index < count; index += 1) {
+    await fireEvent.click(await screen.findByRole('button', { name: 'Show answer' }));
+    await fireEvent.click(screen.getByRole('button', { name: index % 2 ? 'Forgot' : 'Remembered' }));
+    await fireEvent.click(await screen.findByRole('button', { name: 'Next' }));
+  }
+}
+
+it('continues directly into the smaller final batch and reports all due words completed', async () => {
+  const api = new DemoBackend(false);
+  for (let index = 0; index < 7; index += 1) {
+    await api.capture({ selectedText: `batch-${index}`, sentence: `Context ${index}` });
+  }
+  render(WindowsApp, { api });
+  await fireEvent.click(await screen.findByRole('button', { name: 'Start review (5)' }));
+  expect(screen.getByText('0 / 2')).toBeVisible();
+  await completeBatch(5);
+  expect(await screen.findByText('1 of 2 batches completed')).toBeVisible();
+  expect(await screen.findByRole('heading', { name: 'Batch complete' })).toBeVisible();
+  expect(screen.getByText('2 words still due')).toBeVisible();
+  await fireEvent.click(screen.getByRole('button', { name: 'Continue next batch (2)' }));
+  expect(await screen.findByText('1 of 2')).toBeVisible();
+  expect(screen.getByRole('progressbar', { name: 'Overall batch progress' })).toHaveAttribute('aria-valuenow', '1');
+  await completeBatch(2);
+  expect(await screen.findByText('2 of 2 batches completed')).toBeVisible();
+  expect(await screen.findByRole('heading', { name: 'All due words reviewed' })).toBeVisible();
+  expect(screen.getByText('2 reviewed')).toBeVisible();
+  expect(screen.queryByRole('button', { name: /Continue next batch/ })).toBeNull();
+  expect((await api.getToday()).totalDueCount).toBe(0);
+  await fireEvent.click(screen.getByRole('button', { name: 'End review' }));
+  expect(await screen.findByText('Nothing due')).toBeVisible();
+});
+
+it('puts all due words in one batch when the configured limit exceeds the backlog', async () => {
+  const api = new DemoBackend();
+  await api.updateSettings({ ...(await api.getSettings()), dailyLimit: 50 });
+  render(WindowsApp, { api });
+  await fireEvent.click(await screen.findByRole('button', { name: 'Start review (3)' }));
+  expect(screen.getByText('1 of 3')).toBeVisible();
+  expect(screen.getByText('0 / 1')).toBeVisible();
+  await completeBatch(3);
+  expect(await screen.findByText('1 of 1 batches completed')).toBeVisible();
+  expect(await screen.findByRole('heading', { name: 'All due words reviewed' })).toBeVisible();
+  expect(screen.queryByRole('button', { name: /Continue next batch/ })).toBeNull();
+});
+
+it('keeps the completed batch available when continuing cannot refresh the queue', async () => {
+  const api = new DemoBackend();
+  await api.updateSettings({ ...(await api.getSettings()), dailyLimit: 1 });
+  render(WindowsApp, { api });
+  await fireEvent.click(await screen.findByRole('button', { name: 'Start review (1)' }));
+  await completeBatch(1);
+  const next = await screen.findByRole('button', { name: 'Continue next batch (1)' });
+  const getToday = api.getToday.bind(api);
+  api.getToday = vi.fn().mockRejectedValueOnce(new Error('Queue unavailable')).mockImplementation(getToday);
+  await fireEvent.click(next);
+  expect(await screen.findByText('Queue unavailable')).toBeVisible();
+  expect(screen.getByRole('heading', { name: 'Batch complete' })).toBeVisible();
+  expect(screen.queryByRole('button', { name: 'Show answer' })).toBeNull();
+  await fireEvent.click(screen.getByRole('button', { name: 'Continue next batch (1)' }));
+  expect(await screen.findByRole('heading', { name: 'nuance' })).toBeVisible();
+});

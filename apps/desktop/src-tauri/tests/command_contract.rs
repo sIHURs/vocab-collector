@@ -631,6 +631,9 @@ fn app_state_routes_capture_operations_through_injected_platform_services() {
         block_on(state.capture_selection()).unwrap().selected_text,
         "portable selection"
     );
+    let mut settings = state.application().get_settings().unwrap();
+    settings.source_language = "fr".into();
+    state.application().update_settings(settings).unwrap();
     assert_eq!(
         block_on(state.recognize_region(ScreenRect::new(25.0, 75.0, 80.0, 24.0))).unwrap()[0].text,
         "portable OCR"
@@ -648,7 +651,7 @@ fn app_state_routes_capture_operations_through_injected_platform_services() {
             "permission-status:Accessibility",
             "permission-request:ScreenRecording",
             "selection",
-            "ocr:25,75",
+            "ocr:25,75:fr",
             "translation:portable selection:en:de",
         ]
     );
@@ -835,11 +838,12 @@ impl OcrProvider for FakeOcr {
     async fn recognize_region(
         &self,
         region: ScreenRect,
+        source_language: &str,
     ) -> Result<Vec<OcrCandidate>, PlatformError> {
         self.calls
             .lock()
             .unwrap()
-            .push(format!("ocr:{},{}", region.x, region.y));
+            .push(format!("ocr:{},{}:{source_language}", region.x, region.y));
         Ok(vec![OcrCandidate {
             text: "portable OCR".into(),
             bounds: ScreenRect::new(20.0, 70.0, 50.0, 18.0),

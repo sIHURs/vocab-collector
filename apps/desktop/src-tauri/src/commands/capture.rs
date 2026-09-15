@@ -14,8 +14,8 @@ use vocab_platform_api::{
 use crate::{
     bootstrap::AppState,
     events::{
-        CaptureFailure, CaptureFailureCode, LIBRARY_CHANGED_EVENT, NativeCaptureError,
-        NativeCaptureErrorEvent, NativeCaptureEvent, OcrCandidatesEvent, RegionOcrStartEvent,
+        CaptureFailure, LIBRARY_CHANGED_EVENT, NativeCaptureError, NativeCaptureErrorEvent,
+        NativeCaptureEvent, OcrCandidatesEvent, RegionOcrStartEvent,
     },
 };
 
@@ -491,6 +491,22 @@ pub(crate) fn present_region_ocr_capture(app: &tauri::AppHandle) -> Result<Uuid,
     let overlay = app
         .get_webview_window("ocr-overlay")
         .ok_or_else(|| CaptureFailure::operation("OCR overlay is unavailable"))?;
+    #[cfg(target_os = "windows")]
+    vocab_platform_windows::window::remember_ocr_source(
+        vocab_platform_windows::window::NativeWindowHandle::new(
+            window
+                .hwnd()
+                .map_err(|error| CaptureFailure::operation(error.to_string()))?
+                .0 as isize,
+        ),
+        vocab_platform_windows::window::NativeWindowHandle::new(
+            overlay
+                .hwnd()
+                .map_err(|error| CaptureFailure::operation(error.to_string()))?
+                .0 as isize,
+        ),
+    )
+    .map_err(CaptureFailure::from)?;
     window
         .hide()
         .map_err(|error| CaptureFailure::operation(error.to_string()))?;
@@ -520,9 +536,13 @@ pub fn show_region_ocr_failure(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
     request_id: Uuid,
+    failure: CaptureFailure,
 ) -> Result<(), CaptureFailure> {
     state
         .publish_if_current(request_id, || {
+            if let Some(overlay) = app.get_webview_window("ocr-overlay") {
+                overlay.hide().map_err(|error| error.to_string())?;
+            }
             let window = app
                 .get_webview_window("capture")
                 .ok_or_else(|| "capture window is unavailable".to_string())?;
@@ -532,8 +552,8 @@ pub fn show_region_ocr_failure(
                     "capture-error",
                     NativeCaptureErrorEvent {
                         request_id,
-                        code: CaptureFailureCode::Operation,
-                        message: "OCR did not find readable text".into(),
+                        code: failure.code,
+                        message: failure.message,
                     },
                 )
                 .map_err(|error| error.to_string())

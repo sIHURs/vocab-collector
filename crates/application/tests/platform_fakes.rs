@@ -85,6 +85,7 @@ impl OcrProvider for UnusedOcrProvider {
     async fn recognize_region(
         &self,
         _region: ScreenRect,
+        _source_language: &str,
     ) -> Result<Vec<OcrCandidate>, PlatformError> {
         Err(PlatformError::Unsupported(Capability::ScreenshotOcr))
     }

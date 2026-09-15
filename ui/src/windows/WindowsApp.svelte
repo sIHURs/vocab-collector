@@ -31,6 +31,7 @@
   import { onMount, onDestroy, tick } from "svelte";
   import { createBackend, type Backend } from "../lib/backend";
   import type { AchievedCaptureConflict, AchievedWordListItem, CaptureCard, GlobalInsight, ReviewCard, ReviewRating, ReviewResult, ReviewSessionInsight, Settings, SystemSettingsStatus, TodayView, WordDetail, WordListItem } from "../lib/types";
+  import BatchProgressRing from '../components/BatchProgressRing.svelte';
   import { Button } from '$lib/components/ui/button';
   import { Input } from '$lib/components/ui/input';
   import { Textarea } from '$lib/components/ui/textarea';
@@ -102,6 +103,9 @@
   let reviewIndex = 0;
   let reviewOpen = false;
   let reviewComplete = false;
+  let completedReviewBatches = 0;
+  let totalReviewBatches = 0;
+  let reviewBatchCounted = false;
   let reviewPaused = false;
   let reviewRefreshRequired = false;
   let reviewCompleting = false;
@@ -147,6 +151,7 @@
   let captureDialog: HTMLDivElement | null = null;
   let detailTrigger: HTMLElement | null = null;
   let reviewCardElement: HTMLElement;
+  let reviewFlipping = false;
   let reviewCompleteHeading: HTMLHeadingElement;
 
   const savedToastId = crypto.randomUUID();
@@ -196,6 +201,11 @@
     try {
       const [nextToday, nextWords, nextAchievedWords, nextSettings, nextGlobalInsight] = await Promise.all([api.getToday(completedWordIds), api.listWords(), api.listAchievedWords?.() ?? Promise.resolve([]), api.getSettings(), loadInsight()]);
       today = nextToday;
+      if (reviewCompleting) {
+        totalReviewBatches = completedReviewBatches + Math.ceil(
+          nextToday.totalDueCount / Math.max(1, nextToday.plannedReviewCount)
+        );
+      }
       words = nextWords;
       achievedWords = nextAchievedWords;
       if (!settingsDraft) {
@@ -420,6 +430,7 @@
 
   async function startReview() {
     if (loading || reviewRefreshRequired) return;
+    if (reviewComplete && !(await refresh())) return;
     if (reviewPaused) {
       if (!(await refresh(reviewSessionResults.map(result => result.wordId)))) { reviewRefreshRequired = true; return; }
       if (!today) return;
@@ -430,6 +441,13 @@
       }
       if (!today.reviewQueue.length) { route = 'Review'; await finishReview(); return; }
     } else if (!today?.reviewQueue.length) return;
+    if (!reviewPaused) {
+      if (!reviewComplete) completedReviewBatches = 0;
+      totalReviewBatches = completedReviewBatches + Math.ceil(
+        (today?.totalDueCount ?? 0) / Math.max(1, today?.plannedReviewCount ?? 1)
+      );
+      reviewBatchCounted = false;
+    }
     reviewQueue = [...(today?.reviewQueue ?? [])];
     reviewIndex = 0;
     route = "Review";
@@ -526,16 +544,40 @@
   }
 
   async function nextReview() {
-    if (!reviewResult) return;
+    if (!reviewResult || reviewFlipping) return;
     if (reviewIndex + 1 < reviewQueue.length) {
-      reviewIndex += 1;
-      reviewRevealed = false;
-      reviewResult = null;
-      reviewError = "";
-      reviewSubmissionId = null;
-      reviewSubmissionRating = null;
-      await tick();
-      reviewCardElement?.querySelector<HTMLButtonElement>(".review-actions button")?.focus();
+      reviewFlipping = true;
+      const outgoing = reviewCardElement;
+      const animate = typeof outgoing?.animate === "function"
+        && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      try {
+        if (animate) {
+          await outgoing.animate([
+            { transform: "perspective(1200px) rotateY(0deg)" },
+            { transform: "perspective(1200px) rotateY(90deg)" },
+          ], { duration: 180, easing: "ease-in" }).finished;
+          if (!outgoing.isConnected || reviewCardElement !== outgoing) return;
+        }
+        reviewIndex += 1;
+        reviewRevealed = false;
+        reviewResult = null;
+        reviewError = "";
+        reviewSubmissionId = null;
+        reviewSubmissionRating = null;
+        await tick();
+        if (animate) {
+          await reviewCardElement.animate([
+            { transform: "perspective(1200px) rotateY(-90deg)" },
+            { transform: "perspective(1200px) rotateY(0deg)" },
+          ], { duration: 180, easing: "ease-out" }).finished;
+        }
+        reviewCardElement?.querySelector<HTMLButtonElement>(".review-actions button")?.focus();
+      } catch (cause) {
+        // Removing the card during navigation can cancel its animation.
+        if (!(cause instanceof DOMException && cause.name === "AbortError")) throw cause;
+      } finally {
+        reviewFlipping = false;
+      }
     } else {
       await finishReview();
     }
@@ -562,6 +604,10 @@
     }
     reviewOpen = false;
     reviewPaused = false;
+    if (!reviewBatchCounted) {
+      completedReviewBatches += 1;
+      reviewBatchCounted = true;
+    }
     reviewCompleting = true;
     if (await refresh()) {
       reviewIndex = 0;
@@ -575,6 +621,7 @@
   async function returnToToday() {
     await refresh();
     route = "Today";
+    reviewComplete = false;
   }
 
   const attentionLabel = (wordId: string) =>
@@ -735,13 +782,25 @@
         {#if filteredWords.length}<nav class="pagination" aria-label="Vocabulary pages"><button class="secondary" disabled={vocabularyPage === 1} onclick={() => goToVocabularyPage(1)}>First</button><button class="secondary" disabled={vocabularyPage === 1} onclick={() => goToVocabularyPage(vocabularyPage - 1)}>Previous</button><form aria-label="Go to vocabulary page" onsubmit={(event) => { event.preventDefault(); goToVocabularyPage(vocabularyPageInput); }}><label><span>Page</span><input aria-label="Page number" type="number" min="1" max={vocabularyPageCount} bind:value={vocabularyPageInput} onblur={() => goToVocabularyPage(vocabularyPageInput)} /><span>of {vocabularyPageCount}</span></label></form><button class="secondary" disabled={vocabularyPage === vocabularyPageCount} onclick={() => goToVocabularyPage(vocabularyPage + 1)}>Next</button><button class="secondary" disabled={vocabularyPage === vocabularyPageCount} onclick={() => goToVocabularyPage(vocabularyPageCount)}>Last</button></nav>{/if}{/if}
       {:else if route === "Review"}
         {#if reviewOpen && activeReview}
-          <div class="review-card" aria-live="polite" bind:this={reviewCardElement}><div class="review-progress"><span>{reviewIndex + 1} of {reviewQueue.length}</span><Button variant="ghost" size="icon" aria-label="Close review" disabled={reviewSubmitting} onclick={closeReview}>×</Button></div><Progress value={reviewIndex} max={reviewQueue.length || 1} aria-label="Review progress" /><span class="eyebrow">Do you remember this word?</span><h2>{activeReview.displayForm}</h2><p>{activeReview.context ?? "No saved context"}</p>{#if reviewResult}<div class="review-translation" role="status"><small>{reviewResult.rating === "remembered" ? "Remembered" : "Forgot"}</small><strong>Next review {new Date(reviewResult.nextDueAt).toLocaleDateString('en')}</strong><span>{`Saved ${reviewResult.encounterCount} time${reviewResult.encounterCount === 1 ? "" : "s"}`}</span>{#if reviewResult.repeatedForgetting}<p>This Vocabulary Item has been repeatedly forgotten. Another context or a translation check may help.</p>{/if}</div>{:else if reviewRevealed}<div class="review-translation" role="status"><small>Translation</small><strong><TranslationText translation={activeReview.translation ?? "Unavailable"} language={activeReview.translationLanguage} targetLanguage={appliedSettings?.targetLanguage} /></strong></div>{/if}{#if reviewError}<div class="dialog-error" role="alert">{reviewError}</div>{/if}<div class="review-actions">{#if reviewResult}{#if reviewResult.repeatedForgetting}<Button variant="outline" onclick={(event) => showDetail(activeReview.wordId, event.currentTarget)}>Review contexts</Button>{/if}<Button onclick={nextReview}>Next</Button>{:else if reviewRevealed}{#if reviewError && reviewSubmissionRating}<Button disabled={reviewSubmitting} onclick={retryReviewSubmission}>Retry {reviewSubmissionRating === "remembered" ? "Remembered" : "Forgot"}</Button>{:else}<Button variant="outline" disabled={reviewSubmitting} onclick={() => rateReview("forgot")}>Forgot</Button><Button disabled={reviewSubmitting} onclick={() => rateReview("remembered")}>Remembered</Button>{/if}{:else}<Button onclick={revealReview}>Show answer</Button>{/if}</div></div>
+          {#key activeReview.wordId}
+          <div class="review-card" aria-live="polite" bind:this={reviewCardElement}><div class="review-status-header">
+              <div class="review-rings">
+                <BatchProgressRing completed={completedReviewBatches} total={totalReviewBatches} />
+                <BatchProgressRing completed={reviewIndex + (reviewResult ? 1 : 0)} total={reviewQueue.length} label="Words completed" accessibleName="Review progress" countText={`${reviewIndex + (reviewResult ? 1 : 0)} / ${reviewQueue.length}`} />
+              </div>
+              <Button variant="ghost" size="icon" aria-label="Close review" disabled={reviewSubmitting} onclick={closeReview}>×</Button>
+            </div>
+            <span class="sr-only">{reviewIndex + 1} of {reviewQueue.length}</span>
+            <!-- The scroll region must be keyboard-focusable so long answers can be read without a pointer. -->
+            <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+            <div class="review-content" tabindex="0" role="region" aria-label="Vocabulary and answer"><span class="eyebrow">Do you remember this word?</span><h2>{activeReview.displayForm}</h2><p>{activeReview.context ?? "No saved context"}</p>{#if reviewResult}<div class="review-translation" role="status"><small>{reviewResult.rating === "remembered" ? "Remembered" : "Forgot"}</small><strong>Next review {new Date(reviewResult.nextDueAt).toLocaleDateString('en')}</strong><span>{`Saved ${reviewResult.encounterCount} time${reviewResult.encounterCount === 1 ? "" : "s"}`}</span>{#if reviewResult.repeatedForgetting}<p>This Vocabulary Item has been repeatedly forgotten. Another context or a translation check may help.</p>{/if}</div>{:else if reviewRevealed}<div class="review-translation" role="status"><small>Translation</small><strong><TranslationText translation={activeReview.translation ?? "Unavailable"} language={activeReview.translationLanguage} targetLanguage={appliedSettings?.targetLanguage} /></strong></div>{/if}{#if reviewError}<div class="dialog-error" role="alert">{reviewError}</div>{/if}</div><div class="review-actions">{#if reviewResult}{#if reviewResult.repeatedForgetting}<Button variant="outline" onclick={(event) => showDetail(activeReview.wordId, event.currentTarget)}>Review contexts</Button>{/if}<Button disabled={reviewFlipping} onclick={nextReview}>Next</Button>{:else if reviewRevealed}{#if reviewError && reviewSubmissionRating}<Button disabled={reviewSubmitting} onclick={retryReviewSubmission}>Retry {reviewSubmissionRating === "remembered" ? "Remembered" : "Forgot"}</Button>{:else}<Button variant="outline" disabled={reviewSubmitting} onclick={() => rateReview("forgot")}>Forgot</Button><Button disabled={reviewSubmitting} onclick={() => rateReview("remembered")}>Remembered</Button>{/if}{:else}<Button onclick={revealReview}>Show answer</Button>{/if}</div></div>
+          {/key}
         {:else if reviewComplete && reviewSessionInsight}
-          <div class="state" aria-live="polite"><h2 tabindex="-1" bind:this={reviewCompleteHeading}>Review complete</h2><strong>{reviewSessionInsight.reviewedCount} reviewed</strong><span>{reviewSessionInsight.rememberedCount} remembered · {reviewSessionInsight.forgottenCount} forgot</span><span>Estimated due by the end of tomorrow: {reviewSessionInsight.nextDayDueCount}</span>{#if reviewSessionInsight.attentionWordIds.length}<div><strong>Worth another context</strong>{#each reviewSessionInsight.attentionWordIds as wordId}<span>{attentionLabel(wordId)} may benefit from another context or a translation check.</span>{/each}</div>{/if}<Button onclick={returnToToday}>Back to Today</Button></div>
+          <div class="state" aria-live="polite"><h2 tabindex="-1" bind:this={reviewCompleteHeading}>{today?.totalDueCount ? 'Batch complete' : 'All due words reviewed'}</h2><div class="batch-progress"><span>{completedReviewBatches} of {totalReviewBatches} batches completed</span><Progress value={completedReviewBatches} max={totalReviewBatches || 1} aria-label="Overall batch progress" /></div><strong>{reviewSessionInsight.reviewedCount} reviewed</strong><span>{today?.totalDueCount ?? 0} words still due</span><span>{reviewSessionInsight.rememberedCount} remembered · {reviewSessionInsight.forgottenCount} forgot</span><span>Estimated due by the end of tomorrow: {reviewSessionInsight.nextDayDueCount}</span>{#if reviewSessionInsight.attentionWordIds.length}<div><strong>Worth another context</strong>{#each reviewSessionInsight.attentionWordIds as wordId}<span>{attentionLabel(wordId)} may benefit from another context or a translation check.</span>{/each}</div>{/if}<div class="review-actions">{#if today?.reviewQueue.length}<Button disabled={loading} onclick={startReview}>Continue next batch ({today.plannedReviewCount})</Button>{/if}<Button variant="outline" disabled={loading} onclick={returnToToday}>End review</Button></div></div>
         {:else if reviewRefreshRequired}
           <div class="state"><strong>{reviewCompleting ? "Review saved" : "Review paused"}</strong><span>Refresh Today before continuing so the due queue stays current.</span><Button onclick={retryReviewRefresh}>Retry Review refresh</Button></div>
         {:else if today?.reviewQueue.length}
-          <div class="state"><strong>{reviewPaused ? "Review paused" : `${today.plannedReviewCount} planned · ${today.totalDueCount} total due`}</strong><span>{reviewPaused ? `${today.reviewQueue.length} words remaining.` : `About ${today.estimatedMinutes} minute${today.estimatedMinutes === 1 ? "" : "s"}.`}</span><Button onclick={startReview}>{reviewPaused ? "Resume review" : "Start review"}</Button></div>
+          <div class="state"><strong>{reviewPaused ? "Review paused" : `${today.totalDueCount} total due · ${today.plannedReviewCount} in this batch`}</strong><span>{reviewPaused ? `${today.reviewQueue.length} words remaining.` : `About ${today.estimatedMinutes} minute${today.estimatedMinutes === 1 ? "" : "s"}.`}</span><Button onclick={startReview}>{reviewPaused ? "Resume review" : "Start review"}</Button></div>
         {:else}
           <div class="state"><strong>Nothing due</strong><span>Your review queue is clear for today.</span></div>
         {/if}
@@ -793,7 +852,12 @@
 
 
   .windows-presentation[data-reduced-motion="true"], .windows-presentation[data-reduced-motion="true"] * { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
-  .review-card { width:100%; max-width: 620px; margin: 24px auto; padding: 28px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }.review-progress { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; color: var(--muted-foreground); font-size:0.6875rem; }.review-card h2 { overflow-wrap:anywhere; margin: 10px 0; font-size:2.25rem; }.review-card > p { font-size:1.125rem; overflow-wrap:anywhere; color: var(--muted-foreground); line-height: 1.6; }.review-translation { display: grid; gap: 5px; margin: 22px 0; padding: 14px; border-radius: 7px; background: var(--muted); }.review-translation small { color: var(--muted-foreground); }.review-translation strong { color: var(--foreground); font-size:1rem; }.review-actions { display: flex; flex-wrap:wrap; justify-content:flex-end; gap: 10px; margin-top: 18px; }
+  .review-content { flex: 1; min-height: 0; overflow-y: auto; overflow-wrap: anywhere; scrollbar-gutter: stable both-edges; padding-top: 8px; }
+  .review-status-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-shrink: 0; margin-bottom: 24px; }
+  .review-rings { display: flex; align-items: center; flex-wrap: wrap; gap: 16px 28px; min-width: 0; }
+  .batch-progress { display: grid; gap: 12px; flex-shrink: 0; width: 100%; font-size: .75rem; color: var(--muted-foreground); }
+
+  .review-card { box-sizing: border-box; display: flex; flex-direction: column; width:100%; max-width: 620px; height: 480px; height: clamp(360px, calc(100dvh - 220px), 480px); margin: 24px auto; padding: 28px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }.review-card h2 { overflow-wrap:anywhere; margin: 10px 0; font-size:2.25rem; }.review-content > p { font-size:1.125rem; overflow-wrap:anywhere; color: var(--muted-foreground); line-height: 1.6; }.review-translation { display: grid; gap: 5px; margin: 22px 0; padding: 14px; border-radius: 7px; background: var(--muted); }.review-translation small { color: var(--muted-foreground); }.review-translation strong { color: var(--foreground); font-size:1rem; }.review-actions { flex-shrink: 0; display: flex; flex-wrap:wrap; justify-content:flex-end; gap: 10px; margin-top: 18px; }
   .dialog-heading { display: flex; justify-content: space-between; }.eyebrow { color: var(--muted-foreground); font-size:0.75rem; font-weight: 700; text-transform: uppercase; }.actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
 
 

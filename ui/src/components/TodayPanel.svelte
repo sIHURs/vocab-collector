@@ -18,10 +18,10 @@
 </script>
 <div class="today">
   <Card.Root>
-    <Card.Header><Card.Title>Today's plan</Card.Title><Card.Description>A little practice, at your own pace.</Card.Description></Card.Header>
+    <Card.Header><Card.Title>Review</Card.Title><Card.Description>A little practice, at your own pace.</Card.Description></Card.Header>
     <Card.Content>
       {#if !today && loading}<div class="plan-loading" role="status"><span>Loading your vocabulary...</span><Skeleton class="h-12 w-32" /><Skeleton class="h-4 w-60" /></div>
-      {:else if today}<div class="plan">{#if paused}<p>{today.reviewQueue.length} words remaining.</p>{/if}<strong>{today.plannedReviewCount}<span> words to review</span></strong><p>{today.totalDueCount} total due · About {today.estimatedMinutes} minute{today.estimatedMinutes === 1 ? '' : 's'}</p></div>{:else}<p>Today is unavailable. Try refreshing your vocabulary.</p>{/if}
+      {:else if today}<div class="plan">{#if paused}<p>{today.reviewQueue.length} words remaining.</p>{/if}<strong>{today.plannedReviewCount}<span> words in this batch</span></strong><p>{today.totalDueCount} total due · About {today.estimatedMinutes} minute{today.estimatedMinutes === 1 ? '' : 's'}</p></div>{:else}<p>Today is unavailable. Try refreshing your vocabulary.</p>{/if}
     </Card.Content>
     <Card.Footer>
       {#if refreshRequired}<Alert.Root role="status"><Alert.Title>Review paused</Alert.Title><Alert.Description>Refresh Today before continuing so the due queue stays current.<Button disabled={loading} onclick={onretry}>Retry Review refresh</Button></Alert.Description></Alert.Root>

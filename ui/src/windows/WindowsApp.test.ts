@@ -393,7 +393,7 @@ describe("Windows main presentation", () => {
     await fireEvent.click(await screen.findByRole("button", { name: "Next" }));
     await revealAndRate("Remembered");
     await fireEvent.click(await screen.findByRole("button", { name: "Next" }));
-    expect(await screen.findByRole("heading", { name: "Review complete" })).toBeVisible();
+    expect(await screen.findByRole("heading", { name: "All due words reviewed" })).toBeVisible();
     expect(screen.getByText("3 reviewed")).toBeVisible();
     expect(screen.getByText("2 remembered · 1 forgot")).toBeVisible();
     expect(screen.getByText(/Estimated due by the end of tomorrow: 1/)).toBeVisible();

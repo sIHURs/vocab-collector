@@ -52,6 +52,7 @@ impl OcrProvider for MacOcrProvider {
     async fn recognize_region(
         &self,
         region: vocab_platform_api::ScreenRect,
+        _source_language: &str,
     ) -> Result<Vec<OcrCandidate>, PlatformError> {
         recognize_near_with(region.center(), ffi::capture_ocr_at).await
     }

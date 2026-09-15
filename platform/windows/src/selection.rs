@@ -74,6 +74,35 @@ impl fmt::Display for DiscoveryDiagnostics {
     }
 }
 
+impl DiscoveryDiagnostics {
+    fn emit(&self) {
+        eprintln!("{self}");
+        // Temporary local diagnosis of the first Selection Capture after startup.
+        // Keep captured text, window titles, and credentials out of this file.
+        #[cfg(debug_assertions)]
+        {
+            use std::io::Write;
+            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../.scratch/uia-first-capture.log");
+            if let Ok(mut file) = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(path)
+            {
+                let elapsed = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default();
+                let _ = writeln!(
+                    file,
+                    "[DEBUG-uia-first-capture] time_ms={} pid={} {self}",
+                    elapsed.as_millis(),
+                    std::process::id()
+                );
+            }
+        }
+    }
+}
+
 #[derive(Debug)]
 struct SelectionSnapshot {
     selected_text: String,
@@ -156,19 +185,17 @@ unsafe fn capture_focused_selection_in_apartment() -> Result<SelectionSnapshot, 
     let process_id = unsafe { discovery.element.CurrentProcessId() }.ok();
     let source_app = process_id.and_then(process_name);
     let source_title = foreground_window_title();
-    eprintln!(
-        "{}",
-        DiscoveryDiagnostics {
-            pattern: Some(discovery.pattern),
-            examined_nodes: discovery.examined_nodes,
-            traversal_capped: discovery.traversal_capped,
-            selected_utf16_length: selected_text.encode_utf16().count(),
-            rectangle_count: bounds.len(),
-            has_source_app: source_app.is_some(),
-            has_source_title: source_title.is_some(),
-            outcome: "selected",
-        }
-    );
+    DiscoveryDiagnostics {
+        pattern: Some(discovery.pattern),
+        examined_nodes: discovery.examined_nodes,
+        traversal_capped: discovery.traversal_capped,
+        selected_utf16_length: selected_text.encode_utf16().count(),
+        rectangle_count: bounds.len(),
+        has_source_app: source_app.is_some(),
+        has_source_title: source_title.is_some(),
+        outcome: "selected",
+    }
+    .emit();
 
     Ok(SelectionSnapshot {
         selected_text,
@@ -270,23 +297,21 @@ unsafe fn discover_nearby_selection(
         }
     }
 
-    eprintln!(
-        "{}",
-        DiscoveryDiagnostics {
-            pattern: None,
-            examined_nodes,
-            traversal_capped: traversal_capped || !queue.is_empty(),
-            selected_utf16_length: 0,
-            rectangle_count: 0,
-            has_source_app: false,
-            has_source_title: false,
-            outcome: if saw_text_pattern {
-                "empty_selection"
-            } else {
-                "unsupported_element"
-            },
-        }
-    );
+    DiscoveryDiagnostics {
+        pattern: None,
+        examined_nodes,
+        traversal_capped: traversal_capped || !queue.is_empty(),
+        selected_utf16_length: 0,
+        rectangle_count: 0,
+        has_source_app: false,
+        has_source_title: false,
+        outcome: if saw_text_pattern {
+            "empty_selection"
+        } else {
+            "unsupported_element"
+        },
+    }
+    .emit();
     if saw_text_pattern {
         Err(PlatformError::EmptySelection)
     } else {

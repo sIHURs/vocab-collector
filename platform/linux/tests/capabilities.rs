@@ -49,7 +49,7 @@ fn skeleton_providers_return_capability_specific_unsupported_errors() {
         block_on(
             services
                 .ocr
-                .recognize_region(ScreenRect::new(12.0, 34.0, 80.0, 24.0))
+                .recognize_region(ScreenRect::new(12.0, 34.0, 80.0, 24.0), "en")
         ),
         Err(PlatformError::Unsupported(Capability::ScreenshotOcr))
     );

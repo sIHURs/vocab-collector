@@ -17,6 +17,7 @@ pub trait OcrProvider: Send + Sync {
     async fn recognize_region(
         &self,
         region: ScreenRect,
+        source_language: &str,
     ) -> Result<Vec<OcrCandidate>, PlatformError>;
 }
 

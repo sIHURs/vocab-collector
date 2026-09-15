@@ -45,6 +45,7 @@ impl OcrProvider for UnsupportedOcrProvider {
     async fn recognize_region(
         &self,
         _region: vocab_platform_api::ScreenRect,
+        _source_language: &str,
     ) -> Result<Vec<OcrCandidate>, PlatformError> {
         Err(PlatformError::Unsupported(Capability::ScreenshotOcr))
     }

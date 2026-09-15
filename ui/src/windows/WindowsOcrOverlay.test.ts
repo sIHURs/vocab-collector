@@ -57,6 +57,20 @@ describe("Region OCR overlay", () => {
     await fireEvent.keyDown(window, { key: "Escape" });
     expect(mocks.invoke).toHaveBeenCalledWith("cancel_region_ocr_capture", { requestId: "cancel-region" });
   });
+  it("preserves the actual OCR failure instead of reporting unreadable text", async () => {
+    const failure = { code: "operation", message: "OCR capture timed out" };
+    mocks.invoke.mockRejectedValueOnce(failure);
+    render(WindowsOcrOverlay);
+    await waitFor(() => expect(mocks.ready).toBeTypeOf("function"));
+    mocks.ready?.({ payload: { requestId: "failed-region" } });
+    const overlay = screen.getByRole("button", { name: "Region OCR selection" });
+    await fireEvent.mouseDown(overlay, { button: 0, clientX: 20, clientY: 30 });
+    await fireEvent.mouseMove(overlay, { clientX: 120, clientY: 70 });
+    await fireEvent.mouseUp(overlay);
+    await waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith("show_region_ocr_failure", {
+      requestId: "failed-region", failure,
+    }));
+  });
   it("normalizes a reverse drag and hides instructions while selecting", async () => {
     render(WindowsOcrOverlay);
     await waitFor(() => expect(mocks.ready).toBeTypeOf("function"));

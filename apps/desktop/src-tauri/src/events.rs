@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use vocab_application::PlatformCaptureError;
 use vocab_capture::CoordinatorError;
@@ -12,7 +12,7 @@ pub struct RegionOcrStartEvent {
     pub request_id: Uuid,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CaptureFailureCode {
     PermissionRequired,
@@ -25,7 +25,7 @@ pub enum CaptureFailureCode {
     Operation,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub struct CaptureFailure {
     pub code: CaptureFailureCode,
     pub message: String,
