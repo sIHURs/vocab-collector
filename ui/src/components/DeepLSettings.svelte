@@ -61,21 +61,21 @@
 </script>
 
 <Field.FieldSet>
-  <Field.FieldLegend>DeepL translation</Field.FieldLegend>
+  <Field.FieldLegend>DeepL translation (temporary)</Field.FieldLegend>
   <Field.FieldDescription>Use your own DeepL API key for automatic translation. No Vocab Collector account is needed. Your DeepL plan and quota apply.</Field.FieldDescription>
   {#if availabilityMessage}<p>{availabilityMessage}</p>{/if}
   <p>{loading ? 'Loading key settings…' : status?.configured ? 'A DeepL key is saved on this device.' : 'No personal DeepL key is saved.'}</p>
   {#if status?.storageError}<p role="alert">The saved key could not be loaded. Save it again or remove it.</p>{/if}
   <Field.Field data-disabled={loading || busy || !status?.supported} data-invalid={!!error}>
     <Field.FieldLabel for="deepl-api-key">DeepL API key</Field.FieldLabel>
-    <Input id="deepl-api-key" type="password" bind:ref={keyInput} bind:value={key} autocomplete="off" spellcheck={false} maxlength={1024} disabled={loading || busy || !status?.supported} aria-invalid={!!error} placeholder={status?.configured ? 'Enter a replacement key' : 'Enter your API key'} onkeydown={(event) => { if (event.key === 'Enter') { event.preventDefault(); void update(); } }} />
-    <Field.FieldDescription>Stored in Windows Credential Manager, separately from your vocabulary. Only vocabulary text is sent to DeepL for translation. API Free and API Pro keys are supported.</Field.FieldDescription>
+    <Input id="deepl-api-key" type="password" bind:ref={keyInput} bind:value={key} autocomplete="off" spellcheck={false} maxlength={1024} disabled={loading || busy || !status?.supported} aria-invalid={!!error} aria-describedby={error ? 'deepl-key-description deepl-key-error' : 'deepl-key-description'} placeholder={status?.configured ? 'Enter a replacement key' : 'Enter your API key'} onkeydown={(event) => { if (event.key === 'Enter') { event.preventDefault(); void update(); } }} />
+    <Field.FieldDescription id="deepl-key-description">Stored in Windows Credential Manager, separately from your vocabulary. Only vocabulary text is sent to DeepL for translation. API Free and API Pro keys are supported.</Field.FieldDescription>
   </Field.Field>
   <div class="actions">
     <Button type="button" disabled={loading || busy || !status?.supported || !key.trim()} onclick={() => update()}>{busy ? removing ? 'Removing…' : 'Verifying…' : status?.configured ? 'Replace key' : 'Save key'}</Button>
     <Button type="button" variant="outline" disabled={loading || busy || !status?.supported || (!status?.configured && !status?.storageError)} onclick={() => update(true)}>Remove key</Button>
   </div>
-  {#if error}<p role="alert">{error}</p>{/if}
+  {#if error}<p id="deepl-key-error" role="alert">{error}</p>{/if}
   {#if message}<p role="status">{message}</p>{/if}
 </Field.FieldSet>
 

@@ -117,6 +117,8 @@
   .settings :global(fieldset) { min-width:0; border:0; border-bottom:1px solid var(--border); padding:0 0 24px; gap:12px; }
   .settings :global(fieldset:last-child) { border-bottom:0; padding-bottom:0; }
   .settings :global(legend) { font-size:1rem; line-height:1.45; font-weight:600; padding:0; margin:0; }
+  /* Settings removes the legend margin, so its description must not compensate with a negative margin. */
+  .settings :global([data-slot=field-legend] + [data-slot=field-description]) { margin-top:0; }
   .settings :global(fieldset > p), small { color:var(--muted-foreground); font-size:0.75rem; line-height:1.45; }
   label { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:36px; width:100%; font-size:0.875rem; line-height:1.45; }
   label :global([data-slot=input]), label :global([data-slot=native-select-wrapper]) { width:224px; flex-shrink:0; }
