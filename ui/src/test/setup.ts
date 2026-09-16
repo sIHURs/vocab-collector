@@ -1,8 +1,16 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/svelte";
-import { afterEach } from "vitest";
+import { afterEach, vi } from "vitest";
+import { tick } from "svelte";
 
-afterEach(cleanup);
+afterEach(async () => {
+  cleanup();
+  await tick();
+  // Bits UI releases the last dialog scroll lock after a 24 ms grace period.
+  // Let that cleanup finish while jsdom's document still exists.
+  if (vi.isFakeTimers()) await vi.runOnlyPendingTimersAsync();
+  else await new Promise((resolve) => setTimeout(resolve, 30));
+});
 
 // jsdom does not implement the browser's media-query API.
 Object.defineProperty(window, "matchMedia", {

@@ -7,12 +7,18 @@ pub(super) fn candidates(
 ) -> Result<Vec<Word>, RepositoryError> {
     let lemma = normalize_lemma(&input.lemma);
     let source = input.source_language.trim().to_lowercase();
-    let words: Vec<_> = all(connection)?
-        .into_iter()
-        .filter(|w| {
-            w.deleted_at.is_none() && w.owner_scope == OwnerScope::Guest && w.lemma == lemma
-        })
-        .collect();
+    let words = connection
+        .prepare(
+            "SELECT id, owner_scope, lemma, display_form, source_language,
+        target_language, translation, part_of_speech, status, created_at, updated_at, deleted_at,
+        mastered_at, achieved_at, delete_after, review_state_json FROM words
+        WHERE lemma=?1 AND owner_scope='\"guest\"' AND deleted_at IS NULL ORDER BY id",
+        )
+        .map_err(repo_error)?
+        .query_map([lemma], map_word)
+        .map_err(repo_error)?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(repo_error)?;
     let known: std::collections::HashSet<_> = words
         .iter()
         .filter(|w| w.source_language != "auto")

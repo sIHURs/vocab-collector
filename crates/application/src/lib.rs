@@ -63,6 +63,9 @@ pub struct AppService {
 }
 
 impl AppService {
+    pub fn export_vocabulary_csv(&self) -> Result<(Vec<u8>, usize), ApplicationError> {
+        Ok(self.store.vocabulary_csv()?)
+    }
     pub fn change_learning_status(
         &self,
         word_id: Uuid,
@@ -242,38 +245,13 @@ impl AppService {
     }
 
     pub fn list_words(&self) -> Result<Vec<WordListItem>, ApplicationError> {
-        let mut items = self
-            .words_with_captures()?
+        Ok(self
+            .store
+            .vocabulary_listing()?
             .into_iter()
-            .filter(|word| !word.is_achieved())
-            .map(|word| {
-                let encounters = self.store.list_for_word(word.id)?;
-                let last_seen_at = encounters
-                    .first()
-                    .map_or(word.updated_at, |encounter| encounter.captured_at);
-                let (translation, translation_language) = self.displayed_translation(word.id)?;
-                Ok(WordListItem {
-                    translation_language,
-                    id: word.id,
-                    display_form: word.display_form,
-                    translation,
-                    status: word.status,
-                    encounter_count: encounters.len(),
-                    next_review_at: word.review_state.map(|state| state.due_at),
-                    last_seen_at,
-                    achieved_at: word.achieved_at,
-                    delete_after: word.delete_after,
-                })
-            })
-            .collect::<Result<Vec<_>, RepositoryError>>()?;
-        items.sort_by(|a, b| {
-            b.last_seen_at
-                .cmp(&a.last_seen_at)
-                .then_with(|| a.id.cmp(&b.id))
-        });
-        Ok(items)
+            .map(|(item, _)| item)
+            .collect())
     }
-
     pub fn achieve_word(
         &self,
         word_id: Uuid,

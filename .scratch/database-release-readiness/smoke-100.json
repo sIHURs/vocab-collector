@@ -1,0 +1,25 @@
+{
+  "candidate_plan": [
+    "SEARCH words USING INDEX idx_words_identity_candidate (lemma=? AND owner_scope=?)",
+    "USE TEMP B-TREE FOR ORDER BY"
+  ],
+  "encounters_initial": 1000,
+  "os": "windows",
+  "processor": "Intel64 Family 6 Model 165 Stepping 2, GenuineIntel",
+  "samples": [
+    {
+      "capture_storage_ms": 64.4341,
+      "health_check_ms": 3,
+      "list_application_ms": 2.039,
+      "page_count": 46,
+      "page_simulation_ms": 0.00009999999999999999,
+      "quick_check_ms": 1.4827,
+      "run": 0,
+      "search_count": 50,
+      "search_simulation_ms": 0.0035
+    }
+  ],
+  "scope": "Rust application/storage; search/page simulations exclude WebView rendering and IPC",
+  "sqlite": "3.53.2",
+  "words": 100
+}

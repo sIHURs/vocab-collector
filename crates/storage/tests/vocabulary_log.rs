@@ -103,7 +103,13 @@ fn migration_does_not_reconstruct_history_and_timezone_changes_do_not_rebucket()
         Some(0)
     );
     assert_eq!(
-        store.vocabulary_log().unwrap().days.last().unwrap().coverage,
+        store
+            .vocabulary_log()
+            .unwrap()
+            .days
+            .last()
+            .unwrap()
+            .coverage,
         vocab_domain::LogCoverage::Complete
     );
     store.soft_delete(old.encounter.id, Utc::now()).unwrap();

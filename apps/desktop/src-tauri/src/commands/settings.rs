@@ -6,8 +6,8 @@ use vocab_domain::UserSettings;
 use crate::{
     bootstrap::AppState,
     system_settings::{
-        apply_settings_transaction, merge_attempted_status, ReviewScheduler, SettingsApplyResult,
-        SettingsEffects, SystemSettingsRuntime, SystemSettingsStatus,
+        ReviewScheduler, SettingsApplyResult, SettingsEffects, SystemSettingsRuntime,
+        SystemSettingsStatus, apply_settings_transaction, merge_attempted_status,
     },
 };
 

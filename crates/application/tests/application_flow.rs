@@ -912,7 +912,7 @@ fn vocabulary_log_query_serializes_real_capture_and_undo_totals() {
     assert!(wire["endDate"].is_string());
     assert_eq!(
         wire["days"].as_array().unwrap().last().unwrap()["coverage"],
-        "partial"
+        "complete"
     );
     assert!(wire["days"][0]["count"].is_null());
 }

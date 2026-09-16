@@ -294,4 +294,3 @@ fn failed_identity_upgrade_rolls_back_keys_and_schema_version() {
     drop(db);
     std::fs::remove_file(path).unwrap();
 }
-

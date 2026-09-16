@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Database UI benchmark</title></head>
+<body><button id="measure">Run UI benchmark</button><pre id="results">Synthetic data only. Browser rendering measurement excludes native IPC and database reads.</pre><div id="app"></div>
+<script type="module">
+import { mount, tick } from 'svelte';
+import WindowsApp from '../windows/WindowsApp.svelte';
+import { DemoBackend } from '../lib/backend';
+import '../styles.css';
+const size = new URLSearchParams(location.search).get('size') === '100000' ? 100000 : 10000;
+const api = new DemoBackend(true);
+const words = Array.from({length:size}, (_,i) => ({id:String(i),displayForm:`synthetic${String(i).padStart(6,'0')}`,translation:'译文',translationLanguage:'zh',status:'learning',encounterCount:10,lastSeenAt:'2026-09-01T12:00:00Z'}));
+api.listWords = async () => words;
+mount(WindowsApp,{target:document.getElementById('app'),props:{api}});
+const painted = async () => { await tick(); await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))); };
+const button = name => [...document.querySelectorAll('#app button')].find(b=>b.textContent.trim()===name || b.getAttribute('aria-label')===name);
+document.getElementById('measure').onclick = async () => {
+  const samples=[];
+  for(let run=0;run<5;run++) {
+    button('Today').click(); await painted();
+    let start=performance.now(); button('Vocabulary').click(); await painted();
+    const listMs=performance.now()-start;
+    start=performance.now(); button('Next').click(); await painted();
+    const pageMs=performance.now()-start;
+    const search=document.querySelector('#app input[type="search"]');
+    start=performance.now(); search.value='synthetic000'; search.dispatchEvent(new Event('input',{bubbles:true})); await painted();
+    const searchMs=performance.now()-start;
+    samples.push({run,listMs,pageMs,searchMs,renderedRows:document.querySelectorAll('tbody tr').length});
+    search.value=''; search.dispatchEvent(new Event('input',{bubbles:true})); await painted();
+  }
+  document.getElementById('results').textContent=JSON.stringify({size,userAgent:navigator.userAgent,scope:'Browser + synthetic Backend; no native IPC/SQLite. Two paint frames included.',samples},null,2);
+};
+</script></body></html>

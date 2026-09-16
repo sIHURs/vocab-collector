@@ -88,6 +88,19 @@ jobs:
       - run: pnpm build
       - name: Build per-user NSIS preview
         run: pnpm tauri build --bundles nsis
+      - name: Verify synthetic database benchmark
+        shell: pwsh
+        run: |
+          cargo run --release -p vocab-application --example database_benchmark -- 100 1 > database-smoke.json
+          if ($LASTEXITCODE -ne 0) { throw "Database smoke benchmark failed" }
+          $result = Get-Content database-smoke.json -Raw | ConvertFrom-Json
+          if ($result.words -ne 100 -or $result.encounters_initial -ne 1000) { throw "Unexpected synthetic fixture" }
+      - name: Upload database smoke report
+        uses: actions/upload-artifact@v4
+        with:
+          name: database-smoke-${{ github.sha }}
+          path: database-smoke.json
+          if-no-files-found: error
       - name: Record installer checksum
         shell: pwsh
         run: |

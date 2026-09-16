@@ -1,0 +1,69 @@
+{
+  "candidate_plan": [
+    "SEARCH words USING INDEX idx_words_identity_candidate (lemma=? AND owner_scope=?)",
+    "USE TEMP B-TREE FOR ORDER BY"
+  ],
+  "encounters_initial": 100000,
+  "os": "windows",
+  "processor": "Intel64 Family 6 Model 165 Stepping 2, GenuineIntel",
+  "samples": [
+    {
+      "capture_storage_ms": 14.7929,
+      "health_check_ms": 449,
+      "list_application_ms": 123.4343,
+      "page_count": 50,
+      "page_simulation_ms": 0.00009999999999999999,
+      "quick_check_ms": 154.47050000000002,
+      "run": 0,
+      "search_count": 50,
+      "search_simulation_ms": 0.0092
+    },
+    {
+      "capture_storage_ms": 16.2261,
+      "health_check_ms": 566,
+      "list_application_ms": 132.5682,
+      "page_count": 50,
+      "page_simulation_ms": 0.0,
+      "quick_check_ms": 153.0575,
+      "run": 1,
+      "search_count": 50,
+      "search_simulation_ms": 0.0049
+    },
+    {
+      "capture_storage_ms": 23.3199,
+      "health_check_ms": 762,
+      "list_application_ms": 231.0568,
+      "page_count": 50,
+      "page_simulation_ms": 0.00009999999999999999,
+      "quick_check_ms": 266.4925,
+      "run": 2,
+      "search_count": 50,
+      "search_simulation_ms": 0.011
+    },
+    {
+      "capture_storage_ms": 15.5692,
+      "health_check_ms": 655,
+      "list_application_ms": 218.1069,
+      "page_count": 50,
+      "page_simulation_ms": 0.0,
+      "quick_check_ms": 212.8042,
+      "run": 3,
+      "search_count": 50,
+      "search_simulation_ms": 0.0168
+    },
+    {
+      "capture_storage_ms": 16.222299999999997,
+      "health_check_ms": 520,
+      "list_application_ms": 141.94029999999998,
+      "page_count": 50,
+      "page_simulation_ms": 0.00009999999999999999,
+      "quick_check_ms": 172.3597,
+      "run": 4,
+      "search_count": 50,
+      "search_simulation_ms": 0.005699999999999999
+    }
+  ],
+  "scope": "Rust application/storage; search/page simulations exclude WebView rendering and IPC",
+  "sqlite": "3.53.2",
+  "words": 10000
+}

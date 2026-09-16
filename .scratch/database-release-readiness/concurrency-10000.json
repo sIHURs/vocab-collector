@@ -1,0 +1,50 @@
+{
+  "candidate_plan": [
+    "SEARCH words USING INDEX idx_words_identity_candidate (lemma=? AND owner_scope=?)",
+    "USE TEMP B-TREE FOR ORDER BY"
+  ],
+  "encounters_initial": 100000,
+  "os": "windows",
+  "processor": "Intel64 Family 6 Model 165 Stepping 2, GenuineIntel",
+  "samples": [
+    {
+      "capture_storage_ms": 16.3023,
+      "health_check_ms": 430,
+      "list_application_ms": 120.1121,
+      "page_count": 50,
+      "page_simulation_ms": 0.00009999999999999999,
+      "quick_check_ms": 142.2543,
+      "run": 0,
+      "save_during_check_ms": 524.1264,
+      "search_count": 50,
+      "search_simulation_ms": 0.011399999999999999
+    },
+    {
+      "capture_storage_ms": 21.3965,
+      "health_check_ms": 431,
+      "list_application_ms": 121.7558,
+      "page_count": 50,
+      "page_simulation_ms": 0.00009999999999999999,
+      "quick_check_ms": 142.04330000000002,
+      "run": 1,
+      "save_during_check_ms": 514.6638,
+      "search_count": 50,
+      "search_simulation_ms": 0.0133
+    },
+    {
+      "capture_storage_ms": 20.673000000000002,
+      "health_check_ms": 437,
+      "list_application_ms": 118.4627,
+      "page_count": 50,
+      "page_simulation_ms": 0.0,
+      "quick_check_ms": 142.14280000000002,
+      "run": 2,
+      "save_during_check_ms": 539.1011,
+      "search_count": 50,
+      "search_simulation_ms": 0.005
+    }
+  ],
+  "scope": "Rust application/storage; search/page simulations exclude WebView rendering and IPC",
+  "sqlite": "3.53.2",
+  "words": 10000
+}

@@ -18,8 +18,10 @@ serde.workspace = true
 serde_json.workspace = true
 tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-autostart = "2"
+tauri-plugin-dialog = "2"
 tauri-plugin-global-shortcut = "2.3.2"
 tauri-plugin-notification = "2"
+tempfile = "3"
 uuid.workspace = true
 vocab-application = { path = "../../../crates/application" }
 vocab-capture = { path = "../../../crates/capture" }

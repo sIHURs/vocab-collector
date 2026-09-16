@@ -15,7 +15,7 @@ pub mod lifecycle;
 pub mod system_settings;
 
 use bootstrap::build_app_state;
-use commands::{capture, library, presentation, settings};
+use commands::{capture, database, library, presentation, settings};
 use events::NativeCaptureErrorEvent;
 
 pub fn shortcut_matches(triggered: &Shortcut, configured: &str) -> bool {
@@ -173,6 +173,12 @@ fn start_lifecycle_scheduler(app: tauri::AppHandle) {
 }
 
 pub fn run() {
+    let mut context = tauri::generate_context!();
+    if cfg!(debug_assertions) {
+        // Keep existing development data at its original location. Release data
+        // uses the distinct identifier in tauri.conf.json, without migration.
+        context.config_mut().identifier = "app.vocabcollector.desktop".into();
+    }
     let shortcut_gate = Arc::new(vocab_capture::PressGate::default());
     let builder = tauri::Builder::default().plugin(
         tauri_plugin_global_shortcut::Builder::new()
@@ -222,11 +228,17 @@ pub fn run() {
     let builder = builder
         .plugin(
             tauri_plugin_autostart::Builder::new()
+                .app_name(if cfg!(debug_assertions) {
+                    "Vocab Collector"
+                } else {
+                    "Vocab Collector Release"
+                })
                 .arg("--autostart")
                 .build(),
         )
         .plugin(tauri_plugin_notification::init());
     builder
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             #[cfg(target_os = "windows")]
             if let Some(window) = app.get_webview_window("main") {
@@ -240,6 +252,7 @@ pub fn run() {
             }
             let data_dir = app.path().app_data_dir()?;
             fs::create_dir_all(&data_dir)?;
+            app.manage(database::DatabaseTools::new(data_dir.join("guest.db")));
             let store = Arc::new(
                 SqliteStore::open(data_dir.join("guest.db"))
                     .map_err(|error| Box::<dyn std::error::Error>::from(error.to_string()))?,
@@ -385,6 +398,11 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            database::start_database_check,
+            database::get_database_check,
+            database::cancel_database_check,
+            database::save_database_check_report,
+            database::export_vocabulary_csv,
             library::capture_word,
             library::find_achieved_capture,
             library::restore_achieved_and_capture,
@@ -431,6 +449,6 @@ pub fn run() {
             capture::get_platform_capabilities,
             presentation::get_presentation_family,
         ])
-        .run(tauri::generate_context!())
+        .run(context)
         .expect("error while running Vocab Collector");
 }

@@ -18,8 +18,11 @@ use vocab_domain::{
 };
 
 mod capture_undo;
+pub mod diagnostics;
+mod export;
 mod identity;
 mod learning_status;
+mod listing;
 mod references;
 mod translations;
 
@@ -287,6 +290,7 @@ impl SqliteStore {
         identity::migrate(&connection)?;
         capture_undo::migrate(&connection)?;
         learning_status::migrate(&connection)?;
+        connection.execute_batch("CREATE INDEX IF NOT EXISTS idx_words_identity_candidate ON words(lemma,owner_scope) WHERE deleted_at IS NULL;").map_err(repo_error)?;
         connection
             .execute_batch("RELEASE schema_upgrade;")
             .map_err(repo_error)?;
