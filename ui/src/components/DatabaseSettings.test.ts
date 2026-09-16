@@ -6,6 +6,41 @@ vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
 const idle = { id: '', running: false, stage: '', report: null };
 beforeEach(() => { vi.mocked(invoke).mockReset(); vi.mocked(invoke).mockResolvedValue(idle); });
 describe('Local data controls', () => {
+  it('shows a spinner while the check is starting and prevents duplicate requests', async () => {
+    let finish!: (value: typeof idle) => void;
+    vi.mocked(invoke).mockImplementation((command) => command === 'start_database_check'
+      ? new Promise((resolve) => { finish = resolve; }) : Promise.resolve(idle));
+    render(DatabaseSettings);
+    const button = screen.getByRole('button', { name: 'Check data' });
+    await fireEvent.click(button);
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute('aria-busy', 'true');
+    expect(button.querySelector('[data-slot="spinner"]')).toBeInTheDocument();
+    expect(screen.getByText('Starting check…')).toBeInTheDocument();
+    finish(idle);
+    await waitFor(() => expect(button).not.toBeDisabled());
+  });
+
+  it.each([
+    ['save_database_check_report', 'Save diagnostic report', 'Saving report…', true],
+    ['export_vocabulary_csv', 'Export vocabulary CSV', 'Exporting…', 3],
+  ] as const)('shows pending feedback for %s until the native operation finishes', async (command, label, pendingLabel, result) => {
+    let finish!: (value: boolean | number) => void;
+    const completed = { id: 'check-2', running: false, stage: 'formats', report: { status: 'passed', issues: [], coverage: [], elapsedMs: 4 } };
+    vi.mocked(invoke).mockImplementation((name) => name === command
+      ? new Promise((resolve) => { finish = resolve; }) : Promise.resolve(completed));
+    render(DatabaseSettings);
+    await screen.findByText('No issues found · 4 ms');
+    await fireEvent.click(screen.getByRole('button', { name: label }));
+    const pending = screen.getByRole('button', { name: pendingLabel });
+    expect(pending).toBeDisabled();
+    expect(pending).toHaveAttribute('aria-busy', 'true');
+    expect(pending.querySelector('[data-slot="spinner"]')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Check data' })).toBeDisabled();
+    finish(result);
+    await waitFor(() => expect(screen.getByRole('button', { name: label })).not.toBeDisabled());
+  });
+
   it('starts and cancels one identified check', async () => {
     vi.mocked(invoke).mockImplementation(async (command) => command === 'start_database_check'
       ? { id: 'check-1', running: true, stage: 'structure', report: null } : idle);
