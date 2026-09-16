@@ -34,13 +34,30 @@ async function start() {
     document.documentElement,
     requestedWindow === "capture" || requestedWindow === "ocr-overlay" ? requestedWindow : "main",
   );
+  const target = document.getElementById("app")!;
+  if ("__TAURI_INTERNALS__" in globalThis) {
+    target.textContent = "Starting Vocab Collector…";
+    target.setAttribute("role", "status");
+    const deadline = Date.now() + 30_000;
+    try {
+      while (!(await invoke<boolean>("get_startup_ready"))) {
+        if (Date.now() >= deadline) throw new Error("Startup timed out");
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+    } catch {
+      target.textContent = "Vocab Collector could not finish starting. Please exit the app and open it again.";
+      target.setAttribute("role", "alert");
+      return;
+    }
+    target.textContent = "";
+    target.removeAttribute("role");
+  }
   if (requestedWindow === "ocr-overlay") {
     mount(WindowsOcrOverlay, { target: document.getElementById("app")! });
     return;
   }
   void connectAppearance(backend).then((stop) => window.addEventListener("pagehide", stop, { once: true }));
   const presentation = selectPresentation(desktopWindow(), await presentationFamily());
-  const target = document.getElementById("app")!;
 
   switch (presentation) {
     case "windows-main": mount(WindowsApp, { target }); break;

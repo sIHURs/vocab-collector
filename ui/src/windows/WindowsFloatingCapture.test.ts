@@ -162,8 +162,8 @@ describe("Windows floating capture presentation", () => {
     expect(screen.queryByRole("button", { name: /Save capture|Save without translation/ })).not.toBeInTheDocument();
     expect(mocks.translate).not.toHaveBeenCalled();
 
-    expect(await screen.findByRole("button", { name: "Cancel OCR" })).toBeVisible();
-    expect(screen.queryByRole("button", { name: "Cancel capture" })).toBeNull();
+    expect(await screen.findByRole("button", { name: "Cancel capture" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Cancel OCR" })).toBeNull();
     await fireEvent.click(await screen.findByRole("button", { name: "Confirm" }));
     expect(mocks.confirmOcr).toHaveBeenCalledWith("ocr-request", "serendipity", "");
     await waitFor(() => expect(mocks.translate).toHaveBeenCalledTimes(1));
@@ -250,7 +250,7 @@ describe("Windows floating capture presentation", () => {
     mocks.error?.({ requestId: "ocr-cancel", failure: { code: "empty_selection", message: "No selection" } });
     mocks.ocr?.({ requestId: "ocr-cancel", candidates: [{ text: "candidate", bounds: { x: 1, y: 2, width: 30, height: 12 }, confidence: 0.8 }], ambiguous: false });
 
-    await fireEvent.click(await screen.findByRole("button", { name: "Cancel OCR" }));
+    await fireEvent.click(await screen.findByRole("button", { name: "Cancel capture" }));
 
     expect(mocks.close).toHaveBeenCalledWith("ocr-cancel");
     expect(mocks.save).not.toHaveBeenCalled();
@@ -366,53 +366,35 @@ describe("Windows floating capture presentation", () => {
     expect(mocks.releaseFocus).not.toHaveBeenCalled();
   });
 
-  it("dismisses a saved result after four unpaused seconds", async () => {
+  it.each(["accessibility", "ocr"] as const)("dismisses a saved %s result after two seconds even with hover and focus", async (origin) => {
     const view = render(WindowsFloatingCapture, { captureBackend });
     await waitFor(() => expect(mocks.ready).toBeTypeOf("function"));
-    mocks.ready?.({ requestId: "timed-request", candidate: { selectedText: "nuance", sentence: "A useful nuance.", origin: "accessibility" } });
-    const saveButton = await screen.findByRole("button", { name: /Save capture|Save without translation/ });
-    await waitFor(() => expect(mocks.getCapabilities).toHaveBeenCalledTimes(2));
-    await waitFor(() => expect(view.container.querySelector("section")).toHaveAttribute("aria-busy", "false"));
-    await waitFor(() => expect(saveButton).toBeEnabled());
-    await fireEvent.click(saveButton);
-    expect(await screen.findByText("Saved")).toBeVisible();
-    await fireEvent.mouseEnter(view.container.querySelector("main")!);
-    vi.useFakeTimers();
-    try {
-      vi.advanceTimersByTime(5_000);
-      expect(mocks.hide).not.toHaveBeenCalled();
-      await fireEvent.mouseLeave(view.container.querySelector("main")!);
-      vi.advanceTimersByTime(4_000);
-      expect(mocks.hide).toHaveBeenCalledWith("timed-request");
-    } finally {
-      vi.useRealTimers();
+    if (origin === "ocr") {
+      mocks.regionOcr?.({ requestId: "timed-request" });
+      mocks.ocr?.({ requestId: "timed-request", candidates: [{ text: "nuance", bounds: { x: 1, y: 2, width: 30, height: 12 }, confidence: 0.9 }], ambiguous: false });
+      await fireEvent.click(await screen.findByRole("button", { name: "Confirm" }));
+    } else {
+      mocks.ready?.({ requestId: "timed-request", candidate: { selectedText: "nuance", sentence: "A useful nuance.", origin } });
     }
-  });
-
-  it("keeps the timer paused while either hover or focus remains active", async () => {
-    const view = render(WindowsFloatingCapture, { captureBackend });
-    await waitFor(() => expect(mocks.ready).toBeTypeOf("function"));
-    mocks.ready?.({ requestId: "paused-request", candidate: { selectedText: "nuance", sentence: "A context.", origin: "accessibility" } });
-    const save = await screen.findByRole("button", { name: /Save capture|Save without translation/ });
-    await waitFor(() => expect(save).toBeEnabled());
+    const saveButton = await screen.findByRole("button", { name: /Save capture|Save without translation/ });
+    await waitFor(() => expect(saveButton).toBeEnabled());
     const surface = view.container.querySelector("main")!;
     await fireEvent.mouseEnter(surface);
-    await fireEvent.click(save);
-    const undo = await screen.findByRole("button", { name: "Undo" });
-    await fireEvent.focusIn(undo);
+    await fireEvent.focusIn(saveButton);
     vi.useFakeTimers();
     try {
-      await fireEvent.mouseLeave(surface);
-      vi.advanceTimersByTime(5000);
+      await fireEvent.click(saveButton);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(screen.getByText("Saved")).toBeVisible();
+      await fireEvent.focusIn(screen.getByRole("button", { name: "Undo" }));
+      await vi.advanceTimersByTimeAsync(1_999);
       expect(mocks.hide).not.toHaveBeenCalled();
-      await fireEvent.mouseEnter(surface);
-      await fireEvent.focusOut(undo, { relatedTarget: document.body });
-      vi.advanceTimersByTime(5000);
-      expect(mocks.hide).not.toHaveBeenCalled();
-      await fireEvent.mouseLeave(surface);
-      vi.advanceTimersByTime(4000);
-      expect(mocks.hide).toHaveBeenCalledWith("paused-request");
-    } finally { vi.useRealTimers(); }
+      await vi.advanceTimersByTimeAsync(1);
+      expect(mocks.hide).toHaveBeenCalledExactlyOnceWith("timed-request");
+    } finally {
+      view.unmount();
+      vi.useRealTimers();
+    }
   });
 
   it("removes main-window minimum dimensions from the capture document", () => {

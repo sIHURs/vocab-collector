@@ -18,8 +18,6 @@
 
   export let captureBackend: WindowsCaptureBackend = tauriWindowsCaptureBackend;
   let activeRequest = "";
-  let hovered = false;
-  let focusWithin = false;
   let candidate: CaptureCandidate | null = null;
   let editing = false;
   let selectedText = "";
@@ -61,10 +59,10 @@
 
   function scheduleDismiss(requestId = activeRequest) {
     clearDismissTimer();
-    if (!saved || !mounted || requestId !== activeRequest || hovered || focusWithin) return;
+    if (!saved || !mounted || requestId !== activeRequest) return;
     dismissTimer = setTimeout(() => {
       if (mounted && requestId === activeRequest) void captureBackend.hide(requestId);
-    }, 4_000);
+    }, 2_000);
   }
 
   async function beginEditing() {
@@ -260,6 +258,7 @@
     if (!activeRequest) return;
     try {
       await captureBackend.close(activeRequest);
+      clearDismissTimer();
     } catch (cause) {
       error = cause instanceof Error ? cause.message : String(cause);
     }
@@ -345,8 +344,8 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-<main class="windows-capture capture-surface" data-presentation="windows-capture" aria-label="Capture" onmouseenter={() => { hovered = true; clearDismissTimer(); }} onmouseleave={() => { hovered = false; scheduleDismiss(); }} onfocusin={() => { focusWithin = true; clearDismissTimer(); }} onfocusout={(event) => { focusWithin = event.currentTarget.contains(event.relatedTarget as Node | null); if (!focusWithin) scheduleDismiss(); }}>
-  <header data-tauri-drag-region><span data-tauri-drag-region><i aria-hidden="true" data-tauri-drag-region></i>Vocab Collector</span>{#if !ocrNeedsConfirmation && !ocrOffer}<Button variant="ghost" size="icon" aria-label="Cancel capture" onclick={cancel}>×</Button>{/if}</header>
+<main class="windows-capture capture-surface" data-presentation="windows-capture" aria-label="Capture">
+  <header data-tauri-drag-region><span data-tauri-drag-region><i aria-hidden="true" data-tauri-drag-region></i>Vocab Collector</span>{#if !ocrOffer}<Button variant="ghost" size="icon" aria-label="Cancel capture" onclick={cancel}>×</Button>{/if}</header>
   <section class="capture-body" aria-live="polite" aria-busy={busy || ocrBusy}>
     {#if error}<Alert.Root variant="destructive"><Alert.Title>Capture needs attention</Alert.Title><Alert.Description>{error}</Alert.Description></Alert.Root>{/if}
     {#if saved}
@@ -376,7 +375,7 @@
   <footer aria-label="Capture actions">
     {#if saved}<Button variant="outline" disabled={busy} onclick={undo}>Undo</Button>
     {:else if candidate}
-      {#if ocrNeedsConfirmation}<Button variant="outline" onclick={cancel}>Cancel OCR</Button><Button disabled={busy || !selectedText.trim()} onclick={confirmOcrCandidate}>Confirm</Button>
+      {#if ocrNeedsConfirmation}<Button disabled={busy || !selectedText.trim()} onclick={confirmOcrCandidate}>Confirm</Button>
       {:else if editing}<Button disabled={busy || !selectedText.trim()} onclick={applyChanges}>Apply changes</Button>
 
       {:else}

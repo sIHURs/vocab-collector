@@ -239,6 +239,7 @@ pub fn run() {
         )
         .plugin(tauri_plugin_notification::init());
     builder
+        .manage(presentation::StartupReady::default())
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             #[cfg(target_os = "windows")]
@@ -388,6 +389,7 @@ pub fn run() {
                 }
                 app.manage(state);
             }
+            app.state::<presentation::StartupReady>().complete();
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -400,6 +402,7 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            presentation::get_startup_ready,
             translation_settings::get_deepl_settings,
             translation_settings::save_deepl_key,
             translation_settings::remove_deepl_key,
