@@ -807,7 +807,7 @@
       {:else if route === "Insights"}
         <InsightsPanel log={vocabularyLog} {logLoading} {logError} onlogretry={loadLog} insight={globalInsight} session={reviewSessionInsight} due={today?.totalDueCount ?? null} error={insightError} onretry={async () => { globalInsight = await loadInsight(); }} />
       {:else if settingsDraft}
-        <SettingsForm bind:settingsDraft {systemStatus} {settingsError} {settingsSaving} oncommit={commitSettings} onretry={saveSettings} />
+        <SettingsForm toasterId={notificationHostId} bind:settingsDraft {systemStatus} {settingsError} {settingsSaving} oncommit={commitSettings} onretry={saveSettings} />
       {/if}
     </section>
   </main>

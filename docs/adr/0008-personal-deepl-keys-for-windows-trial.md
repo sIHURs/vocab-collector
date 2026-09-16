@@ -1,0 +1,7 @@
+# Personal DeepL keys for the Windows trial
+
+Accepted 2026-09-16. The free trial uses a user-supplied DeepL API key instead of an application account or a service-funded translation proxy. This supersedes ADR 0002's expectation that accounts must precede release; its restrictions on distributing developer credentials, logging secrets, and sending context remain in force.
+
+Windows Settings accepts a key through a masked, transient input and stores it in Windows Credential Manager. Rust never returns the saved key to the WebView. Keys are excluded from UserSettings, SQLite, vocabulary exports and backups. Free keys use DeepL's Free endpoint; other keys use the Pro endpoint. The user's DeepL plan and quota apply; saving or replacing a key first authenticates through GET /v2/usage without consuming translation characters. Failed validation does not change the stored key or active provider and displays a toast. Authentication validation does not guarantee remaining quota or support for a particular translation request.
+
+A saved personal key overrides the platform's startup translation provider and applies to subsequent requests without restarting. Removing it restores that provider (including developer environment configuration, when present). Requests already in flight may finish using the previous key. Credential-store read failures preserve manual use and appear in Settings; failed writes or deletes leave the active provider unchanged. Browser previews cannot save credentials. macOS retains its existing Apple provider.

@@ -13,6 +13,7 @@ pub mod config;
 pub mod events;
 pub mod lifecycle;
 pub mod system_settings;
+pub mod translation_settings;
 
 use bootstrap::build_app_state;
 use commands::{capture, database, library, presentation, settings};
@@ -259,6 +260,7 @@ pub fn run() {
             );
             let platform = bootstrap::selected_platform()?;
             let state = build_app_state(store, platform);
+            state.translation.load_saved_key();
             let mut settings = state.application().get_settings()?;
             if !settings.selection_capture_shortcut.is_empty()
                 && vocab_capture::parse_shortcut(&settings.selection_capture_shortcut).is_err()
@@ -398,6 +400,9 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            translation_settings::get_deepl_settings,
+            translation_settings::save_deepl_key,
+            translation_settings::remove_deepl_key,
             database::start_database_check,
             database::get_database_check,
             database::cancel_database_check,

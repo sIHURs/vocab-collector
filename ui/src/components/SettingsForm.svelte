@@ -7,7 +7,9 @@
   import SettingsSelect from './SettingsSelect.svelte';
   import ReviewTimePicker from './ReviewTimePicker.svelte';
   import DatabaseSettings from './DatabaseSettings.svelte';
+  import DeepLSettings from './DeepLSettings.svelte';
   export let settingsDraft: Settings;
+  export let toasterId: string | undefined = undefined;
   export let systemStatus: SystemSettingsStatus = {};
   export let settingsError = '';
   export let settingsSaving = false;
@@ -104,6 +106,7 @@
               <Field.Field><label>Theme<SettingsSelect label="Theme" value={String(settingsDraft.appearance ?? '')} options={[{ value: 'system', label: 'System' }, { value: 'light', label: 'Light' }, { value: 'dark', label: 'Dark' }]} onchange={(value) => { const patch = { appearance: value as Settings["appearance"] }; settingsDraft = { ...settingsDraft, ...patch }; oncommit(patch); }} /></label></Field.Field>
               <Field.Field><label class="toggle-row"><span><strong>Reduce motion</strong><small>Minimize non-essential interface motion</small></span><Switch aria-label="Reduce motion" checked={settingsDraft.reducedMotion} onCheckedChange={(value) => { settingsDraft = { ...settingsDraft, reducedMotion: value }; oncommit({ reducedMotion: value }); }} /></label></Field.Field>
             </Field.FieldSet>
+            <DeepLSettings {toasterId} />
             <DatabaseSettings />
           </Field.FieldGroup>
         </form>

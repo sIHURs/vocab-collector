@@ -9,6 +9,66 @@ use vocab_platform_api::{PlatformError, TranslationProvider, TranslationResult};
 use vocab_platform_contract_tests::assert_error_is_content_free;
 use vocab_translation_deepl::{DeepLTranslationProvider, DeepLTranslatorConfig};
 
+#[tokio::test(flavor = "current_thread")]
+async fn key_validation_authenticates_with_usage_without_translating() {
+    let (endpoint, request) = serve(
+        "200 OK",
+        r#"{"character_count":12,"character_limit":500000}"#,
+        None,
+    );
+    let provider = DeepLTranslationProvider::new(
+        DeepLTranslatorConfig::for_test(endpoint, "private-key", Duration::from_secs(2)).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(provider.validate_key().await, Ok(()));
+    let request = request.join().unwrap();
+    assert!(request.starts_with("GET /v2/usage "));
+    assert!(
+        request
+            .to_lowercase()
+            .contains("authorization: deepl-auth-key private-key")
+    );
+    assert!(!request.contains("/translate"));
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn key_validation_rejects_auth_service_and_malformed_responses() {
+    use vocab_translation_deepl::KeyValidationError;
+    for (status, body, expected) in [
+        (
+            "403 Forbidden",
+            "private-key",
+            KeyValidationError::InvalidKey,
+        ),
+        (
+            "401 Unauthorized",
+            "private-key",
+            KeyValidationError::InvalidKey,
+        ),
+        (
+            "429 Too Many Requests",
+            "private-key",
+            KeyValidationError::Unavailable,
+        ),
+        (
+            "500 Internal Server Error",
+            "private-key",
+            KeyValidationError::Unavailable,
+        ),
+        ("200 OK", "{}", KeyValidationError::InvalidResponse),
+        ("200 OK", "private-key", KeyValidationError::InvalidResponse),
+    ] {
+        let (endpoint, request) = serve(status, body, None);
+        let provider = DeepLTranslationProvider::new(
+            DeepLTranslatorConfig::for_test(endpoint, "private-key", Duration::from_secs(2))
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(provider.validate_key().await, Err(expected));
+        request.join().unwrap();
+    }
+}
+
 fn serve(
     status: &'static str,
     body: &'static str,

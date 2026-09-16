@@ -718,7 +718,7 @@ describe("Windows main presentation", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not save settings");
     expect(container.querySelector(".windows-shell")).toHaveAttribute("data-appearance", "system");
     expect(container.querySelector(".windows-shell")).toHaveAttribute("data-reduced-motion", "false");
-    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.queryByText("Settings saved")).toBeNull();
   });
 
   it("applies persisted visual settings when the subsequent Today refresh fails", async () => {

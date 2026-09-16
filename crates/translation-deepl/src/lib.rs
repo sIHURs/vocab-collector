@@ -84,9 +84,67 @@ pub struct DeepLTranslationProvider {
     config: DeepLTranslatorConfig,
 }
 
+/// Content-safe validation failures; never includes the key or HTTP response body.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum KeyValidationError {
+    InvalidKey,
+    Timeout,
+    Network,
+    Unavailable,
+    InvalidResponse,
+}
+
 impl DeepLTranslationProvider {
+    /// Authenticate without sending vocabulary or consuming translation characters.
+    pub async fn validate_key(&self) -> Result<(), KeyValidationError> {
+        let url = self
+            .config
+            .endpoint
+            .join("v2/usage")
+            .map_err(|_| KeyValidationError::InvalidResponse)?;
+        let response = self
+            .client
+            .get(url)
+            .header(
+                header::AUTHORIZATION,
+                format!("DeepL-Auth-Key {}", self.config.key),
+            )
+            .send()
+            .await
+            .map_err(|error| {
+                if error.is_timeout() {
+                    KeyValidationError::Timeout
+                } else {
+                    KeyValidationError::Network
+                }
+            })?;
+        match response.status() {
+            StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
+                return Err(KeyValidationError::InvalidKey);
+            }
+            status if !status.is_success() => return Err(KeyValidationError::Unavailable),
+            _ => {}
+        }
+        #[derive(Deserialize)]
+        struct Usage {
+            #[serde(rename = "character_count")]
+            _character_count: u64,
+            #[serde(rename = "character_limit")]
+            _character_limit: u64,
+        }
+        response.json::<Usage>().await.map_err(|error| {
+            if error.is_timeout() {
+                KeyValidationError::Timeout
+            } else {
+                KeyValidationError::InvalidResponse
+            }
+        })?;
+        Ok(())
+    }
+
     pub fn new(config: DeepLTranslatorConfig) -> Result<Self, PlatformError> {
         let client = Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
             .timeout(config.timeout)
             .build()
             .map_err(|_| {

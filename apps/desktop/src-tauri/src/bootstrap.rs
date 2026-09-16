@@ -16,19 +16,22 @@ pub struct AppState {
     capabilities: PlatformCapabilities,
     selection: Arc<dyn SelectionProvider>,
     ocr: Arc<dyn OcrProvider>,
-    translation: Arc<dyn TranslationProvider>,
+    pub(crate) translation: Arc<crate::translation_settings::TranslationRuntime>,
     permissions: Arc<dyn PermissionProvider>,
     window: Arc<dyn WindowProvider>,
     pending_ocr: Mutex<Option<(Uuid, Vec<OcrCandidate>)>>,
 }
 
 /// Composes storage, shared application behavior, and the selected platform adapter.
-pub fn build_app_state(repository: Arc<SqliteStore>, platform: PlatformServices) -> AppState {
+pub fn build_app_state(repository: Arc<SqliteStore>, mut platform: PlatformServices) -> AppState {
     let application = Arc::new(AppService::new(repository, Uuid::now_v7()));
     let capabilities = platform.capabilities;
     let selection = Arc::clone(&platform.selection);
     let ocr = Arc::clone(&platform.ocr);
-    let translation = Arc::clone(&platform.translation);
+    let translation = Arc::new(crate::translation_settings::TranslationRuntime::new(
+        Arc::clone(&platform.translation),
+    ));
+    platform.translation = translation.clone();
     let permissions = Arc::clone(&platform.permissions);
     let window = Arc::clone(&platform.window);
     let workflow = PlatformCaptureWorkflow::new(Arc::clone(&application), platform);
@@ -86,7 +89,9 @@ impl AppState {
     }
 
     pub fn platform_capabilities(&self) -> PlatformCapabilities {
-        self.capabilities
+        let mut capabilities = self.capabilities;
+        capabilities.translation |= self.translation.configured();
+        capabilities
     }
 
     pub async fn permission_status(
