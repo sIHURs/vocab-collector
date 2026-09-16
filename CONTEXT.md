@@ -79,3 +79,7 @@ _Avoid_: Restore to learning, undo review
 **Recapture an Achieved Vocabulary Item**:
 The explicit capture-window decision that returns an Achieved Vocabulary Item to Learning and records the new Encounter atomically. This is distinct from Unachieve because the new Encounter is evidence that active learning should resume.
 _Avoid_: Automatic restore, duplicate capture
+
+**Starter Vocabulary Item**:
+A Vocabulary Item provided on first use to introduce the app, initially in Learning status and available for ordinary editing, review, and deletion. It does not represent a user Encounter or a successful user save, and deleting it does not cause it to be added again.
+_Avoid_: Fake capture, demo-only card
