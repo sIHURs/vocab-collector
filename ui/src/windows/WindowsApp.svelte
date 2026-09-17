@@ -64,8 +64,11 @@
 
   type Route = "Today" | "Vocabulary" | "Review" | "Insights" | "Settings";
   export let api: Backend = createBackend();
-  const navigation = [{ title: "Today", icon: CalendarDays }, { title: "Vocabulary", icon: BookOpen }, { title: "Insights", icon: ChartNoAxesColumn }, { title: "Settings", icon: SettingsIcon }] as const;
-  let route: Route = "Today";
+  export let embedded = false;
+  $: navigation = embedded
+    ? [{ title: "Vocabulary", icon: BookOpen }, { title: "Review", icon: CalendarDays }] as const
+    : [{ title: "Today", icon: CalendarDays }, { title: "Vocabulary", icon: BookOpen }, { title: "Insights", icon: ChartNoAxesColumn }, { title: "Settings", icon: SettingsIcon }] as const;
+  let route: Route = embedded ? "Vocabulary" : "Today";
   let today: TodayView | null = null;
   let words: WordListItem[] = [];
   let achievedWords: AchievedWordListItem[] = [];
@@ -176,7 +179,7 @@
   }); else toast.dismiss(statusToastId);
   onDestroy(() => { toast.dismiss(savedToastId); toast.dismiss(unachievedToastId); toast.dismiss(settingsToastId); toast.dismiss(statusToastId); });
 
-  $: if (appliedSettings) applyAppearance(appliedSettings);
+  $: if (appliedSettings && !embedded) applyAppearance(appliedSettings);
   $: visibleWords = words.filter((word) => vocabularyView === "active" ? word.status !== "mastered" : word.status === "mastered");
   $: filteredWords = visibleWords.filter((word) => `${word.displayForm} ${word.translation ?? ""}`.toLowerCase().includes(search.trim().toLowerCase()));
   $: filteredAchievedWords = achievedWords.filter((word) => `${word.displayForm} ${word.lemma} ${word.translation ?? ""}`.toLowerCase().includes(search.trim().toLowerCase()));

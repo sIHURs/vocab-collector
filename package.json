@@ -3,6 +3,9 @@
   "private": true,
   "packageManager": "pnpm@11.19.0",
   "scripts": {
+    "dev:landing": "pnpm --dir ui dev:landing",
+    "build:landing": "pnpm --dir ui build:landing",
+    "preview:landing": "pnpm --dir ui preview:landing",
     "dev": "pnpm --dir ui dev",
     "build": "pnpm --dir ui build",
     "test": "pnpm --dir ui test",

@@ -17,6 +17,7 @@
   } from "./captureBackend";
 
   export let captureBackend: WindowsCaptureBackend = tauriWindowsCaptureBackend;
+  export let embedded = false;
   let activeRequest = "";
   let candidate: CaptureCandidate | null = null;
   let editing = false;
@@ -275,7 +276,7 @@
 
   onMount(() => {
     mounted = true;
-    document.body.classList.add("windows-capture-document");
+    if (!embedded) document.body.classList.add("windows-capture-document");
     const ready = captureBackend.listenReady((event) => {
       activeRequest = event.requestId;
       clearDismissTimer();
@@ -333,7 +334,7 @@
     return () => {
       mounted = false;
       clearDismissTimer();
-      document.body.classList.remove("windows-capture-document");
+      if (!embedded) document.body.classList.remove("windows-capture-document");
       ready.then((unlisten) => unlisten());
       failed.then((unlisten) => unlisten());
       ocr.then((unlisten) => unlisten());
@@ -387,5 +388,5 @@
   </footer>
 </main>
 <style>
-:global(html),:global(body.windows-capture-document),:global(#app){width:100%;height:100%;margin:0;background:transparent;overflow:hidden}:global(body.windows-capture-document){min-width:0;min-height:0}
+:global(html:has(body.windows-capture-document)),:global(body.windows-capture-document),:global(body.windows-capture-document #app){width:100%;height:100%;margin:0;background:transparent;overflow:hidden}:global(body.windows-capture-document){min-width:0;min-height:0}
 </style>

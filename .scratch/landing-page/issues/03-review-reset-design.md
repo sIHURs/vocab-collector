@@ -33,3 +33,7 @@ Mobile retains native 1× type in a horizontally draggable crop, with Read / Sho
 
 Visual QA: reviewed desktop dark/light, mobile reading/actions and handoff artboards; corrected light-theme caption contrast and cloned frame sizing. Artboards fit their contents; only labeled player viewports intentionally crop App content. No App code or recordings were produced.
 
+
+## App UI synchronization — 2026-09-17
+
+Updated the existing Paper deliverables against App source at a696b5e. See ../handoff.md, "Verified UI revision", for the authoritative changes and current behavior. This revision supersedes conflicting older timing, progress and completion descriptions above. Status remains ready-for-review; application code is unchanged.

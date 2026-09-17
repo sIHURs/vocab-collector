@@ -2,6 +2,8 @@
 
 Status: approved-and-published
 
+This file preserves the original Paper-only task breakdown. See issues/ for delivery status and [development-plan.md](development-plan.md) for the next development phase. Do not interpret unchecked historical boxes below as pending website implementation tickets.
+
 ## Scope
 
 The user approved the landing page design and narrowed the current work to UX/UI in Paper only. This proposal supersedes the earlier code-inclusive breakdown. No application code, backend work, tests, build configuration, hosting, or release work is included. Inspect existing app visuals as references without modifying the app.

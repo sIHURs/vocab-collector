@@ -1,0 +1,12 @@
+/* Only loaded in the isolated demo document. Native and host CSS are unchanged. */
+html, body { min-width: 0; min-height: 0; margin: 0; }
+.windows-presentation { min-height: 0 !important; }
+.windows-shell { height: 650px !important; min-height: 0 !important; }
+.landing-capture-dialog { padding: 0; gap: 0; width: calc(100% - 24px); max-width: 430px; height: min(440px, calc(100dvh - 32px)); }
+@media (max-width: 560px) {
+  .windows-shell { display: flex !important; flex-direction: column; }
+  .windows-shell > main { flex: 1; min-height: 0; }
+  .windows-shell > aside { flex-shrink: 0; padding: 8px; gap: 8px; }
+  .windows-shell .sidebar-brand, .windows-shell .local-status { display: none; }
+  .windows-shell .review-card { padding: 16px; margin-top: 8px; }
+}
