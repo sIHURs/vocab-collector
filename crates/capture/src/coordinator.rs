@@ -13,6 +13,7 @@ enum Phase {
     ReadyToSave,
     Saving,
     Saved,
+    Undone,
 }
 
 #[derive(Clone, Debug)]
@@ -28,6 +29,7 @@ struct Session {
     phase: Phase,
     candidate: Option<CaptureCandidate>,
     translation: Option<TranslationResult>,
+    saved_entity_id: Option<Uuid>,
 }
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
@@ -75,6 +77,17 @@ impl CaptureCoordinator {
         Ok(result)
     }
 
+    pub fn dismiss_and_publish<T>(
+        &self,
+        request_id: Uuid,
+        publish: impl FnOnce() -> T,
+    ) -> Result<T, CoordinatorError> {
+        let mut guard = self.current(request_id)?;
+        let result = publish();
+        *guard = None;
+        Ok(result)
+    }
+
     pub fn translation(
         &self,
         request_id: Uuid,
@@ -84,6 +97,14 @@ impl CaptureCoordinator {
         Ok(session.translation.clone())
     }
 
+    pub fn candidate(&self, request_id: Uuid) -> Result<CaptureCandidate, CoordinatorError> {
+        let guard = self.current(request_id)?;
+        guard
+            .as_ref()
+            .and_then(|session| session.candidate.clone())
+            .ok_or(CoordinatorError::InvalidTransition)
+    }
+
     pub fn start(&self) -> Uuid {
         let request_id = Uuid::now_v7();
         *self.session.lock().expect("capture coordinator poisoned") = Some(Session {
@@ -91,6 +112,7 @@ impl CaptureCoordinator {
             phase: Phase::Capturing,
             candidate: None,
             translation: None,
+            saved_entity_id: None,
         });
         request_id
     }
@@ -154,7 +176,7 @@ impl CaptureCoordinator {
         let mut guard = self.current(request_id)?;
         let session = guard.as_mut().ok_or(CoordinatorError::StaleRequest)?;
         match session.phase {
-            Phase::TranslationPending | Phase::TranslationFailed => {
+            Phase::TranslationPending | Phase::TranslationFailed | Phase::ReadyToSave => {
                 session.phase = Phase::Translating;
             }
             _ => return Err(CoordinatorError::InvalidTransition),
@@ -183,7 +205,33 @@ impl CaptureCoordinator {
         if session.phase != Phase::Translating {
             return Err(CoordinatorError::InvalidTransition);
         }
-        session.phase = Phase::TranslationFailed;
+        session.phase = if session.translation.is_some() {
+            Phase::ReadyToSave
+        } else {
+            Phase::TranslationFailed
+        };
+        Ok(())
+    }
+
+    pub fn correct(
+        &self,
+        request_id: Uuid,
+        candidate: CaptureCandidate,
+        translation: Option<TranslationResult>,
+    ) -> Result<(), CoordinatorError> {
+        let mut guard = self.current(request_id)?;
+        let session = guard.as_mut().ok_or(CoordinatorError::StaleRequest)?;
+        match session.phase {
+            Phase::TranslationPending | Phase::TranslationFailed | Phase::ReadyToSave => {}
+            _ => return Err(CoordinatorError::InvalidTransition),
+        }
+        session.candidate = Some(candidate);
+        session.translation = translation;
+        session.phase = if session.translation.is_some() {
+            Phase::ReadyToSave
+        } else {
+            Phase::TranslationFailed
+        };
         Ok(())
     }
 
@@ -192,6 +240,28 @@ impl CaptureCoordinator {
         request_id: Uuid,
         without_translation: bool,
         persist: impl FnOnce(&CaptureSnapshot) -> Result<T, E>,
+    ) -> Result<T, CoordinatorError> {
+        self.save_with_optional_id(request_id, without_translation, persist, |_| None)
+    }
+
+    pub fn save_with_id<T, E: Display>(
+        &self,
+        request_id: Uuid,
+        without_translation: bool,
+        persist: impl FnOnce(&CaptureSnapshot) -> Result<T, E>,
+        entity_id: impl FnOnce(&T) -> Uuid,
+    ) -> Result<T, CoordinatorError> {
+        self.save_with_optional_id(request_id, without_translation, persist, |value| {
+            Some(entity_id(value))
+        })
+    }
+
+    fn save_with_optional_id<T, E: Display>(
+        &self,
+        request_id: Uuid,
+        without_translation: bool,
+        persist: impl FnOnce(&CaptureSnapshot) -> Result<T, E>,
+        entity_id: impl FnOnce(&T) -> Option<Uuid>,
     ) -> Result<T, CoordinatorError> {
         let mut guard = self.current(request_id)?;
         let session = guard.as_mut().ok_or(CoordinatorError::StaleRequest)?;
@@ -214,6 +284,7 @@ impl CaptureCoordinator {
         session.phase = Phase::Saving;
         match persist(&snapshot) {
             Ok(value) => {
+                session.saved_entity_id = entity_id(&value);
                 session.phase = Phase::Saved;
                 Ok(value)
             }
@@ -221,6 +292,26 @@ impl CaptureCoordinator {
                 session.phase = previous_phase;
                 Err(CoordinatorError::Persistence(error.to_string()))
             }
+        }
+    }
+
+    pub fn undo_with<T, E: Display>(
+        &self,
+        request_id: Uuid,
+        entity_id: Uuid,
+        undo: impl FnOnce() -> Result<T, E>,
+    ) -> Result<T, CoordinatorError> {
+        let mut guard = self.current(request_id)?;
+        let session = guard.as_mut().ok_or(CoordinatorError::StaleRequest)?;
+        if session.phase != Phase::Saved || session.saved_entity_id != Some(entity_id) {
+            return Err(CoordinatorError::InvalidTransition);
+        }
+        match undo() {
+            Ok(value) => {
+                session.phase = Phase::Undone;
+                Ok(value)
+            }
+            Err(error) => Err(CoordinatorError::Persistence(error.to_string())),
         }
     }
 

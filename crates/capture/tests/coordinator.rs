@@ -7,6 +7,7 @@ use std::{
     thread,
     time::Duration,
 };
+use uuid::Uuid;
 
 use vocab_capture::{CaptureCoordinator, CoordinatorError};
 use vocab_platform_api::{CaptureCandidate, CaptureOrigin, TranslationResult};
@@ -240,6 +241,24 @@ fn candidate_transition_and_publication_use_the_same_current_request_guard() {
 }
 
 #[test]
+fn dismissal_invalidates_the_request_after_its_visible_side_effect() {
+    let coordinator = CaptureCoordinator::default();
+    let request = coordinator.start();
+    let hidden = AtomicBool::new(false);
+
+    coordinator
+        .dismiss_and_publish(request, || hidden.store(true, Ordering::SeqCst))
+        .unwrap();
+
+    assert!(hidden.load(Ordering::SeqCst));
+    assert!(!coordinator.is_current(request));
+    assert_eq!(
+        coordinator.set_candidate(request, candidate(CaptureOrigin::Ocr)),
+        Err(CoordinatorError::StaleRequest)
+    );
+}
+
+#[test]
 fn persistence_failure_rolls_back_so_the_user_can_retry() {
     let coordinator = CaptureCoordinator::default();
     let request = coordinator.start();
@@ -257,4 +276,150 @@ fn persistence_failure_rolls_back_so_the_user_can_retry() {
     coordinator
         .save_with(request, false, |_| Ok::<_, &str>(()))
         .unwrap();
+}
+
+#[test]
+fn correction_and_manual_translation_stay_on_the_current_request() {
+    let coordinator = CaptureCoordinator::default();
+    let request = coordinator.start();
+    coordinator
+        .set_candidate(request, candidate(CaptureOrigin::Accessibility))
+        .unwrap();
+    let mut corrected = candidate(CaptureOrigin::Accessibility);
+    corrected.selected_text = "corrected".into();
+    corrected.sentence = "The corrected context.".into();
+
+    coordinator
+        .correct(request, corrected, Some(translation()))
+        .unwrap();
+    let snapshot = coordinator
+        .save_with(request, false, |snapshot| Ok::<_, &str>(snapshot.clone()))
+        .unwrap();
+
+    assert_eq!(snapshot.request_id, request);
+    assert_eq!(snapshot.candidate.selected_text, "corrected");
+    assert_eq!(snapshot.candidate.sentence, "The corrected context.");
+    assert_eq!(snapshot.translation, Some(translation()));
+}
+
+#[test]
+fn translated_capture_can_be_independently_edited_before_explicit_save() {
+    let coordinator = CaptureCoordinator::default();
+    let request = coordinator.start();
+    coordinator
+        .set_candidate(request, candidate(CaptureOrigin::Accessibility))
+        .unwrap();
+    coordinator.begin_translation(request).unwrap();
+    coordinator.set_translation(request, translation()).unwrap();
+    let mut corrected = candidate(CaptureOrigin::Accessibility);
+    corrected.selected_text = "independently edited".into();
+    corrected.sentence = "An independently edited context.".into();
+    let edited_translation = TranslationResult {
+        translated_text: "frei bearbeitet".into(),
+        ..translation()
+    };
+
+    coordinator
+        .correct(request, corrected, Some(edited_translation.clone()))
+        .unwrap();
+    let snapshot = coordinator
+        .save_with(request, false, |snapshot| Ok::<_, &str>(snapshot.clone()))
+        .unwrap();
+
+    assert_eq!(snapshot.candidate.selected_text, "independently edited");
+    assert_eq!(
+        snapshot.candidate.sentence,
+        "An independently edited context."
+    );
+    assert_eq!(snapshot.translation, Some(edited_translation));
+}
+
+#[test]
+fn failed_retry_preserves_the_previous_translation_for_saving() {
+    let coordinator = CaptureCoordinator::default();
+    let request = coordinator.start();
+    coordinator
+        .set_candidate(request, candidate(CaptureOrigin::Accessibility))
+        .unwrap();
+    coordinator.begin_translation(request).unwrap();
+    coordinator.set_translation(request, translation()).unwrap();
+
+    coordinator.begin_translation(request).unwrap();
+    coordinator.translation_failed(request).unwrap();
+    let snapshot = coordinator
+        .save_with(request, false, |snapshot| Ok::<_, &str>(snapshot.clone()))
+        .unwrap();
+
+    assert_eq!(snapshot.translation, Some(translation()));
+}
+
+#[test]
+fn untranslated_correction_requires_the_explicit_save_without_translation_path() {
+    let coordinator = CaptureCoordinator::default();
+    let request = coordinator.start();
+    coordinator
+        .set_candidate(request, candidate(CaptureOrigin::Accessibility))
+        .unwrap();
+    coordinator
+        .correct(request, candidate(CaptureOrigin::Accessibility), None)
+        .unwrap();
+
+    assert_eq!(
+        coordinator.save_with(request, false, |_| Ok::<_, &str>(())),
+        Err(CoordinatorError::TranslationRequired)
+    );
+    coordinator
+        .save_with(request, true, |_| Ok::<_, &str>(()))
+        .unwrap();
+}
+
+#[test]
+fn undo_runs_once_and_rejects_stale_requests() {
+    let coordinator = CaptureCoordinator::default();
+    let request = coordinator.start();
+    coordinator
+        .set_candidate(request, candidate(CaptureOrigin::Accessibility))
+        .unwrap();
+    coordinator
+        .correct(request, candidate(CaptureOrigin::Accessibility), None)
+        .unwrap();
+    let encounter_id = Uuid::now_v7();
+    coordinator
+        .save_with_id(request, true, |_| Ok::<_, &str>(encounter_id), |id| *id)
+        .unwrap();
+
+    coordinator
+        .undo_with(request, encounter_id, || Ok::<_, &str>(()))
+        .unwrap();
+    assert_eq!(
+        coordinator.undo_with(request, encounter_id, || Ok::<_, &str>(())),
+        Err(CoordinatorError::InvalidTransition)
+    );
+    let current = coordinator.start();
+    assert_eq!(
+        coordinator.undo_with(request, encounter_id, || Ok::<_, &str>(())),
+        Err(CoordinatorError::StaleRequest)
+    );
+    assert!(coordinator.is_current(current));
+}
+
+#[test]
+fn undo_rejects_an_encounter_that_was_not_saved_by_the_request() {
+    let coordinator = CaptureCoordinator::default();
+    let request = coordinator.start();
+    coordinator
+        .set_candidate(request, candidate(CaptureOrigin::Accessibility))
+        .unwrap();
+    coordinator
+        .correct(request, candidate(CaptureOrigin::Accessibility), None)
+        .unwrap();
+    let saved = Uuid::now_v7();
+    coordinator
+        .save_with_id(request, true, |_| Ok::<_, &str>(saved), |id| *id)
+        .unwrap();
+
+    assert_eq!(
+        coordinator.undo_with(request, Uuid::now_v7(), || Ok::<_, &str>(())),
+        Err(CoordinatorError::InvalidTransition)
+    );
 }

@@ -1,0 +1,15 @@
+$ vitest run "src/windows/LearningStatus.test.ts" "src/windows/ResumeReview.test.ts"
+1:49:23 AM [vite-plugin-svelte] no Svelte config found at C:/Users/yifan/project/vocab-collector/ui - using default configuration.
+
+ RUN  v3.2.7 C:/Users/yifan/project/vocab-collector/ui
+
+ ✓ src/windows/LearningStatus.test.ts (5 tests) 1398ms
+   ✓ saves the selected Learning Status and moves the item without leaving its detail  575ms
+ ✓ src/windows/ResumeReview.test.ts (6 tests) 1478ms
+   ✓ resumes from current status and completes with earlier Review results intact  421ms
+
+ Test Files  2 passed (2)
+      Tests  11 passed (11)
+   Start at  01:49:23
+   Duration  13.55s (transform 6.49s, setup 3.63s, collect 16.97s, tests 2.88s, environment 1.96s, prepare 444ms)
+

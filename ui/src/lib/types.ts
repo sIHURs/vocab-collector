@@ -27,12 +27,33 @@ export interface PlatformCapabilities {
 export interface Settings {
   sourceLanguage: string;
   targetLanguage: string;
-  captureShortcut: string;
+  selectionCaptureShortcut: string;
+  regionOcrCaptureShortcut: string;
   reviewTime: string;
   dailyLimit: number;
+  recentCapturesLimit: number;
   launchAtLogin: boolean;
   appearance: "system" | "light" | "dark";
   reducedMotion: boolean;
+  automaticAchieveEnabled?: boolean;
+  achievedRetentionDays?: 10 | 20 | 30 | 60;
+}
+
+export interface TranslationResult {
+  translatedText: string;
+  sourceLanguage: string;
+  targetLanguage: string;
+}
+
+export interface SystemSettingsStatus {
+  selectionShortcutError?: string;
+  regionOcrShortcutError?: string;
+  autostartError?: string;
+  notificationError?: string;
+}
+
+export interface SettingsApplyResult extends SystemSettingsStatus {
+  settings: Settings;
 }
 
 export interface CaptureInput {
@@ -65,7 +86,10 @@ export interface CaptureCandidate {
   origin: "manual" | "accessibility" | "ocr";
 }
 
+export interface SavedTranslation { targetLanguage: string; text: string; savedAt: string; }
+
 export interface Encounter {
+  savedTranslation?: SavedTranslation;
   id: string;
   wordId: string;
   selectedText: string;
@@ -80,6 +104,7 @@ export interface Encounter {
 }
 
 export interface WordListItem {
+  translationLanguage?: string;
   id: string;
   displayForm: string;
   translation?: string;
@@ -87,17 +112,75 @@ export interface WordListItem {
   encounterCount: number;
   nextReviewAt?: string;
   lastSeenAt: string;
+  achievedAt?: string;
+  deleteAfter?: string;
+}
+
+export interface AchievedCaptureConflict {
+  wordId: string;
+  displayForm: string;
+  achievedAt: string;
+  deleteAfter: string;
+}
+
+export interface GlobalInsight {
+  currentVocabularyCount: number;
+  currentAchievedCount: number;
+  lifetimeVocabularyCount: number;
+  lifetimeEncounterCount: number;
+  lifetimeReviewCount: number;
+  lifetimeRememberedCount: number;
+  lifetimeForgottenCount: number;
+  lifetimeRatingBreakdownComplete: boolean;
+}
+
+export interface AchievedWordListItem {
+  translationLanguage?: string;
+  id: string;
+  lemma: string;
+  displayForm: string;
+  translation?: string;
+  encounterCount: number;
+  achievedAt: string;
+  deleteAfter: string;
+  remainingDays: number;
+  urgency: "normal" | "warning" | "urgent";
 }
 
 export interface ReviewCard {
+  translationLanguage?: string;
   wordId: string;
   displayForm: string;
   translation?: string;
   context?: string;
 }
 
+export interface ReviewResult {
+  submissionId: string;
+  wordId: string;
+  rating: ReviewRating;
+  reviewedAt: string;
+  previousDueAt: string;
+  nextDueAt: string;
+  previousStability: number;
+  stability: number;
+  difficulty: number;
+  lapseCount: number;
+  encounterCount: number;
+  repeatedForgetting: boolean;
+}
+
+export interface ReviewSessionInsight {
+  reviewedCount: number;
+  rememberedCount: number;
+  forgottenCount: number;
+  attentionWordIds: string[];
+  nextDayDueCount: number;
+}
+
 export interface TodayView {
-  dueCount: number;
+  totalDueCount: number;
+  plannedReviewCount: number;
   estimatedMinutes: number;
   reviewQueue: ReviewCard[];
   recentCaptures: WordListItem[];
@@ -105,8 +188,20 @@ export interface TodayView {
 }
 
 export interface WordDetail {
+  translations?: SavedTranslation[];
   item: WordListItem;
   lemma: string;
   partOfSpeech?: string;
   encounters: Encounter[];
+}
+
+export interface VocabularyLogDay {
+  date: string;
+  count: number | null;
+  coverage: 'unknown' | 'complete';
+}
+export interface VocabularyLog {
+  startDate: string;
+  endDate: string;
+  days: VocabularyLogDay[];
 }

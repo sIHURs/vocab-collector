@@ -109,7 +109,7 @@ impl CoreDebugSession {
             .unwrap_or(input.selected_text.as_str());
         let normalized_lemma = normalize_lemma(lemma);
         let normalized_sentence = normalize_context(&input.sentence);
-        let dedupe_key = dedupe_key(lemma, &input.source_language, &input.target_language);
+        let dedupe_key = dedupe_key(lemma, &input.source_language);
         let outbox_before = self.store.pending_outbox_count()?;
         let result = self.application.capture(input.clone().into())?;
         let persisted = self.inspect_word(result.word_id)?;

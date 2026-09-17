@@ -1,0 +1,459 @@
+   Compiling vocab-application v0.1.0 (C:\Users\yifan\project\vocab-collector\crates\application)
+   Compiling vocab-desktop v0.1.0 (C:\Users\yifan\project\vocab-collector\apps\desktop\src-tauri)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 42.88s
+     Running unittests src\lib.rs (target\debug\deps\vocab_application-5c6b3b5a9b33677b.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\application_flow.rs (target\debug\deps\application_flow-8cbb3bce1abc7056.exe)
+
+running 40 tests
+test automatic_or_blank_target_language_is_rejected ... ok
+test automatic_source_and_explicit_target_round_trip_through_settings ... ok
+test automatic_achieve_stays_off_without_opt_in_and_existing_deadlines_do_not_follow_settings ... ok
+test achieved_capture_requires_consent_then_atomically_returns_the_item_to_learning ... ok
+test achieved_notice_survives_a_learning_auto_alias_and_undo_restores_both ... ok
+test achieved_capture_matches_an_auto_detected_source_when_recapture_resolves_the_language ... ok
+test deleted_previewed_achieved_item_is_not_silently_replaced ... ok
+test capture_today_review_and_vocabulary_flow_share_one_source_of_truth ... ok
+test achieved_recapture_restarts_review_and_revalidates_current_state ... ok
+test global_insight_preserves_lifetime_totals_after_an_achieved_item_is_purged ... ok
+test legacy_chinese_language_codes_are_normalized_at_the_application_boundary ... ok
+test learning_status_undo_restores_exact_mastery_and_scheduling_once ... ok
+test opted_in_lifecycle_sweep_achieves_at_thirty_days_and_purges_expired_items ... ok
+test preferred_translation_changes_display_without_creating_saves ... ok
+test manual_mastery_and_relearning_preserve_history_and_obey_the_achieve_timer ... ok
+test recent_captures_show_latest_encounters_first_before_limiting ... ok
+test resumed_review_excludes_completed_items_before_applying_the_daily_limit ... ok
+test repeated_capture_and_undo_return_frontend_ready_counts ... ok
+test retrying_one_logical_review_submission_is_idempotent ... ok
+test saved_translation_updates_preserve_encounter_snapshots_and_undo ... ok
+test review_result_reports_encounters_and_repeated_forgetting_after_three_consecutive_lapses ... ok
+test session_insight_counts_successful_results_and_next_day_workload ... ok
+test capture_undo_preserves_unrelated_work_and_rejects_every_conflicting_mutation ... ok
+test same_status_selection_and_unrelated_work_keep_learning_status_undo_valid ... ok
+test settings_update_is_visible_to_today_view ... ok
+test target_languages_share_one_vocabulary_item_and_keep_both_translations ... ok
+test learning_status_undo_rejects_later_changes_reviews_and_deletion ... ok
+test undo_last_capture_removes_word_from_lists_and_review_until_recaptured ... ok
+test unknown_word_detail_is_a_not_found_error ... ok
+test undo_restores_unresolved_language_after_reconciliation ... ok
+test manual_learning_status_survives_reopening_and_is_shared_by_translations ... ok
+test undo_restores_achieved_state_and_refuses_subsequent_review_changes ... ok
+test today_separates_the_complete_due_backlog_from_the_daily_plan ... ok
+test unknown_language_reconciles_only_when_unambiguous ... ok
+test user_can_achieve_one_mastered_vocabulary_item ... ok
+test word_detail_contains_the_original_context_timeline ... ok
+test user_can_pause_and_resume_a_vocabulary_item_without_losing_its_schedule ... ok
+test user_can_unachieve_or_permanently_delete_achieved_items_in_batches ... ok
+test vocabulary_log_query_serializes_real_capture_and_undo_totals ... ok
+test recent_captures_use_the_configured_limit ... ok
+
+test result: ok. 40 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.29s
+
+     Running tests\debug_process.rs (target\debug\deps\debug_process-f12eddc0afec42c0.exe)
+
+running 2 tests
+test process_reports_safe_default_banner_and_usage_exit_code ... ok
+test explicit_database_path_persists_across_processes ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.05s
+
+     Running tests\debug_repl.rs (target\debug\deps\debug_repl-71f527218e74ac98.exe)
+
+running 2 tests
+test parser_accepts_supported_commands_and_rejects_unsafe_input ... ok
+test scripted_repl_walks_through_core_and_recovers_from_errors ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests\debug_session.rs (target\debug\deps\debug_session-32d9a4b19c5e7a05.exe)
+
+running 3 tests
+test capture_trace_explains_normalization_application_and_storage ... ok
+test session_exposes_settings_today_and_read_only_database_diagnostics ... ok
+test session_exposes_duplicate_review_and_undo_through_core_apis ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests\platform_fakes.rs (target\debug\deps\platform_fakes-e77d6d883efcf0b0.exe)
+
+running 16 tests
+test blank_manual_translation_still_requires_explicit_untranslated_save ... ok
+test explicit_save_without_translation_persists_an_untranslated_capture_once ... ok
+test corrected_native_capture_and_manual_translation_use_the_shared_workflow ... ok
+test failed_translation_can_retry_and_save_the_successful_translation ... ok
+test operation_translation_failure_can_save_without_translation ... ok
+test ocr_origin_requires_task_six_confirmation_without_translation_or_persistence ... ok
+test empty_selection_returns_the_typed_error_without_saving ... ok
+test ocr_translation_does_not_call_the_provider_before_confirmation ... ok
+test exact_unicode_surface_form_is_preserved_through_the_production_workflow ... ok
+test overlapping_selection_completion_rejects_the_stale_real_request_id ... ok
+test unavailable_translation_requires_the_real_coordinator_fallback ... ok
+test applying_translated_draft_preserves_detected_language_for_achieved_lookup ... ok
+test translated_capture_applies_independent_edits_before_saving_once ... ok
+test selection_preparation_returns_before_translation_is_invoked ... ok
+test unsupported_selection_returns_the_typed_error_without_saving ... ok
+test selection_and_confirmed_ocr_recapture_share_identity_and_complete_undo ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.13s
+
+     Running unittests src\lib.rs (target\debug\deps\vocab_capture-250b25ade2cb9d14.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\coordinator.rs (target\debug\deps\coordinator-99254d1e88768667.exe)
+
+running 17 tests
+test correction_and_manual_translation_stay_on_the_current_request ... ok
+test failed_translation_requires_the_explicit_save_without_translation_path ... ok
+test ocr_requires_confirmation_before_translation_or_save ... ok
+test candidate_transition_and_publication_use_the_same_current_request_guard ... ok
+test stale_request_publication_never_runs_its_closure ... ok
+test dismissal_invalidates_the_request_after_its_visible_side_effect ... ok
+test failed_retry_preserves_the_previous_translation_for_saving ... ok
+test only_one_translation_provider_call_can_be_in_flight ... ok
+test persistence_failure_rolls_back_so_the_user_can_retry ... ok
+test starting_again_rejects_every_late_result_from_the_previous_request ... ok
+test a_request_can_reach_persistence_only_once ... ok
+test translated_capture_can_be_independently_edited_before_explicit_save ... ok
+test undo_runs_once_and_rejects_stale_requests ... ok
+test undo_rejects_an_encounter_that_was_not_saved_by_the_request ... ok
+test translation_must_be_authorized_before_calling_a_provider ... ok
+test untranslated_correction_requires_the_explicit_save_without_translation_path ... ok
+test starting_a_new_request_waits_for_current_publication_to_finish ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+
+     Running tests\ocr_ranking.rs (target\debug\deps\ocr_ranking-723a820d98434934.exe)
+
+running 7 tests
+test empty_candidate_sets_have_no_resolution ... ok
+test neutral_confidence_candidates_still_rank_by_geometry ... ok
+test spatially_close_candidates_remain_available_in_ranked_order ... ok
+test confidence_breaks_equal_geometry_ties ... ok
+test confidence_gap_makes_equal_geometry_candidate_dominant ... ok
+test pointer_containment_outranks_distance_and_confidence ... ok
+test rectangle_distance_outranks_confidence_when_no_candidate_contains_pointer ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\placement.rs (target\debug\deps\placement-60964f0d754dd9f7.exe)
+
+running 5 tests
+test clamps_card_to_the_selected_monitors_work_area ... ok
+test keeps_the_complete_card_inside_negative_origin_mixed_dpi_work_areas ... ok
+test capture_origin_round_trips_through_json ... ok
+test places_above_selection_and_flips_below_at_top_edge ... ok
+test uses_pointer_monitor_when_selection_bounds_are_unavailable ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests\shortcut.rs (target\debug\deps\shortcut-d31d84df6952e3ce.exe)
+
+running 4 tests
+test replacement_failure_keeps_the_current_shortcut ... ok
+test replacement_registers_candidate_before_removing_current ... ok
+test press_gate_ignores_key_repeat_until_release ... ok
+test validates_default_and_rejects_unmodified_or_reserved_shortcuts ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\lib.rs (target\debug\deps\vocab_desktop_lib-a367bdce28c626ea.exe)
+
+running 9 tests
+test commands::capture::tests::normalizes_mixed_scale_positive_and_negative_monitor_origins_into_one_logical_space ... ok
+test commands::capture::tests::windows_ocr_keeps_the_portable_top_left_region ... ok
+test config::tests::no_selector_stays_unavailable_even_when_keys_exist ... ok
+test config::tests::selector_parses_only_the_chosen_provider ... ok
+test commands::capture::tests::maps_logical_placement_back_through_the_selected_monitors_scale ... ok
+test commands::capture::tests::converts_portable_top_left_points_to_cocoa_bottom_left_points ... ok
+test config::tests::azure_and_deepl_can_each_be_selected ... ok
+test config::tests::invalid_selection_and_missing_selected_key_are_content_safe ... ok
+test config::tests::windows_ocr_requires_an_explicit_valid_developer_flag ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running unittests src\main.rs (target\debug\deps\vocab_desktop-fe5d19872203729d.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\command_contract.rs (target\debug\deps\command_contract-4794f3338c89dab5.exe)
+
+running 31 tests
+test capture_window_can_start_native_dragging ... ok
+test ambiguous_ocr_event_exposes_only_portable_ranked_candidates ... ok
+test capture_window_is_hidden_before_source_focus_is_restored ... ok
+test capture_command_names_are_available_on_the_platform_neutral_surface ... ok
+test changing_review_time_does_not_clear_an_unresolved_delivery_failure ... ok
+test desktop_exit_still_terminates_when_explicit_cleanup_reports_an_error ... ok
+test changing_review_time_keeps_a_successful_delivery_suppressed_for_that_date ... ok
+test duplicate_capture_shortcuts_preserve_region_ocr_and_report_only_its_error ... ok
+test desktop_lifecycle_opens_then_focuses_and_cleans_before_exit ... ok
+test desktop_exposes_the_target_presentation_family ... ok
+test native_capture_error_serializes_the_exact_frontend_event_contract ... ok
+test invalid_startup_review_time_falls_back_without_blocking_application_start ... ok
+test failed_review_delivery_retries_at_a_bounded_interval ... ok
+test platform_error_variants_serialize_to_the_exact_capture_failure_contract ... ok
+test non_translation_unsupported_and_internal_failures_map_to_operation ... ok
+test registered_region_ocr_shortcut_matches_its_saved_setting ... ok
+test settings_effects_commit_before_the_previous_shortcut_is_removed ... ok
+test review_retry_interval_is_not_extended_when_the_local_time_zone_moves_backward ... ok
+test passive_capture_presentation_positions_then_shows_without_activation_before_emitting ... ok
+test review_schedule_fires_once_per_local_date ... ok
+test settings_persistence_failure_rolls_back_every_staged_system_effect ... ok
+test startup_shortcut_conflict_falls_back_without_blocking_application_start ... ok
+test settings_status_keeps_errors_for_system_effects_that_were_not_attempted ... ok
+test shortcut_rollback_reports_when_the_staged_shortcut_cannot_be_removed ... ok
+test translation_operation_failures_have_a_typed_retryable_context ... ok
+test explicit_close_hides_even_when_the_capture_request_is_stale ... ok
+test available_non_activating_window_capability_configures_the_window ... ok
+test stale_hide_does_not_run_the_window_side_effect ... ok
+test app_state_uses_one_request_for_selection_translation_and_save ... ok
+test unavailable_non_activating_window_capability_skips_window_configuration ... ok
+test app_state_routes_capture_operations_through_injected_platform_services ... ok
+
+test result: ok. 31 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running unittests src\lib.rs (target\debug\deps\vocab_domain-627ae5c2c2d0aab0.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\domain_behavior.rs (target\debug\deps\domain_behavior-9109b030f377d2c6.exe)
+
+running 11 tests
+test achieved_retention_accepts_only_product_options ... ok
+test automatic_achieve_requires_thirty_uninterrupted_mastered_days ... ok
+test daily_review_queue_is_due_ordered_and_capped_at_five ... ok
+test encounter_keeps_exact_selection_and_normalized_sentence ... ok
+test legacy_capture_shortcut_migrates_to_selection_and_adds_region_ocr_default ... ok
+test mastered_and_deleted_words_never_enter_review ... ok
+test normalization_preserves_meaning_while_making_dedupe_stable ... ok
+test only_mastered_vocabulary_items_can_be_achieved ... ok
+test review_ratings_expose_the_two_v1_actions ... ok
+test review_updates_are_deterministic_and_forgotten_words_return_soon ... ok
+test settings_defaults_match_the_five_word_product_promise ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\lib.rs (target\debug\deps\vocab_platform_api-ac2ac70d0188d8c6.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\contracts.rs (target\debug\deps\contracts-3674f6f71284c972.exe)
+
+running 2 tests
+test unavailable_capabilities_are_explicit ... ok
+test unsupported_error_is_content_free ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\lib.rs (target\debug\deps\vocab_platform_contract_tests-dfec45ab3b314074.exe)
+
+running 8 tests
+test privacy::tests::metadata_and_lengths_are_safe_when_private_values_are_absent ... ok
+test privacy::tests::typed_unavailable_error_excludes_private_fixture_values ... ok
+test selection::tests::fake_selection_provider_repeats_the_caller_supplied_response ... ok
+test privacy::tests::privacy_assertion_rejects_a_diagnostic_containing_fixture_content - should panic ... ok
+test selection::tests::selection_contract_compares_exact_unicode_and_typed_errors ... ok
+test selection::tests::selection_contract_rejects_a_changed_surface_form - should panic ... ok
+test translation::tests::translation_contract_rejects_a_different_typed_error - should panic ... ok
+test translation::tests::unavailable_translation_contract_returns_the_typed_capability_error ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\lib.rs (target\debug\deps\vocab_platform_windows-b622db41f6afd040.exe)
+
+running 13 tests
+test selection::tests::diagnostics_report_lengths_and_metadata_without_captured_content ... ok
+test ocr::tests::recognized_words_become_portable_candidates_without_content_diagnostics ... ok
+test ocr::tests::capture_geometry_reconciles_visible_frame_origin_with_wgc_item_size ... ok
+test selection::tests::discovery_uses_the_focused_fast_path_then_stops_at_the_first_selected_node ... ok
+test selection::tests::missing_metadata_and_bounds_remain_portable_optional_values ... ok
+test selection::tests::discovery_caps_a_wide_focused_subtree_before_visiting_every_sibling ... ok
+test selection::tests::normalizes_exact_unicode_context_metadata_and_combined_bounds ... ok
+test selection::tests::discovery_never_exceeds_depth_node_or_ancestor_limits ... ok
+test selection::tests::normalizes_physical_rectangles_with_the_supplied_window_coordinate_conversion ... ok
+test selection::tests::rejects_whitespace_only_selection_with_a_typed_error ... ok
+test selection::tests::repeated_selection_keeps_the_enclosing_context_instead_of_guessing_an_occurrence ... ok
+test tests::configured_ocr_capability_matches_the_developer_gate ... ok
+test window::tests::recorded_source_window_wins_over_a_later_foreground_window ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\capabilities.rs (target\debug\deps\capabilities-2f3afe207ca4bec5.exe)
+
+running 5 tests
+test physical_uia_selection_matches_the_portable_contract ... ignored, requires a prepared, focused application selection on the target Windows 10 Pro physical machine
+test capture_window_style_is_tool_window_that_can_activate_after_passive_show ... ok
+test only_physically_verified_native_capabilities_are_enabled ... ok
+test injected_translation_provider_enables_only_translation_capability ... ok
+test deferred_providers_return_capability_specific_unsupported_errors ... ok
+
+test result: ok. 4 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\lib.rs (target\debug\deps\vocab_storage-1e56ef21bc2ab3b0.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\sqlite_repository.rs (target\debug\deps\sqlite_repository-e5ea17630089f7e5.exe)
+
+running 11 tests
+test databases_are_initialized_with_foreign_keys_and_schema_version ... ok
+test ids_are_client_generated_uuid_v7_values ... ok
+test predefined_diagnostics_report_database_state_without_mutating_it ... ok
+test duplicate_capture_keeps_one_word_and_all_contexts ... ok
+test settings_round_trip_without_an_account ... ok
+test undo_soft_deletes_only_the_new_encounter ... ok
+test capture_origin_survives_sqlite_and_outbox_round_trips ... ok
+test legacy_mastered_items_receive_migration_time_without_becoming_achieved ... ok
+test version_one_database_migrates_existing_encounters_to_manual_origin ... ok
+test failed_identity_upgrade_rolls_back_keys_and_schema_version ... ok
+test identity_upgrade_consolidates_duplicates_without_losing_history_or_counts ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.15s
+
+     Running tests\vocabulary_log.rs (target\debug\deps\vocabulary_log-6b85bf8ac1622688.exe)
+
+running 4 tests
+test failed_capture_and_failed_undo_roll_back_daily_count_with_encounter ... ok
+test achieved_recapture_counts_once_and_purge_keeps_only_anonymous_daily_totals ... ok
+test successful_saves_use_local_save_day_and_undo_original_day_once ... ok
+test migration_does_not_reconstruct_history_and_timezone_changes_do_not_rebucket ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.19s
+
+     Running unittests src\lib.rs (target\debug\deps\vocab_sync-fc6085e485da98b7.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\lib.rs (target\debug\deps\vocab_translation_azure-e58387fa7bef7b17.exe)
+
+running 1 test
+test error::tests::status_codes_keep_actionable_categories_inside_the_provider ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\live_translation.rs (target\debug\deps\live_translation-3eb0135d1ec98712.exe)
+
+running 1 test
+test translates_fixed_text_with_developer_credentials ... ignored, requires a developer-owned Azure Translator resource and explicit network access
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\provider.rs (target\debug\deps\provider-560daba01b4b1fb1.exe)
+
+running 6 tests
+test configuration_rejects_insecure_endpoints_and_redacts_secrets ... ok
+test retry_after_cannot_exceed_the_overall_timeout_budget ... ok
+test automatic_source_translation_uses_only_selected_unicode_text ... ok
+test authentication_failure_is_content_safe_and_is_not_retried ... ok
+test explicit_source_and_region_are_sent_without_exposing_protocol_types ... ok
+test transient_service_failures_retry_twice_then_return_the_translation ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+
+     Running unittests src\lib.rs (target\debug\deps\vocab_translation_deepl-358b2cbbbaa09775.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\live_translation.rs (target\debug\deps\live_translation-b4c6add2f7608169.exe)
+
+running 1 test
+test translates_fixed_text_with_developer_credentials ... ignored, requires a developer-owned DeepL API resource and explicit network access
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\provider.rs (target\debug\deps\provider-c862097456e74e9d.exe)
+
+running 5 tests
+test configuration_accepts_free_and_pro_https_endpoints_and_redacts_values ... ok
+test retry_after_cannot_exceed_the_overall_budget ... ok
+test explicit_source_is_adapted_without_changing_the_portable_result ... ok
+test authentication_failure_is_content_safe ... ok
+test auto_source_unicode_translation_uses_the_portable_contract ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+   Doc-tests vocab_application
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests vocab_capture
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests vocab_desktop_lib
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests vocab_domain
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests vocab_platform_api
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests vocab_platform_contract_tests
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests vocab_platform_windows
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests vocab_storage
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests vocab_sync
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests vocab_translation_azure
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests vocab_translation_deepl
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

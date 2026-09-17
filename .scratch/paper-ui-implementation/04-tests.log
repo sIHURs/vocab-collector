@@ -1,0 +1,13 @@
+$ vitest run "src/windows/WindowsApp.test.ts"
+1:14:32 PM [vite-plugin-svelte] no Svelte config found at C:/Users/yifan/project/vocab-collector/ui - using default configuration.
+
+ RUN  v3.2.7 C:/Users/yifan/project/vocab-collector/ui
+
+ ✓ src/windows/WindowsApp.test.ts (32 tests) 2741ms
+   ✓ Windows main presentation > keeps cross-filter Achieved selections and makes failed bulk actions retryable  389ms
+
+ Test Files  1 passed (1)
+      Tests  32 passed (32)
+   Start at  13:14:32
+   Duration  19.53s (transform 8.87s, setup 1.80s, collect 13.14s, tests 2.74s, environment 1.04s, prepare 208ms)
+

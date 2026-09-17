@@ -1,0 +1,52 @@
+$ vitest run "src/windows/WindowsApp.test.ts"
+9:33:54 PM [vite-plugin-svelte] no Svelte config found at C:/Users/yifan/project/vocab-collector/ui - using default configuration.
+
+ RUN  v3.2.7 C:/Users/yifan/project/vocab-collector/ui
+
+9:33:57 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:569:2 Unused CSS selector ".primary"
+https://svelte.dev/e/css_unused_selector
+9:33:57 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:569:129 Unused CSS selector ".primary"
+https://svelte.dev/e/css_unused_selector
+9:33:57 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:569:220 Unused CSS selector ".primary:disabled"
+https://svelte.dev/e/css_unused_selector
+9:33:57 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:570:2 Unused CSS selector ".summary"
+https://svelte.dev/e/css_unused_selector
+9:33:57 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:570:92 Unused CSS selector ".summary div"
+https://svelte.dev/e/css_unused_selector
+9:33:57 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:570:227 Unused CSS selector ".summary span"
+https://svelte.dev/e/css_unused_selector
+9:33:57 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:570:242 Unused CSS selector ".summary small"
+https://svelte.dev/e/css_unused_selector
+9:33:57 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:570:311 Unused CSS selector ".summary strong"
+https://svelte.dev/e/css_unused_selector
+9:33:57 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:571:2 Unused CSS selector ".section-heading"
+https://svelte.dev/e/css_unused_selector
+9:33:57 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:571:43 Unused CSS selector ".section-heading h2"
+https://svelte.dev/e/css_unused_selector
+9:33:57 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:571:87 Unused CSS selector ".section-heading p"
+https://svelte.dev/e/css_unused_selector
+9:33:57 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:573:2 Unused CSS selector ".recent-captures-list"
+https://svelte.dev/e/css_unused_selector
+9:33:57 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:578:207 Unused CSS selector ".state .primary"
+https://svelte.dev/e/css_unused_selector
+9:33:57 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:584:2 Unused CSS selector ".insight-grid"
+https://svelte.dev/e/css_unused_selector
+9:33:57 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:584:95 Unused CSS selector ".insight-grid > div"
+https://svelte.dev/e/css_unused_selector
+9:33:57 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:584:237 Unused CSS selector ".insight-grid span"
+https://svelte.dev/e/css_unused_selector
+9:33:57 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:584:312 Unused CSS selector ".insight-grid strong"
+https://svelte.dev/e/css_unused_selector
+9:33:57 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:591:2 Unused CSS selector ".icon"
+https://svelte.dev/e/css_unused_selector
+9:33:57 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:594:218 Unused CSS selector ".primary"
+https://svelte.dev/e/css_unused_selector
+9:33:57 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:595:246 Unused CSS selector ".summary"
+https://svelte.dev/e/css_unused_selector
+ ✓ src/windows/WindowsApp.test.ts (36 tests) 3099ms
+
+ Test Files  1 passed (1)
+      Tests  36 passed (36)
+   Start at  21:33:54
+   Duration  12.98s (transform 5.55s, setup 1.24s, collect 7.49s, tests 3.10s, environment 565ms, prepare 156ms)
+

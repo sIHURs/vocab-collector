@@ -1,0 +1,65 @@
+$ vitest run "src/windows/WindowsApp.test.ts"
+12:59:01 PM [vite-plugin-svelte] no Svelte config found at C:/Users/yifan/project/vocab-collector/ui - using default configuration.
+
+ RUN  v3.2.7 C:/Users/yifan/project/vocab-collector/ui
+
+12:59:04 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:536:17 Unused CSS selector "textarea"
+https://svelte.dev/e/css_unused_selector
+12:59:04 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:536:88 Unused CSS selector "textarea:focus-visible"
+https://svelte.dev/e/css_unused_selector
+12:59:04 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:544:181 Unused CSS selector "h3"
+https://svelte.dev/e/css_unused_selector
+12:59:04 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:555:1048 Unused CSS selector ".danger"
+https://svelte.dev/e/css_unused_selector
+12:59:04 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:555:1169 Unused CSS selector ".drawer-action"
+https://svelte.dev/e/css_unused_selector
+12:59:04 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:565:2 Unused CSS selector ".backdrop"
+https://svelte.dev/e/css_unused_selector
+12:59:04 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:565:121 Unused CSS selector ".dialog"
+https://svelte.dev/e/css_unused_selector
+12:59:04 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:565:325 Unused CSS selector ".dialog form"
+https://svelte.dev/e/css_unused_selector
+12:59:04 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:565:433 Unused CSS selector ".dialog h2"
+https://svelte.dev/e/css_unused_selector
+12:59:04 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:565:571 Unused CSS selector ".dialog label"
+https://svelte.dev/e/css_unused_selector
+12:59:04 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:565:662 Unused CSS selector ".dialog label small"
+https://svelte.dev/e/css_unused_selector
+12:59:04 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:565:703 Unused CSS selector ".dialog input"
+https://svelte.dev/e/css_unused_selector
+12:59:04 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:565:718 Unused CSS selector ".dialog textarea"
+https://svelte.dev/e/css_unused_selector
+12:59:04 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:565:867 Unused CSS selector ".dialog textarea"
+https://svelte.dev/e/css_unused_selector
+12:59:04 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:567:2 Unused CSS selector ".drawer"
+https://svelte.dev/e/css_unused_selector
+12:59:04 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:567:269 Unused CSS selector ".close"
+https://svelte.dev/e/css_unused_selector
+12:59:04 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:567:323 Unused CSS selector ".drawer h2"
+https://svelte.dev/e/css_unused_selector
+12:59:04 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:567:373 Unused CSS selector ".translation"
+https://svelte.dev/e/css_unused_selector
+12:59:04 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:567:421 Unused CSS selector ".count"
+https://svelte.dev/e/css_unused_selector
+12:59:04 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:567:514 Unused CSS selector ".timeline"
+https://svelte.dev/e/css_unused_selector
+12:59:04 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:567:545 Unused CSS selector ".timeline h3"
+https://svelte.dev/e/css_unused_selector
+12:59:04 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:567:637 Unused CSS selector ".timeline article"
+https://svelte.dev/e/css_unused_selector
+12:59:04 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:567:765 Unused CSS selector ".timeline article p"
+https://svelte.dev/e/css_unused_selector
+12:59:04 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:567:806 Unused CSS selector ".timeline article small"
+https://svelte.dev/e/css_unused_selector
+12:59:04 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:569:260 Unused CSS selector ".dialog"
+https://svelte.dev/e/css_unused_selector
+12:59:04 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:569:269 Unused CSS selector ".drawer"
+https://svelte.dev/e/css_unused_selector
+ ✓ src/windows/WindowsApp.test.ts (29 tests) 2424ms
+   ✓ Windows main presentation > opens Encounter details from a semantic Vocabulary table and restores keyboard focus  350ms
+
+ Test Files  1 passed (1)
+      Tests  29 passed (29)
+   Start at  12:59:01
+   Duration  11.89s (transform 5.20s, setup 1.33s, collect 6.82s, tests 2.42s, environment 609ms, prepare 222ms)
+

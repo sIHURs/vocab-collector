@@ -30,7 +30,6 @@ const capabilities = (screenshotOcr: boolean) => ({
   translation: true,
   nonActivatingWindow: true,
 });
-
 const candidate = (selectedText: string) => ({
   selectedText,
   sentence: `Context for ${selectedText}.`,
@@ -68,6 +67,35 @@ describe("floating capture request freshness", () => {
     mocks.invoke.mockReset();
     mocks.getPlatformCapabilities.mockReset();
     vi.restoreAllMocks();
+  });
+
+  it("shows Achieved before explicitly saving the same item", async () => {
+    mocks.invoke.mockImplementation(async (command: string) => {
+      if (command === "get_settings") return {sourceLanguage:"en",targetLanguage:"de"};
+      if (command === "translate_text") return {translatedText:"stark"};
+      if (command === "find_achieved_native_capture") return {wordId:"word-robust",displayForm:"robust",achievedAt:"2026-09-01",deleteAfter:"2026-10-01"};
+      if (command === "restore_achieved_and_save_native_capture") return savedCard("robust");
+      return undefined;
+    });
+    render(FloatingCapture);
+    await waitFor(() => expect(mocks.handlers.has("capture-ready")).toBe(true));
+    mocks.handlers.get("capture-ready")!({payload:{requestId:"r",candidate:candidate("robust")}});
+    expect(await screen.findByText(/Saving will restart learning/)).toBeVisible();
+    expect(mocks.invoke.mock.calls.some(([name])=>name==="save_native_capture")).toBe(false);
+    await fireEvent.click(screen.getByRole("button",{name:"Save capture"}));
+    expect(mocks.invoke).toHaveBeenCalledWith("restore_achieved_and_save_native_capture",{requestId:"r",wordId:"word-robust",withoutTranslation:false});
+    expect(await screen.findByText("Saved")).toBeVisible();
+  });
+
+  it("uses the top bar as a native window drag region without making the close button draggable", () => {
+    const view = render(FloatingCapture);
+    const header = view.container.querySelector("header");
+    const title = header?.querySelector("span");
+    const closeButton = screen.getByRole("button", { name: "Close capture" });
+
+    expect(header).toHaveAttribute("data-tauri-drag-region");
+    expect(title).toHaveAttribute("data-tauri-drag-region");
+    expect(closeButton).not.toHaveAttribute("data-tauri-drag-region");
   });
 
   it("does not let a late failure from an old request replace the current card", async () => {
@@ -233,7 +261,7 @@ describe("floating capture request freshness", () => {
     mocks.handlers.get("capture-error")?.({ payload: {
       requestId: "request-a", code: "empty_selection", message: "Nothing selected",
     } });
-    await fireEvent.click(await screen.findByRole("button", { name: "Use OCR near pointer" }));
+    await fireEvent.click(await screen.findByRole("button", { name: "Start Region OCR" }));
 
     mocks.handlers.get("capture-ready")?.({
       payload: { requestId: "request-b", candidate: candidate("current") },
@@ -241,7 +269,7 @@ describe("floating capture request freshness", () => {
     permission.resolve("granted");
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    expect(mocks.invoke).not.toHaveBeenCalledWith("capture_with_ocr", expect.anything());
+    expect(mocks.invoke).not.toHaveBeenCalledWith("start_region_ocr_capture", expect.anything());
     expect(screen.getByText("current")).toBeVisible();
   });
 
@@ -258,12 +286,12 @@ describe("floating capture request freshness", () => {
     mocks.handlers.get("capture-error")?.({ payload: {
       requestId: "request-a", code: "empty_selection", message: "Nothing selected",
     } });
-    await fireEvent.click(await screen.findByRole("button", { name: "Use OCR near pointer" }));
+    await fireEvent.click(await screen.findByRole("button", { name: "Start Region OCR" }));
     unmount();
     permission.resolve("granted");
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    expect(mocks.invoke.mock.calls.filter(([command]) => command === "capture_with_ocr")).toHaveLength(0);
+    expect(mocks.invoke.mock.calls.filter(([command]) => command === "start_region_ocr_capture")).toHaveLength(0);
   });
 
   it("does not publish a late OCR failure over a newer capture", async () => {
@@ -272,7 +300,7 @@ describe("floating capture request freshness", () => {
     const currentSettings = deferred<{ sourceLanguage: string; targetLanguage: string }>();
     mocks.invoke.mockImplementation((command: string) => {
       if (command === "request_screen_recording_permission") return Promise.resolve("granted");
-      if (command === "capture_with_ocr") return ocr.promise;
+      if (command === "start_region_ocr_capture") return ocr.promise;
       if (command === "get_settings") return currentSettings.promise;
       return Promise.resolve();
     });
@@ -282,10 +310,8 @@ describe("floating capture request freshness", () => {
     mocks.handlers.get("capture-error")?.({ payload: {
       requestId: "request-a", code: "empty_selection", message: "Nothing selected",
     } });
-    await fireEvent.click(await screen.findByRole("button", { name: "Use OCR near pointer" }));
-    await waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith(
-      "capture_with_ocr", { requestId: "request-a" },
-    ));
+    await fireEvent.click(await screen.findByRole("button", { name: "Start Region OCR" }));
+    await waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith("start_region_ocr_capture"));
 
     mocks.handlers.get("capture-ready")?.({
       payload: { requestId: "request-b", candidate: candidate("current") },
@@ -401,7 +427,7 @@ describe("floating capture request freshness", () => {
     } });
 
     expect(await screen.findByRole("button", { name: "Allow Accessibility" })).toBeVisible();
-    expect(screen.queryByRole("button", { name: "Use OCR near pointer" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Start Region OCR" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Save without translation" })).not.toBeInTheDocument();
   });
 
@@ -417,7 +443,7 @@ describe("floating capture request freshness", () => {
     } });
 
     expect(await screen.findByText("noSelection")).toBeVisible();
-    expect(screen.queryByRole("button", { name: "Use OCR near pointer" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Start Region OCR" })).not.toBeInTheDocument();
   });
 
   it("offers OCR for empty_selection when the reported capability allows it", async () => {
@@ -432,7 +458,7 @@ describe("floating capture request freshness", () => {
       message: "Nothing selected",
     } });
 
-    expect(await screen.findByRole("button", { name: "Use OCR near pointer" })).toBeVisible();
+    expect(await screen.findByRole("button", { name: "Start Region OCR" })).toBeVisible();
   });
 
   it("keeps the screen-recording permission action typed by the OCR command path", async () => {
@@ -450,10 +476,26 @@ describe("floating capture request freshness", () => {
       message: "Nothing selected",
     } });
 
-    await fireEvent.click(await screen.findByRole("button", { name: "Use OCR near pointer" }));
+    await fireEvent.click(await screen.findByRole("button", { name: "Start Region OCR" }));
 
     expect(await screen.findByRole("button", { name: "Allow Screen Recording" })).toBeVisible();
     expect(screen.queryByRole("button", { name: "Allow Accessibility" })).not.toBeInTheDocument();
+  });
+
+  it("keeps translation retry available for an Achieved item without restoring automatically", async () => {
+    mocks.invoke.mockImplementation(async (command: string) => {
+      if (command === "get_settings") return { sourceLanguage: "en", targetLanguage: "de" };
+      if (command === "translate_text") throw { code: "translation_failed", message: "Provider failed" };
+      if (command === "find_achieved_native_capture") return { wordId: "word-robust", displayForm: "robust", achievedAt: "2026-09-01", deleteAfter: "2026-10-01" };
+    });
+    render(FloatingCapture);
+    await waitFor(() => expect(mocks.handlers.has("capture-ready")).toBe(true));
+    mocks.handlers.get("capture-ready")?.({ payload: { requestId: "retry-achieved", candidate: candidate("robust") } });
+    expect(await screen.findByText(/Already learned/)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Save without translation" })).toBeVisible();
+    await fireEvent.click(screen.getByRole("button", { name: "Retry translation" }));
+    await waitFor(() => expect(mocks.invoke.mock.calls.filter(([command]) => command === "translate_text")).toHaveLength(2));
+    expect(mocks.invoke.mock.calls.some(([command]) => command === "restore_achieved_and_save_native_capture")).toBe(false);
   });
 
   it("offers save without translation and retry for translation_unavailable", async () => {
@@ -546,7 +588,8 @@ describe("floating capture request freshness", () => {
 
     expect(await screen.findByText(/accessibilityPermissionRequired/)).toBeVisible();
     expect(screen.queryByRole("button", { name: "Allow Accessibility" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Use OCR near pointer" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Start Region OCR" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Save without translation" })).not.toBeInTheDocument();
   });
 });
+

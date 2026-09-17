@@ -1,52 +1,66 @@
-#![forbid(unsafe_code)]
+#![deny(unsafe_op_in_unsafe_fn)]
 
-//! Static Windows adapter boundary prepared for Plan B implementation on Windows 11.
+//! Windows adapter boundary for native providers implemented during Plan B.
 
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use vocab_platform_api::{
-    Capability, CaptureCandidate, OcrCandidate, OcrProvider, PermissionKind, PermissionProvider,
-    PermissionStatus, PlatformCapabilities, PlatformError, PlatformServices, ScreenPoint,
-    SelectionProvider, TranslationProvider, TranslationResult, WindowProvider,
+    Capability, PermissionKind, PermissionProvider, PermissionStatus, PlatformCapabilities,
+    PlatformError, PlatformServices, TranslationProvider, TranslationResult, WindowProvider,
 };
 
-/// Builds the Windows provider bundle. Native providers are intentionally deferred to Plan B.
+mod ocr;
+mod selection;
+pub mod window;
+
+/// Builds the Windows provider bundle with only physically verified capabilities enabled.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct WindowsPlatform;
 
 impl WindowsPlatform {
     #[allow(clippy::new_ret_no_self)]
     pub fn new() -> PlatformServices {
+        Self::services(Arc::new(UnsupportedTranslationProvider), false, false)
+    }
+
+    #[allow(clippy::new_ret_no_self)]
+    pub fn with_translation(translation: Arc<dyn TranslationProvider>) -> PlatformServices {
+        Self::services(translation, true, false)
+    }
+
+    /// Builds Windows services with capabilities controlled by development configuration.
+    pub fn configured(
+        translation: Option<Arc<dyn TranslationProvider>>,
+        screenshot_ocr: bool,
+    ) -> PlatformServices {
+        let translation_enabled = translation.is_some();
+        Self::services(
+            translation.unwrap_or_else(|| Arc::new(UnsupportedTranslationProvider)),
+            translation_enabled,
+            screenshot_ocr,
+        )
+    }
+
+    fn services(
+        translation: Arc<dyn TranslationProvider>,
+        translation_enabled: bool,
+        screenshot_ocr: bool,
+    ) -> PlatformServices {
         PlatformServices {
-            capabilities: PlatformCapabilities::default(),
-            selection: Arc::new(UnsupportedSelectionProvider),
-            ocr: Arc::new(UnsupportedOcrProvider),
-            translation: Arc::new(UnsupportedTranslationProvider),
+            capabilities: PlatformCapabilities {
+                selection_capture: true,
+                selection_bounds: true,
+                screenshot_ocr,
+                translation: translation_enabled,
+                ..PlatformCapabilities::default()
+            },
+            selection: Arc::new(selection::WindowsSelectionProvider),
+            ocr: Arc::new(ocr::WindowsOcrProvider),
+            translation,
             permissions: Arc::new(UnsupportedPermissionProvider),
             window: Arc::new(UnsupportedWindowProvider),
         }
-    }
-}
-
-struct UnsupportedSelectionProvider;
-
-#[async_trait]
-impl SelectionProvider for UnsupportedSelectionProvider {
-    async fn capture_selection(&self) -> Result<CaptureCandidate, PlatformError> {
-        Err(PlatformError::Unsupported(Capability::Selection))
-    }
-}
-
-struct UnsupportedOcrProvider;
-
-#[async_trait]
-impl OcrProvider for UnsupportedOcrProvider {
-    async fn recognize_near(
-        &self,
-        _pointer: ScreenPoint,
-    ) -> Result<Vec<OcrCandidate>, PlatformError> {
-        Err(PlatformError::Unsupported(Capability::ScreenshotOcr))
     }
 }
 
@@ -89,5 +103,25 @@ struct UnsupportedWindowProvider;
 impl WindowProvider for UnsupportedWindowProvider {
     fn configure_capture_window(&self) -> Result<(), PlatformError> {
         Err(PlatformError::Unsupported(Capability::NonActivatingWindow))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::WindowsPlatform;
+
+    #[test]
+    fn configured_ocr_capability_matches_the_developer_gate() {
+        assert!(
+            WindowsPlatform::configured(None, true)
+                .capabilities
+                .screenshot_ocr
+        );
+        assert!(
+            !WindowsPlatform::configured(None, false)
+                .capabilities
+                .screenshot_ocr
+        );
+        assert!(!WindowsPlatform::new().capabilities.screenshot_ocr);
     }
 }

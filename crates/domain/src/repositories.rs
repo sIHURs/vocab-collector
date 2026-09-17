@@ -7,6 +7,12 @@ use crate::{Encounter, ReviewLog, UserSettings, Word};
 pub enum RepositoryError {
     #[error("record not found")]
     NotFound,
+    #[error("This word is achieved. Unachieve it before saving another context.")]
+    Achieved,
+    #[error(
+        "Cannot undo: this Vocabulary Item changed after the status update. No changes were undone."
+    )]
+    StaleLearningStatusUndo,
     #[error("persistence failure: {0}")]
     Persistence(String),
 }
@@ -32,4 +38,8 @@ pub trait ReviewRepository: Send + Sync {
 pub trait SettingsRepository: Send + Sync {
     fn get(&self) -> Result<UserSettings, RepositoryError>;
     fn save(&self, settings: &UserSettings) -> Result<(), RepositoryError>;
+}
+
+pub trait VocabularyLogRepository: Send + Sync {
+    fn vocabulary_log(&self) -> Result<crate::VocabularyLog, RepositoryError>;
 }

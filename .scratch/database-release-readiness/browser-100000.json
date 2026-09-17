@@ -1,0 +1,42 @@
+{
+  "size": 100000,
+  "browser": "Chromium 152 / Windows 10 x64",
+  "scope": "Browser + synthetic Backend; no native IPC/SQLite. Two paint frames included.",
+  "samples": [
+    {
+      "run": 0,
+      "listMs": 53.5,
+      "pageMs": 26.700000047683716,
+      "searchMs": 93.10000002384186,
+      "renderedRows": 10
+    },
+    {
+      "run": 1,
+      "listMs": 29.199999928474426,
+      "pageMs": 24.200000047683716,
+      "searchMs": 79.79999995231628,
+      "renderedRows": 10
+    },
+    {
+      "run": 2,
+      "listMs": 39.89999997615814,
+      "pageMs": 40,
+      "searchMs": 79.79999995231628,
+      "renderedRows": 10
+    },
+    {
+      "run": 3,
+      "listMs": 27.699999928474426,
+      "pageMs": 26.40000009536743,
+      "searchMs": 79.09999990463257,
+      "renderedRows": 10
+    },
+    {
+      "run": 4,
+      "listMs": 26.700000047683716,
+      "pageMs": 26.699999928474426,
+      "searchMs": 66.60000002384186,
+      "renderedRows": 10
+    }
+  ]
+}

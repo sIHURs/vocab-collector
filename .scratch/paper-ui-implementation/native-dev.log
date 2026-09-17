@@ -1,0 +1,13 @@
+$ pnpm --dir apps/desktop tauri "dev" "--config" "C:/Users/yifan/project/vocab-collector/.scratch/paper-ui-implementation/native-validation.json" "--no-watch"
+$ tauri "dev" "--config" "C:/Users/yifan/project/vocab-collector/.scratch/paper-ui-implementation/native-validation.json" "--no-watch"
+     Running DevCommand (`cargo  run --no-default-features --color always --`)
+   Compiling vocab-desktop v0.1.0 (C:\Users\yifan\project\vocab-collector\apps\desktop\src-tauri)
+    Building [=======================> ] 459/462: vocab-d…
+    Building [=======================> ] 460/462: vocab-d…
+    Building [=======================> ] 461/462: vocab-d…
+                                                            
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 24.98s
+     Running `C:\Users\yifan\project\vocab-collector\target\debug\vocab-desktop.exe`
+error: process didn't exit successfully: `C:\Users\yifan\project\vocab-collector\target\debug\vocab-desktop.exe` (exit code: 0xffffffff)
+[ELIFECYCLE] Command failed with exit code 4294967295.
+[ELIFECYCLE] Command failed with exit code 4294967295.

@@ -1,0 +1,12 @@
+$ vitest run "src/windows/WindowsFloatingCapture.test.ts"
+9:43:50 PM [vite-plugin-svelte] no Svelte config found at C:/Users/yifan/project/vocab-collector/ui - using default configuration.
+
+ RUN  v3.2.7 C:/Users/yifan/project/vocab-collector/ui
+
+ ✓ src/windows/WindowsFloatingCapture.test.ts (22 tests) 547ms
+
+ Test Files  1 passed (1)
+      Tests  22 passed (22)
+   Start at  21:43:50
+   Duration  8.82s (transform 4.57s, setup 1.25s, collect 5.89s, tests 547ms, environment 561ms, prepare 148ms)
+

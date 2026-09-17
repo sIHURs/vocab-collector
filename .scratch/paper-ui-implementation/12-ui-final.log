@@ -1,0 +1,25 @@
+$ vitest run
+10:03:20 PM [vite-plugin-svelte] no Svelte config found at C:/Users/yifan/project/vocab-collector/ui - using default configuration.
+
+ RUN  v3.2.7 C:/Users/yifan/project/vocab-collector/ui
+
+ ✓ src/components/ShortcutRecorder.test.ts (2 tests) 112ms
+ ✓ src/windows/WindowsOcrOverlay.test.ts (3 tests) 174ms
+ ✓ src/App.test.ts (3 tests) 547ms
+ ✓ src/FloatingCapture.test.ts (20 tests) 760ms
+ ✓ src/lib/appearance.test.ts (3 tests) 187ms
+ ✓ src/lib/presentation.test.ts (2 tests) 61ms
+ ✓ src/lib/backend.test.ts (4 tests) 8ms
+ ✓ src/windows/WindowsFloatingCapture.test.ts (23 tests) 790ms
+ ✓ src/components/VocabularyLog.test.ts (6 tests) 2791ms
+   ✓ Vocabulary log > uses one tab stop, moves through days and weeks, labels partial and unknown days  2705ms
+ ✓ src/windows/WindowsApp.test.ts (37 tests) 8326ms
+   ✓ Windows main presentation > keeps Manual Capture drafts after save and Achieved-restore failures  314ms
+   ✓ Windows main presentation > shows archived-aware lifetime Insight on Insights  2410ms
+   ✓ Paper Today and Review > keeps Today available when optional Insight fails  2526ms
+
+ Test Files  10 passed (10)
+      Tests  103 passed (103)
+   Start at  22:03:20
+   Duration  21.60s (transform 8.89s, setup 13.95s, collect 28.92s, tests 13.75s, environment 10.63s, prepare 2.07s)
+

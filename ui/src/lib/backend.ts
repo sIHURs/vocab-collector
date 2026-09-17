@@ -1,28 +1,50 @@
+import { localDate, logStart, shiftDate } from "./vocabulary-log";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import type {
-  CaptureCard, CaptureInput, Encounter, PlatformCapabilities, ReviewRating, Settings, TodayView,
-  WordDetail, WordListItem,
+  AchievedCaptureConflict, AchievedWordListItem, CaptureCard, CaptureInput, Encounter, GlobalInsight, PlatformCapabilities, ReviewRating, ReviewResult, ReviewSessionInsight, Settings,
+  SettingsApplyResult, SystemSettingsStatus, TodayView,
+  WordDetail, WordListItem, WordStatus, VocabularyLog,
 } from "./types";
 
 export interface Backend {
   capture(input: CaptureInput): Promise<CaptureCard>;
+  findAchievedCapture?(input: CaptureInput): Promise<AchievedCaptureConflict | null>;
+  restoreAchievedAndCapture?(wordId: string, input: CaptureInput): Promise<CaptureCard>;
   undoCapture(encounterId: string): Promise<void>;
-  getToday(): Promise<TodayView>;
+  getToday(completedWordIds?: string[]): Promise<TodayView>;
   listWords(): Promise<WordListItem[]>;
+  listAchievedWords?(): Promise<AchievedWordListItem[]>;
+  achieveWord?(wordId: string): Promise<AchievedWordListItem>;
+  unachieveWords?(wordIds: string[]): Promise<number>;
+  deleteAchievedWords?(wordIds: string[]): Promise<number>;
+  runLifecycleSweep?(): Promise<{ achievedCount: number; purgedCount: number }>;
   getWord(wordId: string): Promise<WordDetail>;
-  submitReview(wordId: string, rating: ReviewRating): Promise<void>;
+  changeLearningStatus?(wordId: string, status: WordStatus): Promise<string | null>;
+  undoLearningStatus?(token: string): Promise<string>;
+  submitReview(wordId: string, rating: ReviewRating, submissionId?: string): Promise<ReviewResult>;
+  getReviewSessionInsight(submissionIds: string[], nextDayEnd: string): Promise<ReviewSessionInsight>;
+  getGlobalInsight?(): Promise<GlobalInsight>;
+  getVocabularyLog?(): Promise<VocabularyLog>;
   getSettings(): Promise<Settings>;
   updateSettings(settings: Settings): Promise<void>;
   replaceShortcut(candidate: string): Promise<Settings>;
+  applyWindowsSettings?(settings: Settings): Promise<SettingsApplyResult>;
+  getWindowsSettingsStatus?(): Promise<SystemSettingsStatus>;
+  listenLibraryChanged?(handler: () => void): Promise<() => void>;
+  listenSettingsChanged?(handler: () => void): Promise<() => void>;
+  listenOpenManualCapture?(handler: () => void): Promise<() => void>;
   getPlatformCapabilities(): Promise<PlatformCapabilities>;
 }
 
-type DemoWord = WordDetail & { due: boolean };
+type DemoWord = WordDetail & { due: boolean; sourceLanguage?: string };
 
 const defaultSettings: Settings = {
-  sourceLanguage: "en", targetLanguage: "de", captureShortcut: "Alt+Shift+V",
+  sourceLanguage: "en", targetLanguage: "de", selectionCaptureShortcut: "Alt+Shift+V",
+  regionOcrCaptureShortcut: "Alt+Shift+O",
   reviewTime: "18:00", dailyLimit: 5, launchAtLogin: false, appearance: "system",
-  reducedMotion: false,
+  reducedMotion: false, recentCapturesLimit: 20,
+  automaticAchieveEnabled: false, achievedRetentionDays: 30,
 };
 
 const unavailablePlatformCapabilities: PlatformCapabilities = {
@@ -33,11 +55,38 @@ const unavailablePlatformCapabilities: PlatformCapabilities = {
   nonActivatingWindow: false,
 };
 
-const id = () => globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
+const id = (): string => globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
+export const captureRequestFor = (input: CaptureInput, settings: Settings, capturedAt = new Date().toISOString()) => ({
+  selectedText: input.selectedText,
+  lemma: input.selectedText,
+  sentence: input.sentence,
+  sourceLanguage: settings.sourceLanguage,
+  targetLanguage: settings.targetLanguage,
+  translation: input.translation,
+  partOfSpeech: undefined,
+  sourceApp: input.sourceApp,
+  sourceTitle: input.sourceTitle,
+  sourceUrl: input.sourceUrl,
+  captureOrigin: input.captureOrigin ?? "manual",
+  capturedAt,
+});
+const achievedTiming = (deleteAfter: string) => {
+  const remainingDays = Math.max(0, Math.ceil((new Date(deleteAfter).getTime() - Date.now()) / 86_400_000));
+  return { remainingDays, urgency: remainingDays <= 2 ? "urgent" as const : remainingDays <= 7 ? "warning" as const : "normal" as const };
+};
 
 export class DemoBackend implements Backend {
+  private statusUndo = new Map<string, { before: DemoWord; after: string }>();
+  private invalidateStatusUndo(wordId: string) {
+    for (const [token, snapshot] of this.statusUndo) if (snapshot.before.item.id === wordId) this.statusUndo.delete(token);
+  }
   private words: DemoWord[] = [];
+  private captureUndo = new Map<string, { before: DemoWord[]; after: string; wordId: string }>();
+  private logStarted = localDate();
+  private dailyCounts = new Map<string, number>();
+  private savedDates = new Map<string, string>();
   private settings = { ...defaultSettings };
+  private reviewSubmissions = new Map<string, ReviewResult>();
 
   constructor(seed = true) {
     if (seed) {
@@ -62,23 +111,52 @@ export class DemoBackend implements Backend {
     this.words.push({
       item: { id: wordId, displayForm: word, translation, status: "learning",
         encounterCount: 1, nextReviewAt: capturedAt, lastSeenAt: capturedAt },
+      sourceLanguage: "en", translations: [{targetLanguage:"de",text:translation,savedAt:capturedAt}],
       lemma: word, partOfSpeech: "word", encounters: [encounter], due: true,
     });
   }
 
-  async capture(input: CaptureInput): Promise<CaptureCard> {
-    const normalized = input.selectedText.trim().toLowerCase();
-    let detail = this.words.find((word) => word.lemma === normalized);
+  private matches(input: CaptureInput) {
+    const normalized = input.selectedText.trim().replace(/\s+/g, " ").toLowerCase();
+    const source = this.settings.sourceLanguage.toLowerCase();
+    const words = this.words.filter(w => w.lemma === normalized);
+    const known = new Set(words.map(w => w.sourceLanguage ?? "en").filter(s => s !== "auto"));
+    const resolved = source === "auto" && known.size === 1 ? [...known][0] : source;
+    return words.filter(w => (w.sourceLanguage ?? "en") === resolved || (w.sourceLanguage === "auto" && (!known.size || known.size === 1 && known.has(resolved)))).sort((a,b) => a.item.id.localeCompare(b.item.id));
+  }
+
+  private projectItem(word: DemoWord) {
+    const values = word.translations ?? [];
+    const value = values.find(t => t.targetLanguage === this.settings.targetLanguage.toLowerCase()) ?? values[0];
+    return { ...word.item, translation: value?.text ?? word.item.translation, translationLanguage: value?.targetLanguage };
+  }
+
+  async capture(input: CaptureInput): Promise<CaptureCard> { return this.saveCapture(input); }
+
+  private async saveCapture(input: CaptureInput, expected?: string): Promise<CaptureCard> {
+    const matches = this.matches(input);
+    const before = structuredClone(matches);
+    let detail = matches[0];
+    if (expected && detail?.item.id !== expected) throw new Error("Vocabulary Item changed; recheck capture");
+    if (!expected && detail?.item.achievedAt) throw new Error("This Vocabulary Item is Achieved; recheck capture");
     const existing = Boolean(detail);
     if (!detail) {
-      const wordId = id();
       const now = new Date().toISOString();
-      detail = {
-        item: { id: wordId, displayForm: input.selectedText.trim(), translation: input.translation,
-          status: "learning", encounterCount: 0, nextReviewAt: now, lastSeenAt: now },
-        lemma: normalized, encounters: [], due: true,
-      };
+      detail = { item: {id:id(),displayForm:input.selectedText.trim(),status:"learning",encounterCount:0,nextReviewAt:now,lastSeenAt:now},
+        sourceLanguage:this.settings.sourceLanguage.toLowerCase(), lemma:input.selectedText.trim().replace(/\s+/g," ").toLowerCase(), encounters:[], due:true };
       this.words.unshift(detail);
+    } else {
+      for (const other of matches.slice(1)) {
+        detail.encounters.push(...other.encounters.map(e => ({...e,wordId:detail!.item.id})));
+        detail.translations = [...(detail.translations ?? []), ...(other.translations ?? [])];
+        if (!other.item.achievedAt) { detail.item.status=other.item.status; detail.item.achievedAt=undefined; detail.item.deleteAfter=undefined; }
+        this.words = this.words.filter(w => w !== other);
+      }
+      if (this.settings.sourceLanguage !== "auto") detail.sourceLanguage=this.settings.sourceLanguage.toLowerCase();
+    }
+    if (expected && detail.item.achievedAt) {
+      detail.item.status="learning"; detail.item.achievedAt=undefined; detail.item.deleteAfter=undefined;
+      detail.item.nextReviewAt=new Date().toISOString(); detail.due=true;
     }
     const now = new Date().toISOString();
     const encounter: Encounter = {
@@ -88,69 +166,253 @@ export class DemoBackend implements Backend {
       captureOrigin: input.captureOrigin ?? "manual",
       capturedAt: now, updatedAt: now,
     };
+    if (input.translation?.trim()) {
+      encounter.savedTranslation = { targetLanguage: this.settings.targetLanguage.toLowerCase(), text: input.translation.trim(), savedAt: now };
+      detail.translations = [encounter.savedTranslation, ...(detail.translations ?? []).filter(t => t.targetLanguage !== encounter.savedTranslation!.targetLanguage)];
+    }
+    const savedDate = localDate();
+    this.savedDates.set(encounter.id, savedDate);
+    this.dailyCounts.set(savedDate, (this.dailyCounts.get(savedDate) ?? 0) + 1);
     detail.encounters.unshift(encounter);
     detail.item.encounterCount = detail.encounters.length;
     detail.item.lastSeenAt = now;
     if (input.translation) detail.item.translation = input.translation;
+    this.captureUndo.set(encounter.id, { before, after:JSON.stringify(detail), wordId:detail.item.id });
+    this.invalidateStatusUndo(detail.item.id);
     return { wordId: detail.item.id, encounterId: encounter.id,
       displayForm: detail.item.displayForm, translation: detail.item.translation,
       context: encounter.sentence, encounterCount: detail.encounters.length,
       isExistingWord: existing };
   }
 
-  async undoCapture(encounterId: string) {
-    for (const word of this.words) {
-      word.encounters = word.encounters.filter((encounter) => encounter.id !== encounterId);
-      word.item.encounterCount = word.encounters.length;
+  async getVocabularyLog(): Promise<VocabularyLog> {
+    const endDate = localDate();
+    const startDate = logStart(endDate);
+    const days: VocabularyLog['days'] = [];
+    for (let date = startDate; date <= endDate; date = shiftDate(date, 1)) {
+      const count = this.dailyCounts.get(date);
+      const coverage = date < this.logStarted && count == null ? 'unknown' : 'complete';
+      days.push({ date, count: coverage === 'unknown' ? null : count ?? 0, coverage });
     }
+    return { startDate, endDate, days };
   }
 
-  async getToday(): Promise<TodayView> {
-    const due = this.words.filter((word) => word.due).slice(0, this.settings.dailyLimit);
+  async undoCapture(encounterId: string) {
+    const snapshot = this.captureUndo.get(encounterId);
+    if (!snapshot) throw new Error("Capture cannot be undone");
+    const current = this.words.find(w => w.item.id === snapshot.wordId);
+    if (JSON.stringify(current) !== snapshot.after) throw new Error("Cannot undo: this Vocabulary Item changed after capture. No changes were undone.");
+    const savedDate = this.savedDates.get(encounterId);
+    if (savedDate) { this.dailyCounts.set(savedDate, (this.dailyCounts.get(savedDate) ?? 1)-1); this.savedDates.delete(encounterId); }
+    this.words = [...this.words.filter(w => w.item.id !== snapshot.wordId), ...structuredClone(snapshot.before)];
+    this.captureUndo.delete(encounterId);
+    this.invalidateStatusUndo(snapshot.wordId);
+  }
+
+  async getToday(completedWordIds: string[] = []): Promise<TodayView> {
+    const allDue = this.words.filter((word) => word.item.status === 'learning' && !word.item.achievedAt &&
+      (word.item.nextReviewAt ? Date.parse(word.item.nextReviewAt) <= Date.now() : word.due));
+    const due = allDue.filter(word => !completedWordIds.includes(word.item.id)).slice(0, this.settings.dailyLimit);
     return {
-      dueCount: due.length, estimatedMinutes: due.length ? Math.max(1, Math.ceil(due.length / 3)) : 0,
+      totalDueCount: allDue.length, plannedReviewCount: due.length,
+      estimatedMinutes: due.length ? Math.max(1, Math.ceil(due.length / 3)) : 0,
       reviewQueue: due.map((word) => ({ wordId: word.item.id,
-        displayForm: word.item.displayForm, translation: word.item.translation,
+        displayForm: word.item.displayForm, translation: this.projectItem(word).translation, translationLanguage:this.projectItem(word).translationLanguage,
         context: word.encounters[0]?.sentence })),
-      recentCaptures: this.words.map((word) => ({ ...word.item })).slice(0, 8),
+      recentCaptures: this.words.map((word) => this.projectItem(word))
+        .sort((a, b) => Date.parse(b.lastSeenAt) - Date.parse(a.lastSeenAt))
+        .slice(0, this.settings.recentCapturesLimit),
       settings: { ...this.settings },
     };
   }
 
-  async listWords() { return this.words.map((word) => ({ ...word.item })); }
+  async listWords() {
+    return this.words.filter((word) => !word.item.achievedAt)
+      .map((word) => this.projectItem(word))
+      .sort((a, b) => Date.parse(b.lastSeenAt) - Date.parse(a.lastSeenAt) || a.id.localeCompare(b.id));
+  }
+  async listAchievedWords(): Promise<AchievedWordListItem[]> {
+    return this.words.filter((word) => word.item.achievedAt && word.item.deleteAfter).map((word) => ({
+      id: word.item.id, lemma: word.lemma, displayForm: word.item.displayForm, translation: this.projectItem(word).translation, translationLanguage:this.projectItem(word).translationLanguage,
+      encounterCount: word.item.encounterCount, achievedAt: word.item.achievedAt!, deleteAfter: word.item.deleteAfter!,
+      ...achievedTiming(word.item.deleteAfter!),
+    }));
+  }
+
+  async findAchievedCapture(input: CaptureInput): Promise<AchievedCaptureConflict | null> {
+    const match = this.matches(input)[0];
+    const word = match?.item.achievedAt && match.item.deleteAfter ? match : undefined;
+    return word ? { wordId: word.item.id, displayForm: word.item.displayForm, achievedAt: word.item.achievedAt!, deleteAfter: word.item.deleteAfter! } : null;
+  }
+  async restoreAchievedAndCapture(wordId: string, input: CaptureInput): Promise<CaptureCard> {
+    return this.saveCapture(input, wordId);
+  }
+
+  async achieveWord(wordId: string): Promise<AchievedWordListItem> {
+    const word = this.words.find((candidate) => candidate.item.id === wordId);
+    if (!word || word.item.status !== "mastered" || word.item.achievedAt) throw new Error("only an active Mastered Vocabulary Item can be Achieved");
+    const achievedAt = new Date();
+    const deleteAfter = new Date(achievedAt.getTime() + (this.settings.achievedRetentionDays ?? 30) * 86_400_000);
+    word.item.achievedAt = achievedAt.toISOString(); word.item.deleteAfter = deleteAfter.toISOString();
+    this.invalidateStatusUndo(wordId);
+    return { id: word.item.id, lemma: word.lemma, displayForm: word.item.displayForm, translation: this.projectItem(word).translation, translationLanguage:this.projectItem(word).translationLanguage,
+      encounterCount: word.item.encounterCount, achievedAt: word.item.achievedAt, deleteAfter: word.item.deleteAfter,
+      ...achievedTiming(word.item.deleteAfter) };
+  }
+  async unachieveWords(wordIds: string[]): Promise<number> {
+    for (const wordId of wordIds) {
+      const word = this.words.find((candidate) => candidate.item.id === wordId && candidate.item.achievedAt);
+      if (!word) throw new Error("Vocabulary Item is not Achieved");
+    }
+    for (const word of this.words.filter((candidate) => wordIds.includes(candidate.item.id))) {
+      this.invalidateStatusUndo(word.item.id);
+      word.item.achievedAt = undefined; word.item.deleteAfter = undefined;
+    }
+    return wordIds.length;
+  }
+  async deleteAchievedWords(wordIds: string[]): Promise<number> {
+    if (wordIds.some((wordId) => !this.words.some((candidate) => candidate.item.id === wordId && candidate.item.achievedAt))) throw new Error("Vocabulary Item is not Achieved");
+    for (const word of this.words.filter(candidate => wordIds.includes(candidate.item.id))) {
+      for (const encounter of word.encounters) this.savedDates.delete(encounter.id);
+    }
+    this.words = this.words.filter((candidate) => !wordIds.includes(candidate.item.id));
+    return wordIds.length;
+  }
+  async runLifecycleSweep() { return { achievedCount: 0, purgedCount: 0 }; }
+  async changeLearningStatus(wordId: string, status: WordStatus): Promise<string | null> {
+    const word = this.words.find(candidate => candidate.item.id === wordId);
+    if (!word) throw new Error('Vocabulary Item not found');
+    if (word.item.achievedAt) throw new Error('Unachieve this Vocabulary Item before changing its status');
+    if (word.item.status === status) return null;
+    const before = structuredClone(word);
+    this.invalidateStatusUndo(wordId);
+    if (word.item.status === 'mastered' && status !== 'mastered') {
+      word.item.nextReviewAt = new Date().toISOString();
+      word.due = true;
+    }
+    word.item.status = status;
+    const token = id();
+    this.statusUndo.set(token, { before, after: JSON.stringify(word) });
+    return token;
+  }
+  async undoLearningStatus(token: string): Promise<string> {
+    const snapshot = this.statusUndo.get(token);
+    const word = snapshot && this.words.find(candidate => candidate.item.id === snapshot.before.item.id);
+    if (!snapshot || !word || word.item.achievedAt || JSON.stringify(word) !== snapshot.after) {
+      throw new Error('Cannot undo: this Vocabulary Item changed after the status update. No changes were undone.');
+    }
+    word.item.status = snapshot.before.item.status;
+    word.item.nextReviewAt = snapshot.before.item.nextReviewAt;
+    word.due = snapshot.before.due;
+    this.statusUndo.delete(token);
+    return word.item.id;
+  }
   async getWord(wordId: string) {
     const word = this.words.find((candidate) => candidate.item.id === wordId);
     if (!word) throw new Error("word not found");
-    return structuredClone(word) as WordDetail;
+    return structuredClone({ ...word, item:this.projectItem(word) }) as WordDetail;
   }
-  async submitReview(wordId: string, _rating: ReviewRating) {
+  async submitReview(wordId: string, rating: ReviewRating, submissionId: string = id()): Promise<ReviewResult> {
+    const existing = this.reviewSubmissions.get(submissionId);
+    if (existing) {
+      if (existing.wordId !== wordId || existing.rating !== rating) throw new Error("review submission conflict");
+      return { ...existing };
+    }
     const word = this.words.find((candidate) => candidate.item.id === wordId);
-    if (word) { word.due = false; word.item.nextReviewAt = new Date(Date.now() + 86_400_000).toISOString(); }
+    if (!word) throw new Error("word not found");
+    const reviewedAt = new Date().toISOString();
+    const previousDueAt = word.item.nextReviewAt ?? reviewedAt;
+    const nextDueAt = new Date(Date.now() + (rating === "forgot" ? 86_400_000 : 259_200_000)).toISOString();
+    word.due = false;
+    this.invalidateStatusUndo(wordId);
+    word.item.nextReviewAt = nextDueAt;
+    const result = { submissionId, wordId, rating, reviewedAt, previousDueAt, nextDueAt,
+      previousStability: 1, stability: rating === "forgot" ? 0.5 : 3,
+      difficulty: rating === "forgot" ? 5.5 : 4.85, lapseCount: rating === "forgot" ? 1 : 0,
+      encounterCount: word.encounters.length, repeatedForgetting: false };
+    this.reviewSubmissions.set(submissionId, result);
+    return { ...result };
+  }
+  async getReviewSessionInsight(submissionIds: string[], nextDayEnd: string): Promise<ReviewSessionInsight> {
+    const results = [...new Set(submissionIds)]
+      .map((submissionId) => this.reviewSubmissions.get(submissionId))
+      .filter((result): result is ReviewResult => Boolean(result));
+    return {
+      reviewedCount: results.length,
+      rememberedCount: results.filter((result) => result.rating === "remembered").length,
+      forgottenCount: results.filter((result) => result.rating === "forgot").length,
+      attentionWordIds: results.filter((result) => result.repeatedForgetting).map((result) => result.wordId),
+      nextDayDueCount: this.words.filter((word) =>
+        word.item.status === "learning" && Boolean(word.item.nextReviewAt) &&
+        new Date(word.item.nextReviewAt!).getTime() < new Date(nextDayEnd).getTime()).length,
+    };
+  }
+  async getGlobalInsight(): Promise<GlobalInsight> {
+    const reviews = [...this.reviewSubmissions.values()];
+    return {
+      currentVocabularyCount: this.words.length,
+      currentAchievedCount: this.words.filter((word) => word.item.achievedAt).length,
+      lifetimeVocabularyCount: this.words.length,
+      lifetimeEncounterCount: this.words.reduce((total, word) => total + word.encounters.length, 0),
+      lifetimeReviewCount: reviews.length,
+      lifetimeRememberedCount: reviews.filter((review) => review.rating === "remembered").length,
+      lifetimeForgottenCount: reviews.filter((review) => review.rating === "forgot").length,
+      lifetimeRatingBreakdownComplete: true,
+    };
   }
   async getSettings() { return { ...this.settings }; }
   async updateSettings(settings: Settings) { this.settings = { ...settings }; }
-  async replaceShortcut(candidate: string) { this.settings.captureShortcut = candidate; return { ...this.settings }; }
+  async replaceShortcut(candidate: string) { this.settings.selectionCaptureShortcut = candidate; return { ...this.settings }; }
+  async applyWindowsSettings(settings: Settings): Promise<SettingsApplyResult> {
+    await this.updateSettings(settings);
+    return { settings: await this.getSettings() };
+  }
+  async getWindowsSettingsStatus(): Promise<SystemSettingsStatus> { return {}; }
   async getPlatformCapabilities() { return { ...unavailablePlatformCapabilities }; }
 }
 
 class TauriBackend implements Backend {
-  capture(input: CaptureInput) {
-    return invoke<CaptureCard>("capture_word", { request: {
-      selectedText: input.selectedText, lemma: input.selectedText, sentence: input.sentence,
-      sourceLanguage: "en", targetLanguage: "de", translation: input.translation,
-      partOfSpeech: undefined, sourceApp: input.sourceApp, sourceTitle: input.sourceTitle,
-      sourceUrl: input.sourceUrl, captureOrigin: input.captureOrigin ?? "manual",
-      capturedAt: new Date().toISOString(),
-    }});
+  private async captureRequest(input: CaptureInput) {
+    return captureRequestFor(input, await this.getSettings());
   }
+  async capture(input: CaptureInput) {
+    return invoke<CaptureCard>("capture_word", { request: await this.captureRequest(input) });
+  }
+  async findAchievedCapture(input: CaptureInput) { return invoke<AchievedCaptureConflict | null>("find_achieved_capture", { request: await this.captureRequest(input) }); }
+  async restoreAchievedAndCapture(wordId: string, input: CaptureInput) { return invoke<CaptureCard>("restore_achieved_and_capture", { wordId, request: await this.captureRequest(input) }); }
   undoCapture(encounterId: string) { return invoke<void>("undo_capture", { encounterId }); }
-  getToday() { return invoke<TodayView>("get_today"); }
+  getToday(completedWordIds: string[] = []) { return invoke<TodayView>("get_today", { completedWordIds }); }
   listWords() { return invoke<WordListItem[]>("list_words"); }
+  listAchievedWords() { return invoke<AchievedWordListItem[]>("list_achieved_words"); }
+  achieveWord(wordId: string) { return invoke<AchievedWordListItem>("achieve_word", { wordId }); }
+  unachieveWords(wordIds: string[]) { return invoke<number>("unachieve_words", { wordIds }); }
+  deleteAchievedWords(wordIds: string[]) { return invoke<number>("delete_achieved_words", { wordIds }); }
+  runLifecycleSweep() { return invoke<{ achievedCount: number; purgedCount: number }>("run_lifecycle_sweep"); }
   getWord(wordId: string) { return invoke<WordDetail>("get_word", { wordId }); }
-  submitReview(wordId: string, rating: ReviewRating) { return invoke<void>("submit_review", { wordId, rating }); }
+  changeLearningStatus(wordId: string, status: WordStatus) { return invoke<string | null>('change_learning_status', { wordId, status }); }
+  undoLearningStatus(token: string) { return invoke<string>('undo_learning_status', { token }); }
+  submitReview(wordId: string, rating: ReviewRating, submissionId = id()) {
+    return invoke<ReviewResult>("submit_review", { submissionId, wordId, rating });
+  }
+  getReviewSessionInsight(submissionIds: string[], nextDayEnd: string) {
+    return invoke<ReviewSessionInsight>("get_review_session_insight", { submissionIds, nextDayEnd });
+  }
+  getVocabularyLog() { return invoke<VocabularyLog>("get_vocabulary_log"); }
+  getGlobalInsight() { return invoke<GlobalInsight>("get_global_insight"); }
   getSettings() { return invoke<Settings>("get_settings"); }
   updateSettings(settings: Settings) { return invoke<void>("update_settings", { settings }); }
   replaceShortcut(candidate: string) { return invoke<Settings>("replace_shortcut", { candidate }); }
+  applyWindowsSettings(settings: Settings) {
+    return invoke<SettingsApplyResult>("apply_windows_settings", { settings });
+  }
+  getWindowsSettingsStatus() { return invoke<SystemSettingsStatus>("get_windows_settings_status"); }
+  listenLibraryChanged(handler: () => void) {
+    return listen("library-changed", handler);
+  }
+  listenSettingsChanged(handler: () => void) { return listen("settings-changed", handler); }
+  listenOpenManualCapture(handler: () => void) {
+    return listen("open-manual-capture", handler);
+  }
   getPlatformCapabilities() { return invoke<PlatformCapabilities>("get_platform_capabilities"); }
 }
 

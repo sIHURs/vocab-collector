@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Windows UI verification</title></head><body><div id="app"></div><script type="module">
+import { mount } from 'svelte';
+import WindowsApp from '../windows/WindowsApp.svelte';
+import { DemoBackend } from '../lib/backend';
+import '../styles.css';
+const params = new URLSearchParams(location.search);
+const api = new DemoBackend(true);
+await api.updateSettings({ ...await api.getSettings(), appearance: params.get('theme') ?? 'system' });
+if (params.get('text') === '150') document.documentElement.style.fontSize = '24px';
+if (params.get('scenario') === 'long') {
+  await api.capture({ selectedText:'Donaudampfschifffahrtsgesellschaft · 多语言词汇', translation:'A long translation that remains readable without losing the Vocabulary Item identity', sentence:'中文上下文。Ein vollständiger deutscher Beispielsatz mit ausführlicher Herkunft. English context preserves the complete sentence.', captureOrigin:'manual' });
+}
+if (params.get('scenario') === 'achieved') {
+  const words = await api.listWords();
+  api.listWords = async () => words.map(word => ({ ...word, status:'mastered' }));
+  api.listAchievedWords = async () => [
+    { id:'preview-one', lemma:'Beständigkeit', displayForm:'Beständigkeit · 多语言词汇', translation:'Durability and consistency in a changing environment', encounterCount:4, achievedAt:'2026-09-01T12:00:00Z', deleteAfter:'2026-09-16T12:00:00Z', remainingDays:7, urgency:'warning' },
+    { id:'preview-two', lemma:'context', displayForm:'context', translation:'上下文 · Zusammenhang', encounterCount:2, achievedAt:'2026-09-01T12:00:00Z', deleteAfter:'2026-09-10T12:00:00Z', remainingDays:1, urgency:'urgent' },
+  ];
+}
+mount(WindowsApp, { target: document.getElementById('app'), props: { api } });
+</script></body></html>

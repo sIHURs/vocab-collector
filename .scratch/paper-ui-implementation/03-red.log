@@ -1,0 +1,868 @@
+$ vitest run "src/windows/WindowsApp.test.ts" "-t" "semantic Vocabulary table"
+12:52:02 PM [vite-plugin-svelte] no Svelte config found at C:/Users/yifan/project/vocab-collector/ui - using default configuration.
+
+ RUN  v3.2.7 C:/Users/yifan/project/vocab-collector/ui
+
+12:52:05 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:536:17 Unused CSS selector "textarea"
+https://svelte.dev/e/css_unused_selector
+12:52:05 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:536:88 Unused CSS selector "textarea:focus-visible"
+https://svelte.dev/e/css_unused_selector
+12:52:05 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:565:2 Unused CSS selector ".backdrop"
+https://svelte.dev/e/css_unused_selector
+12:52:05 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:565:121 Unused CSS selector ".dialog"
+https://svelte.dev/e/css_unused_selector
+12:52:05 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:565:325 Unused CSS selector ".dialog form"
+https://svelte.dev/e/css_unused_selector
+12:52:05 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:565:433 Unused CSS selector ".dialog h2"
+https://svelte.dev/e/css_unused_selector
+12:52:05 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:565:571 Unused CSS selector ".dialog label"
+https://svelte.dev/e/css_unused_selector
+12:52:05 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:565:662 Unused CSS selector ".dialog label small"
+https://svelte.dev/e/css_unused_selector
+12:52:05 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:565:703 Unused CSS selector ".dialog input"
+https://svelte.dev/e/css_unused_selector
+12:52:05 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:565:718 Unused CSS selector ".dialog textarea"
+https://svelte.dev/e/css_unused_selector
+12:52:05 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:565:867 Unused CSS selector ".dialog textarea"
+https://svelte.dev/e/css_unused_selector
+12:52:05 PM [vite-plugin-svelte] src/windows/WindowsApp.svelte:569:260 Unused CSS selector ".dialog"
+https://svelte.dev/e/css_unused_selector
+ ❯ src/windows/WindowsApp.test.ts (29 tests | 1 failed | 28 skipped) 298ms
+   × Windows main presentation > opens Encounter details from a semantic Vocabulary table and restores keyboard focus 296ms
+     → Unable to find an accessible element with the role "table" and name "Vocabulary"
+
+Here are the accessible roles:
+
+  complementary:
+
+  Name "":
+  [36m<aside[39m
+    [33mclass[39m=[32m"svelte-165eeit"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  strong:
+
+  Name "":
+  [36m<strong[39m
+    [33mclass[39m=[32m"svelte-165eeit"[39m
+  [36m/>[39m
+
+  Name "":
+  [36m<strong />[39m
+
+  Name "":
+  [36m<strong />[39m
+
+  Name "":
+  [36m<strong />[39m
+
+  --------------------------------------------------
+  navigation:
+
+  Name "Main navigation":
+  [36m<nav[39m
+    [33maria-label[39m=[32m"Main navigation"[39m
+    [33mclass[39m=[32m"svelte-165eeit"[39m
+  [36m/>[39m
+
+  Name "Vocabulary pages":
+  [36m<nav[39m
+    [33maria-label[39m=[32m"Vocabulary pages"[39m
+    [33mclass[39m=[32m"pagination svelte-165eeit"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  button:
+
+  Name "Today":
+  [36m<button[39m
+    [33mclass[39m=[32m"svelte-165eeit"[39m
+  [36m/>[39m
+
+  Name "Vocabulary":
+  [36m<button[39m
+    [33maria-current[39m=[32m"page"[39m
+    [33mclass[39m=[32m"svelte-165eeit active"[39m
+  [36m/>[39m
+
+  Name "Insights":
+  [36m<button[39m
+    [33mclass[39m=[32m"svelte-165eeit"[39m
+  [36m/>[39m
+
+  Name "Settings":
+  [36m<button[39m
+    [33mclass[39m=[32m"svelte-165eeit"[39m
+  [36m/>[39m
+
+  Name "Manual capture":
+  [36m<button[39m
+    [33maria-label[39m=[32m"Manual capture"[39m
+    [33mclass[39m=[32m"rounded-lg border border-transparent bg-clip-padding text-sm font-medium focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg:not([class*='size-'])]:size-4 group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap transition-all outline-none select-none disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/80 size-8"[39m
+    [33mdata-slot[39m=[32m"button"[39m
+    [33mtype[39m=[32m"button"[39m
+  [36m/>[39m
+
+  Name "Active":
+  [36m<button[39m
+    [33mclass[39m=[32m"svelte-165eeit active"[39m
+  [36m/>[39m
+
+  Name "Mastered":
+  [36m<button[39m
+    [33mclass[39m=[32m"svelte-165eeit"[39m
+  [36m/>[39m
+
+  Name "Achieved (0)":
+  [36m<button[39m
+    [33mclass[39m=[32m"svelte-165eeit"[39m
+  [36m/>[39m
+
+  Name "serendipity, 1 encounter":
+  [36m<button[39m
+    [33maria-label[39m=[32m"serendipity, 1 encounter"[39m
+    [33mclass[39m=[32m"word-row svelte-la0t0i"[39m
+  [36m/>[39m
+
+  Name "nuance, 1 encounter":
+  [36m<button[39m
+    [33maria-label[39m=[32m"nuance, 1 encounter"[39m
+    [33mclass[39m=[32m"word-row svelte-la0t0i"[39m
+  [36m/>[39m
+
+  Name "resilient, 1 encounter":
+  [36m<button[39m
+    [33maria-label[39m=[32m"resilient, 1 encounter"[39m
+    [33mclass[39m=[32m"word-row svelte-la0t0i"[39m
+  [36m/>[39m
+
+  Name "First":
+  [36m<button[39m
+    [33mclass[39m=[32m"secondary svelte-165eeit"[39m
+    [33mdisabled[39m=[32m""[39m
+  [36m/>[39m
+
+  Name "Previous":
+  [36m<button[39m
+    [33mclass[39m=[32m"secondary svelte-165eeit"[39m
+    [33mdisabled[39m=[32m""[39m
+  [36m/>[39m
+
+  Name "Next":
+  [36m<button[39m
+    [33mclass[39m=[32m"secondary svelte-165eeit"[39m
+    [33mdisabled[39m=[32m""[39m
+  [36m/>[39m
+
+  Name "Last":
+  [36m<button[39m
+    [33mclass[39m=[32m"secondary svelte-165eeit"[39m
+    [33mdisabled[39m=[32m""[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  main:
+
+  Name "":
+  [36m<main[39m
+    [33mclass[39m=[32m"svelte-165eeit"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  banner:
+
+  Name "":
+  [36m<header[39m
+    [33mclass[39m=[32m"svelte-165eeit"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  heading:
+
+  Name "Vocabulary":
+  [36m<h1[39m
+    [33mclass[39m=[32m"svelte-165eeit"[39m
+    [33mid[39m=[32m"windows-page-title"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  paragraph:
+
+  Name "":
+  [36m<p[39m
+    [33mclass[39m=[32m"svelte-165eeit"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  region:
+
+  Name "Vocabulary":
+  [36m<section[39m
+    [33maria-busy[39m=[32m"false"[39m
+    [33maria-labelledby[39m=[32m"windows-page-title"[39m
+    [33mclass[39m=[32m"svelte-165eeit"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  tablist:
+
+  Name "Vocabulary views":
+  [36m<div[39m
+    [33maria-label[39m=[32m"Vocabulary views"[39m
+    [33mclass[39m=[32m"vocabulary-tabs svelte-165eeit"[39m
+    [33mrole[39m=[32m"tablist"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  textbox:
+
+  Name "Search vocabulary":
+  [36m<input[39m
+    [33maria-label[39m=[32m"Search vocabulary"[39m
+    [33mclass[39m=[32m"svelte-165eeit"[39m
+    [33mplaceholder[39m=[32m"Word or translation"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  form:
+
+  Name "Go to vocabulary page":
+  [36m<form[39m
+    [33maria-label[39m=[32m"Go to vocabulary page"[39m
+    [33mclass[39m=[32m"svelte-165eeit"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  spinbutton:
+
+  Name "Page number":
+  [36m<input[39m
+    [33maria-label[39m=[32m"Page number"[39m
+    [33mclass[39m=[32m"svelte-165eeit"[39m
+    [33mmax[39m=[32m"1"[39m
+    [33mmin[39m=[32m"1"[39m
+    [33mtype[39m=[32m"number"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"windows-presentation svelte-165eeit"[39m
+      [33mdata-appearance[39m=[32m"system"[39m
+      [33mdata-reduced-motion[39m=[32m"false"[39m
+      [33mdata-settings-ready[39m=[32m"true"[39m
+    [36m>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"windows-shell svelte-165eeit"[39m
+        [33mdata-appearance[39m=[32m"system"[39m
+        [33mdata-presentation[39m=[32m"windows-main"[39m
+        [33mdata-reduced-motion[39m=[32m"false"[39m
+      [36m>[39m
+        [36m<aside[39m
+          [33mclass[39m=[32m"svelte-165eeit"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"brand svelte-165eeit"[39m
+          [36m>[39m
+            [36m<svg[39m
+              [33maria-hidden[39m=[32m"true"[39m
+              [33mclass[39m=[32m"svelte-165eeit"[39m
+              [33mheight[39m=[32m"20"[39m
+              [33mviewBox[39m=[32m"0 0 24 24"[39m
+              [33mwidth[39m=[32m"20"[39m
+            [36m>[39m
+              [36m<path[39m
+                [33mclass[39m=[32m"svelte-165eeit"[39m
+                [33md[39m=[32m"M3 4h6l3 5 3-5h6l-9 17Z M6 4l6 11 6-11"[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-width[39m=[32m"1.6"[39m
+              [36m/>[39m
+            [36m</svg>[39m
+            [36m<strong[39m
+              [33mclass[39m=[32m"svelte-165eeit"[39m
+            [36m>[39m
+              [0mVocab Collector[0m
+            [36m</strong>[39m
+          [36m</div>[39m
+          [0m [0m
+          [36m<nav[39m
+            [33maria-label[39m=[32m"Main navigation"[39m
+            [33mclass[39m=[32m"svelte-165eeit"[39m
+          [36m>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"svelte-165eeit"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33maria-hidden[39m=[32m"true"[39m
+                [33mclass[39m=[32m"lucide lucide-calendar-days lucide-icon"[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mheight[39m=[32m"18"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-linecap[39m=[32m"round"[39m
+                [33mstroke-linejoin[39m=[32m"round"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [33mwidth[39m=[32m"18"[39m
+                [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M8 2v3"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M16 2v3"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<rect[39m
+                  [33mheight[39m=[32m"18"[39m
+                  [33mrx[39m=[32m"2"[39m
+                  [33mwidth[39m=[32m"18"[39m
+                  [33mx[39m=[32m"3"[39m
+                  [33my[39m=[32m"3"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</rect>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M3 9h18"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M8 13h.01"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M12 13h.01"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M16 13h.01"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M8 17h.01"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M12 17h.01"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M16 17h.01"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+              [36m</svg>[39m
+              [0mToday[0m
+            [36m</button>[39m
+            [36m<button[39m
+              [33maria-current[39m=[32m"page"[39m
+              [33mclass[39m=[32m"svelte-165eeit active"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33maria-hidden[39m=[32m"true"[39m
+                [33mclass[39m=[32m"lucide lucide-book-open lucide-icon"[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mheight[39m=[32m"18"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-linecap[39m=[32m"round"[39m
+                [33mstroke-linejoin[39m=[32m"round"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [33mwidth[39m=[32m"18"[39m
+                [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M12 5v16"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+                [36m<path[39m
+                  [33md[39m=[32m"M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z"[39m
+                [36m>[39m
+                  [0m[0m
+                [36m</path>[39m
+                [0m[0m
+              [36m</svg>[39m
+              [0mVocabulary[0m
+            [36m</button>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"svelte-165eeit"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33maria-hidden[39m=[32m"true"[39m
+                [33mclass[39m=[32m"lucide lucide-chart-no-axes-column lucide-bar-chart-2 lucide-icon"[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mheight[39m=[32m"18"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-linecap[39m=[32m"round"[39m
+                [33mstroke-linejoin[39m=[32m"round"[39m
+                [33mstrok...
+   ↓ Windows main presentation > provides Windows navigation without the static Progress view
+   ↓ Windows main presentation > moves focus into the Manual Capture dialog and returns it when dismissed
+   ↓ Windows main presentation > keeps keyboard focus inside Manual Capture
+   ↓ Windows main presentation > labels changing page content and loading state for assistive technology
+   ↓ Windows main presentation > saves repeat encounters, shows detail, and refreshes after Undo
+   ↓ Windows main presentation > refreshes Today and Vocabulary after a capture is saved in another window
+   ↓ Windows main presentation > shows a recoverable load failure
+   ↓ Windows main presentation > keeps Manual Capture input available after a save failure
+   ↓ Windows main presentation > runs, closes, resumes, and completes the shared due queue
+   ↓ Windows main presentation > requires revealing the answer before a Review can be rated
+   ↓ Windows main presentation > shows core-backed Encounter and repeated-forgetting Insight after rating
+   ↓ Windows main presentation > shows an empty Review state when nothing is due
+   ↓ Windows main presentation > distinguishes the complete due backlog from today's planned Review
+   ↓ Windows main presentation > scrolls configured recent captures and paginates the full vocabulary
+   ↓ Windows main presentation > keeps the current review card available when rating fails
+   ↓ Windows main presentation > resumes a revealed but unrated card in Recall state
+   ↓ Windows main presentation > reuses the logical submission after an ambiguous response
+   ↓ Windows main presentation > blocks stale Resume until a failed close refresh succeeds
+   ↓ Windows main presentation > does not allow Close while a rating submission is pending
+   ↓ Windows main presentation > persists and reads back Windows settings before applying visual preferences
+   ↓ Windows main presentation > offers automatic source detection but requires an explicit target
+   ↓ Windows main presentation > keeps saved visual preferences active when a settings save fails
+   ↓ Windows main presentation > applies persisted visual settings when the subsequent Today refresh fails
+   ↓ Windows main presentation > shows per-setting system failures while preserving unrelated saved values
+   ↓ Windows main presentation > selects the filtered Achieved list and runs batch Unachieve or confirmed deletion
+   ↓ Windows main presentation > offers an inline Achieved tag before returning a captured item to Learning
+   ↓ Windows main presentation > shows archived-aware lifetime Insight on Insights
+   ↓ Windows main presentation > shows when each Achieved Vocabulary Item was achieved
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/windows/WindowsApp.test.ts > Windows main presentation > opens Encounter details from a semantic Vocabulary table and restores keyboard focus
+TestingLibraryElementError: Unable to find an accessible element with the role "table" and name "Vocabulary"
+
+Here are the accessible roles:
+
+  complementary:
+
+  Name "":
+  <aside
+    class="svelte-165eeit"
+  />
+
+  --------------------------------------------------
+  strong:
+
+  Name "":
+  <strong
+    class="svelte-165eeit"
+  />
+
+  Name "":
+  <strong />
+
+  Name "":
+  <strong />
+
+  Name "":
+  <strong />
+
+  --------------------------------------------------
+  navigation:
+
+  Name "Main navigation":
+  <nav
+    aria-label="Main navigation"
+    class="svelte-165eeit"
+  />
+
+  Name "Vocabulary pages":
+  <nav
+    aria-label="Vocabulary pages"
+    class="pagination svelte-165eeit"
+  />
+
+  --------------------------------------------------
+  button:
+
+  Name "Today":
+  <button
+    class="svelte-165eeit"
+  />
+
+  Name "Vocabulary":
+  <button
+    aria-current="page"
+    class="svelte-165eeit active"
+  />
+
+  Name "Insights":
+  <button
+    class="svelte-165eeit"
+  />
+
+  Name "Settings":
+  <button
+    class="svelte-165eeit"
+  />
+
+  Name "Manual capture":
+  <button
+    aria-label="Manual capture"
+    class="rounded-lg border border-transparent bg-clip-padding text-sm font-medium focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg:not([class*='size-'])]:size-4 group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap transition-all outline-none select-none disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/80 size-8"
+    data-slot="button"
+    type="button"
+  />
+
+  Name "Active":
+  <button
+    class="svelte-165eeit active"
+  />
+
+  Name "Mastered":
+  <button
+    class="svelte-165eeit"
+  />
+
+  Name "Achieved (0)":
+  <button
+    class="svelte-165eeit"
+  />
+
+  Name "serendipity, 1 encounter":
+  <button
+    aria-label="serendipity, 1 encounter"
+    class="word-row svelte-la0t0i"
+  />
+
+  Name "nuance, 1 encounter":
+  <button
+    aria-label="nuance, 1 encounter"
+    class="word-row svelte-la0t0i"
+  />
+
+  Name "resilient, 1 encounter":
+  <button
+    aria-label="resilient, 1 encounter"
+    class="word-row svelte-la0t0i"
+  />
+
+  Name "First":
+  <button
+    class="secondary svelte-165eeit"
+    disabled=""
+  />
+
+  Name "Previous":
+  <button
+    class="secondary svelte-165eeit"
+    disabled=""
+  />
+
+  Name "Next":
+  <button
+    class="secondary svelte-165eeit"
+    disabled=""
+  />
+
+  Name "Last":
+  <button
+    class="secondary svelte-165eeit"
+    disabled=""
+  />
+
+  --------------------------------------------------
+  main:
+
+  Name "":
+  <main
+    class="svelte-165eeit"
+  />
+
+  --------------------------------------------------
+  banner:
+
+  Name "":
+  <header
+    class="svelte-165eeit"
+  />
+
+  --------------------------------------------------
+  heading:
+
+  Name "Vocabulary":
+  <h1
+    class="svelte-165eeit"
+    id="windows-page-title"
+  />
+
+  --------------------------------------------------
+  paragraph:
+
+  Name "":
+  <p
+    class="svelte-165eeit"
+  />
+
+  --------------------------------------------------
+  region:
+
+  Name "Vocabulary":
+  <section
+    aria-busy="false"
+    aria-labelledby="windows-page-title"
+    class="svelte-165eeit"
+  />
+
+  --------------------------------------------------
+  tablist:
+
+  Name "Vocabulary views":
+  <div
+    aria-label="Vocabulary views"
+    class="vocabulary-tabs svelte-165eeit"
+    role="tablist"
+  />
+
+  --------------------------------------------------
+  textbox:
+
+  Name "Search vocabulary":
+  <input
+    aria-label="Search vocabulary"
+    class="svelte-165eeit"
+    placeholder="Word or translation"
+  />
+
+  --------------------------------------------------
+  form:
+
+  Name "Go to vocabulary page":
+  <form
+    aria-label="Go to vocabulary page"
+    class="svelte-165eeit"
+  />
+
+  --------------------------------------------------
+  spinbutton:
+
+  Name "Page number":
+  <input
+    aria-label="Page number"
+    class="svelte-165eeit"
+    max="1"
+    min="1"
+    type="number"
+  />
+
+  --------------------------------------------------
+
+Ignored nodes: comments, script, style
+<body>
+  <div>
+    <div
+      class="windows-presentation svelte-165eeit"
+      data-appearance="system"
+      data-reduced-motion="false"
+      data-settings-ready="true"
+    >
+      <div
+        class="windows-shell svelte-165eeit"
+        data-appearance="system"
+        data-presentation="windows-main"
+        data-reduced-motion="false"
+      >
+        <aside
+          class="svelte-165eeit"
+        >
+          <div
+            class="brand svelte-165eeit"
+          >
+            <svg
+              aria-hidden="true"
+              class="svelte-165eeit"
+              height="20"
+              viewBox="0 0 24 24"
+              width="20"
+            >
+              <path
+                class="svelte-165eeit"
+                d="M3 4h6l3 5 3-5h6l-9 17Z M6 4l6 11 6-11"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+              />
+            </svg>
+            <strong
+              class="svelte-165eeit"
+            >
+              Vocab Collector
+            </strong>
+          </div>
+           
+          <nav
+            aria-label="Main navigation"
+            class="svelte-165eeit"
+          >
+            <button
+              class="svelte-165eeit"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-calendar-days lucide-icon"
+                fill="none"
+                height="18"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="18"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M8 2v3"
+                >
+                  
+                </path>
+                
+                <path
+                  d="M16 2v3"
+                >
+                  
+                </path>
+                
+                <rect
+                  height="18"
+                  rx="2"
+                  width="18"
+                  x="3"
+                  y="3"
+                >
+                  
+                </rect>
+                
+                <path
+                  d="M3 9h18"
+                >
+                  
+                </path>
+                
+                <path
+                  d="M8 13h.01"
+                >
+                  
+                </path>
+                
+                <path
+                  d="M12 13h.01"
+                >
+                  
+                </path>
+                
+                <path
+                  d="M16 13h.01"
+                >
+                  
+                </path>
+                
+                <path
+                  d="M8 17h.01"
+                >
+                  
+                </path>
+                
+                <path
+                  d="M12 17h.01"
+                >
+                  
+                </path>
+                
+                <path
+                  d="M16 17h.01"
+                >
+                  
+                </path>
+                
+              </svg>
+              Today
+            </button>
+            <button
+              aria-current="page"
+              class="svelte-165eeit active"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-book-open lucide-icon"
+                fill="none"
+                height="18"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="18"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M12 5v16"
+                >
+                  
+                </path>
+                
+                <path
+                  d="M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z"
+                >
+                  
+                </path>
+                
+              </svg>
+              Vocabulary
+            </button>
+            <button
+              class="svelte-165eeit"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-chart-no-axes-column lucide-bar-chart-2 lucide-icon"
+                fill="none"
+                height="18"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                strok...
+ ❯ Object.getElementError ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/config.js:37:19
+ ❯ ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:76:38
+ ❯ ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+ ❯ ../node_modules/.pnpm/@testing-library+dom@10.4.1/node_modules/@testing-library/dom/dist/query-helpers.js:95:19
+ ❯ src/windows/WindowsApp.test.ts:100:26
+     98|     await screen.findByText("serendipity");
+     99|     await fireEvent.click(screen.getByRole("button", { name: "Vocabula…
+    100|     const table = screen.getByRole("table", { name: "Vocabulary" });
+       |                          ^
+    101|     expect(within(table).getByRole("columnheader", { name: "Translatio…
+    102|     const word = within(table).getByRole("button", { name: "serendipit…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 28 skipped (29)
+   Start at  12:52:02
+   Duration  10.04s (transform 5.32s, setup 1.45s, collect 6.84s, tests 298ms, environment 822ms, prepare 185ms)
+
+[ELIFECYCLE] Test failed. See above for more details.

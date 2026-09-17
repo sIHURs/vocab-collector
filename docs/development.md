@@ -22,6 +22,42 @@ cargo fetch
 
 The browser backend and Rust application service implement the same frontend-facing contract. New UI interactions must be added to that contract and the Tauri command layer together.
 
+## Development-only network translation
+
+Windows Debug builds may enable the experimental Region OCR capability by setting
+`VOCAB_ENABLE_WINDOWS_OCR=true` in the untracked workspace-root `.env.local`.
+The default is `false`, invalid values fail startup with a content-safe error, and
+Release builds ignore this developer flag.
+
+Windows builds may also use a developer-owned Azure Translator or DeepL resource.
+Copy `.env.example` to `.env.local`, set
+`VOCAB_TRANSLATION_PROVIDER` to `azure` or `deepl`, and configure the matching
+key. The app never guesses a provider from available keys and parses only the
+selected provider. Existing process environment variables take precedence.
+
+Azure defaults to its global endpoint and optionally accepts a region. DeepL
+Free defaults to `https://api-free.deepl.com`; DeepL Pro uses
+`https://api.deepl.com`. The endpoint selects the DeepL tier—there is no separate
+plan setting. Provider-specific timeout settings default to ten seconds.
+
+Missing configuration keeps translation unavailable. Partial or invalid
+configuration fails safely during startup without exposing configured values.
+Release builds do not load `.env.local`. Never commit that file or put credentials
+in frontend state, logs, screenshots, test output, or documentation.
+
+All default tests use local mock HTTP servers and contact neither provider. On
+the target Windows physical machine, a developer may explicitly run the matching
+ignored fixed-text smoke test after setting credentials:
+
+```powershell
+cargo test -p vocab-translation-azure --test live_translation -- --ignored
+cargo test -p vocab-translation-deepl --test live_translation -- --ignored
+```
+
+Either provider smoke test alone does not physically verify the capture window or
+OCR workflow. Accounts, proxying, quota ownership, release credentials,
+installers, and production readiness remain out of scope for this development path.
+
 ## Core debugging
 
 Run the lightweight core REPL without Tauri or a platform adapter:

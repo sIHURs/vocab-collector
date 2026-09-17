@@ -1,6 +1,29 @@
 use chrono::{DateTime, Duration, Utc};
 
-use crate::{ReviewRating, ReviewState, Word, WordStatus};
+use crate::{ReviewRating, ReviewResult, ReviewSessionInsight, ReviewState, Word, WordStatus};
+
+pub fn summarize_review_session(
+    results: &[ReviewResult],
+    next_day_due_count: usize,
+) -> ReviewSessionInsight {
+    ReviewSessionInsight {
+        reviewed_count: results.len(),
+        remembered_count: results
+            .iter()
+            .filter(|result| result.rating == ReviewRating::Remembered)
+            .count(),
+        forgotten_count: results
+            .iter()
+            .filter(|result| result.rating == ReviewRating::Forgot)
+            .count(),
+        attention_word_ids: results
+            .iter()
+            .filter(|result| result.repeated_forgetting)
+            .map(|result| result.word_id)
+            .collect(),
+        next_day_due_count,
+    }
+}
 
 pub fn apply_review(
     prior: Option<&ReviewState>,

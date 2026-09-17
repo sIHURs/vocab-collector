@@ -1,0 +1,39 @@
+{
+  "encounters_initial": 1000000,
+  "os": "windows",
+  "samples": [
+    {
+      "capture_storage_ms": 731.2997,
+      "list_application_ms": 35272.870599999995,
+      "page_count": 50,
+      "page_simulation_ms": 0.00009999999999999999,
+      "quick_check_ms": 1493.9786,
+      "run": 0,
+      "search_count": 50,
+      "search_simulation_ms": 0.0134
+    },
+    {
+      "capture_storage_ms": 739.6475,
+      "list_application_ms": 47675.1633,
+      "page_count": 50,
+      "page_simulation_ms": 0.0,
+      "quick_check_ms": 1484.5454,
+      "run": 1,
+      "search_count": 50,
+      "search_simulation_ms": 0.0056
+    },
+    {
+      "capture_storage_ms": 782.4653000000001,
+      "list_application_ms": 45861.8865,
+      "page_count": 50,
+      "page_simulation_ms": 0.00009999999999999999,
+      "quick_check_ms": 1532.6986,
+      "run": 2,
+      "search_count": 50,
+      "search_simulation_ms": 0.0048
+    }
+  ],
+  "scope": "Rust application/storage; search/page simulations exclude WebView rendering and IPC",
+  "sqlite": "3.53.2",
+  "words": 100000
+}

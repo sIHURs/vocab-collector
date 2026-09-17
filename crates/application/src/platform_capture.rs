@@ -3,7 +3,7 @@ use std::sync::Arc;
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 use vocab_capture::{CaptureCoordinator, CoordinatorError};
-use vocab_domain::CaptureCard;
+use vocab_domain::{AchievedCaptureConflict, CaptureCard, UserSettings};
 use vocab_platform_api::{
     CaptureCandidate, CaptureOrigin, PlatformError, PlatformServices, SelectionProvider,
     TranslationProvider, TranslationResult,
@@ -62,6 +62,14 @@ impl PlatformCaptureWorkflow {
         Ok(self.coordinator.publish_if_current(request_id, publish)?)
     }
 
+    pub fn dismiss_and_publish<T>(
+        &self,
+        request_id: Uuid,
+        publish: impl FnOnce() -> T,
+    ) -> Result<T, PlatformCaptureError> {
+        Ok(self.coordinator.dismiss_and_publish(request_id, publish)?)
+    }
+
     pub fn set_candidate(
         &self,
         request_id: Uuid,
@@ -84,6 +92,45 @@ impl PlatformCaptureWorkflow {
 
     pub fn confirm_ocr(&self, request_id: Uuid) -> Result<(), PlatformCaptureError> {
         self.coordinator.confirm_ocr(request_id)?;
+        Ok(())
+    }
+
+    pub fn correct(
+        &self,
+        request_id: Uuid,
+        selected_text: String,
+        sentence: String,
+        manual_translation: Option<String>,
+    ) -> Result<(), PlatformCaptureError> {
+        let settings = self.application.get_settings()?;
+        let mut candidate = self.coordinator.candidate(request_id)?;
+        // Applying/editing a translation for the same word must retain the
+        // provider's detected language, rather than replacing it with `auto`.
+        let previous_translation = if vocab_domain::normalize_lemma(&candidate.selected_text)
+            == vocab_domain::normalize_lemma(&selected_text)
+        {
+            self.coordinator.translation(request_id)?
+        } else {
+            None
+        };
+        candidate.selected_text = selected_text;
+        candidate.sentence = sentence;
+        let translation = manual_translation
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+            .map(|translated_text| TranslationResult {
+                translated_text,
+                source_language: previous_translation.as_ref().map_or_else(
+                    || settings.source_language.clone(),
+                    |value| value.source_language.clone(),
+                ),
+                target_language: previous_translation.as_ref().map_or_else(
+                    || settings.target_language.clone(),
+                    |value| value.target_language.clone(),
+                ),
+            });
+        self.coordinator
+            .correct(request_id, candidate, translation)?;
         Ok(())
     }
 
@@ -141,31 +188,88 @@ impl PlatformCaptureWorkflow {
         captured_at: DateTime<Utc>,
     ) -> Result<CaptureCard, PlatformCaptureError> {
         let settings = self.application.get_settings()?;
-        Ok(self
-            .coordinator
-            .save_with(request_id, without_translation, |snapshot| {
-                let candidate = &snapshot.candidate;
-                let translation = snapshot.translation.as_ref();
-                self.application.capture(CaptureRequest {
-                    selected_text: candidate.selected_text.clone(),
-                    lemma: None,
-                    sentence: candidate.sentence.clone(),
-                    source_language: translation.map_or_else(
-                        || settings.source_language.clone(),
-                        |value| value.source_language.clone(),
-                    ),
-                    target_language: translation.map_or_else(
-                        || settings.target_language.clone(),
-                        |value| value.target_language.clone(),
-                    ),
-                    translation: translation.map(|value| value.translated_text.clone()),
-                    part_of_speech: None,
-                    source_app: candidate.source_app.clone(),
-                    source_title: candidate.source_title.clone(),
-                    source_url: candidate.source_url.clone(),
-                    capture_origin: candidate.origin,
-                    captured_at,
-                })
-            })?)
+        Ok(self.coordinator.save_with_id(
+            request_id,
+            without_translation,
+            |snapshot| {
+                self.application
+                    .capture(capture_request(snapshot, &settings, captured_at))
+            },
+            |card| card.encounter_id,
+        )?)
+    }
+
+    pub fn find_achieved_capture(
+        &self,
+        request_id: Uuid,
+        captured_at: DateTime<Utc>,
+    ) -> Result<Option<AchievedCaptureConflict>, PlatformCaptureError> {
+        let settings = self.application.get_settings()?;
+        let snapshot = vocab_capture::CaptureSnapshot {
+            request_id,
+            candidate: self.coordinator.candidate(request_id)?,
+            translation: self.coordinator.translation(request_id)?,
+        };
+        Ok(self.application.find_achieved_capture(&capture_request(
+            &snapshot,
+            &settings,
+            captured_at,
+        ))?)
+    }
+
+    pub fn restore_achieved_and_save(
+        &self,
+        request_id: Uuid,
+        word_id: Uuid,
+        without_translation: bool,
+        captured_at: DateTime<Utc>,
+    ) -> Result<CaptureCard, PlatformCaptureError> {
+        let settings = self.application.get_settings()?;
+        Ok(self.coordinator.save_with_id(
+            request_id,
+            without_translation,
+            |snapshot| {
+                self.application.restore_achieved_and_capture(
+                    word_id,
+                    capture_request(snapshot, &settings, captured_at),
+                )
+            },
+            |card| card.encounter_id,
+        )?)
+    }
+
+    pub fn undo(&self, request_id: Uuid, encounter_id: Uuid) -> Result<(), PlatformCaptureError> {
+        Ok(self.coordinator.undo_with(request_id, encounter_id, || {
+            self.application.undo_capture(encounter_id)
+        })?)
+    }
+}
+
+fn capture_request(
+    snapshot: &vocab_capture::CaptureSnapshot,
+    settings: &UserSettings,
+    captured_at: DateTime<Utc>,
+) -> CaptureRequest {
+    let candidate = &snapshot.candidate;
+    let translation = snapshot.translation.as_ref();
+    CaptureRequest {
+        selected_text: candidate.selected_text.clone(),
+        lemma: None,
+        sentence: candidate.sentence.clone(),
+        source_language: translation.map_or_else(
+            || settings.source_language.clone(),
+            |value| value.source_language.clone(),
+        ),
+        target_language: translation.map_or_else(
+            || settings.target_language.clone(),
+            |value| value.target_language.clone(),
+        ),
+        translation: translation.map(|value| value.translated_text.clone()),
+        part_of_speech: None,
+        source_app: candidate.source_app.clone(),
+        source_title: candidate.source_title.clone(),
+        source_url: candidate.source_url.clone(),
+        capture_origin: candidate.origin,
+        captured_at,
     }
 }

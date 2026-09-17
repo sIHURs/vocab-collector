@@ -1,10 +1,18 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use vocab_application::PlatformCaptureError;
 use vocab_capture::CoordinatorError;
-use vocab_platform_api::{Capability, CaptureCandidate, PlatformError};
+use vocab_platform_api::{Capability, CaptureCandidate, OcrCandidate, PlatformError};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+pub const LIBRARY_CHANGED_EVENT: &str = "library-changed";
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RegionOcrStartEvent {
+    pub request_id: Uuid,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CaptureFailureCode {
     PermissionRequired,
@@ -17,7 +25,7 @@ pub enum CaptureFailureCode {
     Operation,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub struct CaptureFailure {
     pub code: CaptureFailureCode,
     pub message: String,
@@ -33,9 +41,11 @@ impl CaptureFailure {
 
     pub fn from_translation(error: PlatformCaptureError) -> Self {
         match error {
-            PlatformCaptureError::Platform(PlatformError::Operation(message)) => Self {
+            PlatformCaptureError::Platform(PlatformError::Operation(_)) => Self {
                 code: CaptureFailureCode::TranslationFailed,
-                message: PlatformError::Operation(message).to_string(),
+                message:
+                    "Translation is temporarily unavailable. You can retry or continue editing."
+                        .into(),
             },
             error => error.into(),
         }
@@ -86,6 +96,14 @@ impl From<PlatformCaptureError> for CaptureFailure {
 pub struct NativeCaptureEvent {
     pub request_id: Uuid,
     pub candidate: CaptureCandidate,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OcrCandidatesEvent {
+    pub request_id: Uuid,
+    pub candidates: Vec<OcrCandidate>,
+    pub ambiguous: bool,
 }
 
 #[derive(Debug)]

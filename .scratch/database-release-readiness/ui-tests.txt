@@ -1,0 +1,102 @@
+$ pnpm --dir ui test
+$ vitest run
+1:31:36 AM [vite-plugin-svelte] no Svelte config found at C:/Users/yifan/project/vocab-collector/ui - using default configuration.
+
+ RUN  v3.2.7 C:/Users/yifan/project/vocab-collector/ui
+
+ ✓ src/FloatingCapture.test.ts (22 tests) 1717ms
+   ✓ floating capture request freshness > shows Achieved before explicitly saving the same item  300ms
+ ✓ src/App.test.ts (3 tests) 756ms
+   ✓ application shell > provides compact navigation for the main product areas  383ms
+ ✓ src/windows/WindowsFloatingCapture.test.ts (24 tests) 2870ms
+   ✓ Windows floating capture presentation > automatically previews a native translation, applies independent edits, and saves only on confirmation  540ms
+ ✓ src/components/SettingsForm.test.ts (4 tests) 2712ms
+   ✓ Settings shortcut recording > saves hour and minute choices in 24-hour format without losing minute precision  1887ms
+ ✓ src/components/VocabularyLog.test.ts (6 tests) 10974ms
+   ✓ Vocabulary Activity > uses one tab stop, moves through days and weeks, labels recorded and unknown days  10553ms
+ ✓ src/components/VocabularyDetail.test.ts (2 tests) 1184ms
+   ✓ shows saved target languages and the translation saved with an Encounter  852ms
+   ✓ shows a translation once with a friendly language and dates every Encounter  330ms
+ ✓ src/windows/WindowsNavigation.test.ts (1 test) 3036ms
+   ✓ searches from Today, toggles navigation and opens capture from the titlebar  3034ms
+ ✓ src/components/DatabaseSettings.test.ts (4 tests) 996ms
+   ✓ Local data controls > starts and cancels one identified check  573ms
+stderr | src/windows/WindowsApp.test.ts > Windows main presentation > confirms Achieve in an application dialog and shows the resulting Achieved list
+[svelte] derived_inert
+Reading a derived belonging to a now-destroyed effect may result in stale values
+https://svelte.dev/e/derived_inert
+
+stderr | src/windows/WindowsApp.test.ts > Windows main presentation > confirms Achieve in an application dialog and shows the resulting Achieved list
+[svelte] derived_inert
+Reading a derived belonging to a now-destroyed effect may result in stale values
+https://svelte.dev/e/derived_inert
+
+ ✓ src/lib/appearance.test.ts (3 tests) 376ms
+ ✓ src/windows/WindowsOcrOverlay.test.ts (4 tests) 713ms
+   ✓ Region OCR overlay > turns a user drag into one logical desktop region  473ms
+ ✓ src/windows/WindowsTitlebar.test.ts (1 test) 925ms
+   ✓ connects window controls, reflects maximized state and keeps controls out of drag regions  922ms
+ ✓ src/components/ShortcutRecorder.test.ts (2 tests) 413ms
+   ✓ ShortcutRecorder > records a modified key and cancels with Escape  335ms
+ ✓ src/windows/LearningStatus.test.ts (6 tests) 10963ms
+   ✓ saves the selected Learning Status and moves the item without leaving its detail  3821ms
+   ✓ retains the saved state on write failure and allows retry while preventing repeat submission  1458ms
+   ✓ reports a saved status separately from a failed refresh  1163ms
+   ✓ undoes a status change through the existing bottom-right notification  947ms
+   ✓ shows a failed Undo in its notification without falsely restoring the status  871ms
+   ✓ automatically dismisses Unachieve feedback after two seconds without undoing the change  2700ms
+ ✓ src/windows/ResumeReview.test.ts (9 tests) 12199ms
+   ✓ resumes from current status and completes with earlier Review results intact  3295ms
+   ✓ includes a newly due Learning item and excludes Paused and Mastered within the existing limit  1213ms
+   ✓ blocks stale Resume on refresh failure and retries without losing completed results  1485ms
+   ✓ uses persisted Undo results when resuming  820ms
+   ✓ fills the remaining plan even when an already reviewed item becomes due again  863ms
+   ✓ keeps the submitted card paired with its result when its status is edited from Review contexts  1302ms
+   ✓ continues directly into the smaller final batch and reports all due words completed  1860ms
+   ✓ puts all due words in one batch when the configured limit exceeds the backlog  685ms
+   ✓ keeps the completed batch available when continuing cannot refresh the queue  675ms
+ ✓ src/components/TranslationText.test.ts (2 tests) 131ms
+ ✓ src/lib/backend.test.ts (6 tests) 245ms
+ ✓ src/lib/presentation.test.ts (2 tests) 168ms
+stderr | src/windows/WindowsApp.test.ts > Windows main presentation > selects the filtered Achieved list and runs batch Unachieve or confirmed deletion
+[svelte] derived_inert
+Reading a derived belonging to a now-destroyed effect may result in stale values
+https://svelte.dev/e/derived_inert
+
+stderr | src/windows/WindowsApp.test.ts > Windows main presentation > selects the filtered Achieved list and runs batch Unachieve or confirmed deletion
+[svelte] derived_inert
+Reading a derived belonging to a now-destroyed effect may result in stale values
+https://svelte.dev/e/derived_inert
+
+ ✓ src/windows/WindowsApp.test.ts (42 tests) 25508ms
+   ✓ sorts all vocabulary before pagination and toggles header directions  4547ms
+   ✓ Windows main presentation > keeps Manual Capture drafts after save and Achieved-restore failures  1059ms
+   ✓ Windows main presentation > confirms Achieve in an application dialog and shows the resulting Achieved list  1133ms
+   ✓ Windows main presentation > keeps cross-filter Achieved selections and makes failed bulk actions retryable  701ms
+   ✓ Windows main presentation > keeps a saved Capture's Undo available after a failed undo  664ms
+   ✓ Windows main presentation > keeps the page available when the Encounter detail request fails  458ms
+   ✓ Windows main presentation > opens Encounter details from a semantic Vocabulary table and restores keyboard focus  886ms
+   ✓ Windows main presentation > provides Windows navigation without the static Progress view  333ms
+   ✓ Windows main presentation > moves focus into the Manual Capture dialog and returns it when dismissed  340ms
+   ✓ Windows main presentation > keeps keyboard focus inside Manual Capture  317ms
+   ✓ Windows main presentation > saves repeat encounters, shows detail, and refreshes after Undo  939ms
+   ✓ Windows main presentation > refreshes Today and Vocabulary after a capture is saved in another window  439ms
+   ✓ Windows main presentation > keeps Manual Capture input available after a save failure  360ms
+   ✓ Windows main presentation > runs, closes, resumes, and completes the shared due queue  928ms
+   ✓ Windows main presentation > requires revealing the answer before a Review can be rated  328ms
+   ✓ Windows main presentation > shows core-backed Encounter and repeated-forgetting Insight after rating  312ms
+   ✓ Windows main presentation > scrolls configured recent captures and paginates the full vocabulary  610ms
+   ✓ Windows main presentation > blocks stale Resume until a failed close refresh succeeds  396ms
+   ✓ Windows main presentation > persists and reads back Windows settings before applying visual preferences  781ms
+   ✓ Windows main presentation > queues rapid edits without overwriting unfinished input after navigation  397ms
+   ✓ Windows main presentation > retries failed changes and reads them back in a new window  398ms
+   ✓ Windows main presentation > offers automatic source detection but requires an explicit target  348ms
+   ✓ Windows main presentation > shows per-setting system failures while preserving unrelated saved values  413ms
+   ✓ Windows main presentation > shows archived-aware lifetime Insight on Insights  2664ms
+   ✓ Paper Today and Review > keeps Today available when optional Insight fails  2559ms
+
+ Test Files  18 passed (18)
+      Tests  143 passed (143)
+   Start at  01:31:37
+   Duration  62.59s (transform 20.13s, setup 83.44s, collect 124.58s, tests 75.89s, environment 44.73s, prepare 8.91s)
+

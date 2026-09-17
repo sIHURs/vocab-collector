@@ -17,5 +17,7 @@ vocab-platform-api = { path = "../platform-api" }
 vocab-storage = { path = "../storage" }
 
 [dev-dependencies]
+rusqlite.workspace = true
+tempfile = "3"
 async-trait.workspace = true
 vocab-platform-contract-tests = { path = "../platform-contract-tests" }

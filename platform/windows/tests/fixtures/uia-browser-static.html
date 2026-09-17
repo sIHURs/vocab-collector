@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Vocab UIA static fixture</title>
+  </head>
+  <body>
+    <span id="fixture">Chrome static fixture Straße 中文</span>
+    <script>
+      const range = document.createRange();
+      range.selectNodeContents(document.querySelector("#fixture"));
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+    </script>
+  </body>
+</html>

@@ -1,0 +1,12 @@
+   Compiling vocab-storage v0.1.0 (C:\Users\yifan\project\vocab-collector\crates\storage)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.95s
+     Running tests\vocabulary_log.rs (target\debug\deps\vocabulary_log-e0b9d6b539e2ba71.exe)
+
+running 4 tests
+test failed_capture_and_failed_undo_roll_back_daily_count_with_encounter ... ok
+test achieved_recapture_counts_once_and_purge_keeps_only_anonymous_daily_totals ... ok
+test successful_saves_use_local_save_day_and_undo_original_day_once ... ok
+test migration_does_not_reconstruct_history_and_timezone_changes_do_not_rebucket ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.32s
+

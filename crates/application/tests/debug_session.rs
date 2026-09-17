@@ -35,7 +35,7 @@ fn capture_trace_explains_normalization_application_and_storage() {
         trace.observations[1].data["normalizedSentence"],
         "A lucky moment."
     );
-    assert_eq!(trace.observations[1].data["dedupeKey"], "serendipity|en|de");
+    assert_eq!(trace.observations[1].data["dedupeKey"], "serendipity|en");
     assert_eq!(trace.observations[2].stage, DebugStage::Application);
     assert_eq!(trace.observations[3].stage, DebugStage::Persistence);
     assert_eq!(trace.observations[3].data["outboxBefore"], 0);
@@ -71,8 +71,12 @@ fn session_exposes_duplicate_review_and_undo_through_core_apis() {
         Some(reviewed_at + Duration::days(3))
     );
 
-    let summary = session.undo(second.result.encounter_id).unwrap();
-    assert_eq!(summary.active_encounter_count, 1);
+    assert!(session.undo(second.result.encounter_id).is_err());
+    let newest = session
+        .capture(input("serendipity", "After review."))
+        .unwrap();
+    let summary = session.undo(newest.result.encounter_id).unwrap();
+    assert_eq!(summary.active_encounter_count, 2);
     assert_eq!(
         session
             .inspect_word(second.result.word_id)
@@ -80,7 +84,7 @@ fn session_exposes_duplicate_review_and_undo_through_core_apis() {
             .detail
             .item
             .encounter_count,
-        1
+        2
     );
 }
 
@@ -96,12 +100,12 @@ fn session_exposes_settings_today_and_read_only_database_diagnostics() {
     settings.target_language = "zh".into();
     let updated = session.update_settings(settings).unwrap();
     assert_eq!(updated.daily_limit, 9);
-    assert_eq!(updated.target_language, "zh");
+    assert_eq!(updated.target_language, "zh-Hans");
 
     let today = session
         .today(Utc.with_ymd_and_hms(2026, 8, 29, 12, 1, 0).unwrap())
         .unwrap();
-    assert_eq!(today.due_count, 1);
+    assert_eq!(today.total_due_count, 1);
     assert_eq!(today.review_queue[0].word_id, trace.result.word_id);
 
     let summary = session.database_summary().unwrap();

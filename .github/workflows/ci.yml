@@ -23,6 +23,8 @@ jobs:
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets --exclude vocab-platform-linux --exclude vocab-platform-windows -- -D warnings
       - run: cargo test --workspace --exclude vocab-platform-linux --exclude vocab-platform-windows
+      - run: cargo test -p vocab-translation-azure
+      - run: cargo test -p vocab-translation-deepl
       - run: cargo test -p vocab-platform-macos
       - run: cargo build --workspace --exclude vocab-platform-linux --exclude vocab-platform-windows
       - run: swift test --package-path platform/macos/native
@@ -50,6 +52,8 @@ jobs:
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets --exclude vocab-platform-macos --exclude vocab-platform-windows -- -D warnings
       - run: cargo test --workspace --exclude vocab-platform-macos --exclude vocab-platform-windows
+      - run: cargo test -p vocab-translation-azure
+      - run: cargo test -p vocab-translation-deepl
       - run: cargo test -p vocab-platform-linux
       - run: cargo build --workspace --exclude vocab-platform-macos --exclude vocab-platform-windows
       - run: pnpm check
@@ -75,8 +79,44 @@ jobs:
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets --exclude vocab-platform-macos --exclude vocab-platform-linux -- -D warnings
       - run: cargo test --workspace --exclude vocab-platform-macos --exclude vocab-platform-linux
+      - run: cargo test -p vocab-translation-azure
+      - run: cargo test -p vocab-translation-deepl
       - run: cargo test -p vocab-platform-windows
       - run: cargo build --workspace --exclude vocab-platform-macos --exclude vocab-platform-linux
       - run: pnpm check
       - run: pnpm test
       - run: pnpm build
+      - name: Build per-user NSIS preview
+        run: pnpm tauri build --bundles nsis
+      - name: Verify synthetic database benchmark
+        shell: pwsh
+        run: |
+          cargo run --release -p vocab-application --example database_benchmark -- 100 1 > database-smoke.json
+          if ($LASTEXITCODE -ne 0) { throw "Database smoke benchmark failed" }
+          $result = Get-Content database-smoke.json -Raw | ConvertFrom-Json
+          if ($result.words -ne 100 -or $result.encounters_initial -ne 1000) { throw "Unexpected synthetic fixture" }
+      - name: Upload database smoke report
+        uses: actions/upload-artifact@v4
+        with:
+          name: database-smoke-${{ github.sha }}
+          path: database-smoke.json
+          if-no-files-found: error
+      - name: Record installer checksum
+        shell: pwsh
+        run: |
+          $installer = @(Get-ChildItem -Path target/release/bundle/nsis -Filter *.exe -File)
+          if ($installer.Count -ne 1) {
+            throw "Expected exactly one NSIS installer, found $($installer.Count)."
+          }
+          Get-FileHash -Algorithm SHA256 -LiteralPath $installer[0].FullName |
+            ForEach-Object { "$($_.Hash.ToLowerInvariant())  $($installer[0].Name)" } |
+            Set-Content -Encoding ascii -LiteralPath "$($installer[0].FullName).sha256"
+      - name: Upload commit-traceable NSIS preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: vocab-collector-windows-x64-nsis-${{ github.sha }}
+          path: |
+            target/release/bundle/nsis/*.exe
+            target/release/bundle/nsis/*.exe.sha256
+          if-no-files-found: error
+          retention-days: 14

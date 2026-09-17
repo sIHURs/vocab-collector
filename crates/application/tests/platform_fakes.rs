@@ -15,7 +15,7 @@ use vocab_capture::CoordinatorError;
 use vocab_platform_api::{
     Capability, CaptureCandidate, CaptureOrigin, OcrCandidate, OcrProvider, PermissionKind,
     PermissionProvider, PermissionStatus, PlatformCapabilities, PlatformError, PlatformServices,
-    ScreenPoint, SelectionProvider, TranslationProvider, TranslationResult, WindowProvider,
+    ScreenRect, SelectionProvider, TranslationProvider, TranslationResult, WindowProvider,
 };
 use vocab_platform_contract_tests::{FakeSelectionProvider, UnavailableTranslationProvider};
 use vocab_storage::SqliteStore;
@@ -82,9 +82,10 @@ struct UnusedOcrProvider;
 
 #[async_trait::async_trait]
 impl OcrProvider for UnusedOcrProvider {
-    async fn recognize_near(
+    async fn recognize_region(
         &self,
-        _pointer: ScreenPoint,
+        _region: ScreenRect,
+        _source_language: &str,
     ) -> Result<Vec<OcrCandidate>, PlatformError> {
         Err(PlatformError::Unsupported(Capability::ScreenshotOcr))
     }
@@ -432,6 +433,101 @@ fn explicit_save_without_translation_persists_an_untranslated_capture_once() {
 }
 
 #[test]
+fn corrected_native_capture_and_manual_translation_use_the_shared_workflow() {
+    let (workflow, application) = workflow(Ok(candidate("mispelled")));
+    let prepared = block_on(workflow.prepare_selection()).unwrap();
+
+    workflow
+        .correct(
+            prepared.request_id,
+            "misspelled".into(),
+            "This word was misspelled.".into(),
+            Some("falsch geschrieben".into()),
+        )
+        .unwrap();
+    let card = workflow
+        .save(prepared.request_id, false, captured_at())
+        .unwrap();
+    let detail = application.get_word(card.word_id).unwrap();
+
+    assert_eq!(card.display_form, "misspelled");
+    assert_eq!(card.translation.as_deref(), Some("falsch geschrieben"));
+    assert_eq!(detail.encounters[0].sentence, "This word was misspelled.");
+
+    workflow
+        .undo(prepared.request_id, card.encounter_id)
+        .unwrap();
+    assert!(
+        application
+            .get_word(card.word_id)
+            .unwrap()
+            .encounters
+            .is_empty()
+    );
+}
+
+#[test]
+fn translated_capture_applies_independent_edits_before_saving_once() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let translation: Arc<dyn TranslationProvider> = Arc::new(CountingTranslationProvider {
+        calls: calls.clone(),
+    });
+    let (workflow, application) = workflow_with_translation(Ok(candidate("original")), translation);
+    let request = workflow.start_request();
+    workflow
+        .set_candidate(request, candidate("original"))
+        .unwrap();
+    block_on(workflow.translate(request, "original", "en", "de")).unwrap();
+
+    workflow
+        .correct(
+            request,
+            "edited word".into(),
+            "An independently edited context.".into(),
+            Some("manuell bearbeitet".into()),
+        )
+        .unwrap();
+    assert!(application.list_words().unwrap().is_empty());
+
+    let card = workflow.save(request, false, captured_at()).unwrap();
+    let detail = application.get_word(card.word_id).unwrap();
+    assert_eq!(card.display_form, "edited word");
+    assert_eq!(card.translation.as_deref(), Some("manuell bearbeitet"));
+    assert_eq!(
+        detail.encounters[0].sentence,
+        "An independently edited context."
+    );
+    assert!(matches!(
+        workflow.save(request, false, captured_at()),
+        Err(PlatformCaptureError::Coordinator(
+            CoordinatorError::AlreadySaved
+        ))
+    ));
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn blank_manual_translation_still_requires_explicit_untranslated_save() {
+    let (workflow, _) = workflow(Ok(candidate("serendipity")));
+    let prepared = block_on(workflow.prepare_selection()).unwrap();
+    workflow
+        .correct(
+            prepared.request_id,
+            "serendipity".into(),
+            "A sentence preserving serendipity exactly.".into(),
+            Some("   ".into()),
+        )
+        .unwrap();
+
+    assert!(matches!(
+        workflow.save(prepared.request_id, false, captured_at()),
+        Err(PlatformCaptureError::Coordinator(
+            CoordinatorError::TranslationRequired
+        ))
+    ));
+}
+
+#[test]
 fn operation_translation_failure_can_save_without_translation() {
     let calls = Arc::new(AtomicUsize::new(0));
     let translation: Arc<dyn TranslationProvider> = Arc::new(RetryTranslationProvider {
@@ -452,4 +548,157 @@ fn operation_translation_failure_can_save_without_translation() {
     assert_eq!(card.translation, None);
     assert_eq!(application.list_words().unwrap().len(), 1);
     assert_eq!(calls.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn selection_and_confirmed_ocr_recapture_share_identity_and_complete_undo() {
+    use vocab_domain::{WordRepository, WordStatus};
+    for origin in [CaptureOrigin::Accessibility, CaptureOrigin::Ocr] {
+        let store = Arc::new(SqliteStore::open_in_memory().unwrap());
+        let app = Arc::new(AppService::new(store.clone(), Uuid::now_v7()));
+        let workflow = PlatformCaptureWorkflow::new(
+            app.clone(),
+            platform_services(
+                Ok(candidate("robust")),
+                Arc::new(UnavailableTranslationProvider),
+            ),
+        );
+        let first_request = workflow.start_request();
+        workflow
+            .set_candidate(first_request, candidate("robust"))
+            .unwrap();
+        workflow
+            .correct(
+                first_request,
+                "robust".into(),
+                "Original context.".into(),
+                Some("stark".into()),
+            )
+            .unwrap();
+        let first = workflow.save(first_request, false, captured_at()).unwrap();
+        let mut word = WordRepository::get(store.as_ref(), first.word_id)
+            .unwrap()
+            .unwrap();
+        word.enter_mastered(Utc::now());
+        WordRepository::save(store.as_ref(), &word).unwrap();
+        app.achieve_word(word.id, Utc::now()).unwrap();
+        let mut settings = app.get_settings().unwrap();
+        settings.target_language = "zh-Hans".into();
+        app.update_settings(settings).unwrap();
+        let request = workflow.start_request();
+        let mut next = candidate("robust");
+        next.origin = origin;
+        workflow.set_candidate(request, next).unwrap();
+        if origin == CaptureOrigin::Ocr {
+            assert!(workflow.save(request, true, Utc::now()).is_err());
+            workflow.confirm_ocr(request).unwrap();
+        }
+        workflow
+            .correct(
+                request,
+                "robust".into(),
+                "New context.".into(),
+                Some("稳健的".into()),
+            )
+            .unwrap();
+        let found = workflow
+            .find_achieved_capture(request, Utc::now())
+            .unwrap()
+            .unwrap();
+        assert_eq!(found.word_id, first.word_id);
+        let saved = workflow
+            .restore_achieved_and_save(request, found.word_id, false, Utc::now())
+            .unwrap();
+        assert_eq!(saved.word_id, first.word_id);
+        assert_eq!(app.get_word(first.word_id).unwrap().translations.len(), 2);
+        assert_eq!(
+            app.get_word(first.word_id).unwrap().item.status,
+            WordStatus::Learning
+        );
+        workflow.undo(request, saved.encounter_id).unwrap();
+        assert_eq!(app.list_achieved_words().unwrap().len(), 1);
+        assert_eq!(app.get_word(first.word_id).unwrap().encounters.len(), 1);
+    }
+}
+
+#[test]
+fn applying_translated_draft_preserves_detected_language_for_achieved_lookup() {
+    use vocab_domain::WordRepository;
+    let store = Arc::new(SqliteStore::open_in_memory().unwrap());
+    let app = Arc::new(AppService::new(store.clone(), Uuid::now_v7()));
+    let workflow = PlatformCaptureWorkflow::new(
+        app.clone(),
+        platform_services(
+            Ok(candidate("Notion")),
+            Arc::new(CountingTranslationProvider {
+                calls: Arc::new(AtomicUsize::new(0)),
+            }),
+        ),
+    );
+    let mut english_id = None;
+    for language in ["en", "fr"] {
+        let mut settings = app.get_settings().unwrap();
+        settings.source_language = language.into();
+        app.update_settings(settings).unwrap();
+        let request = workflow.start_request();
+        workflow
+            .set_candidate(request, candidate("notion"))
+            .unwrap();
+        workflow
+            .correct(
+                request,
+                "notion".into(),
+                "context".into(),
+                Some("Vorstellung".into()),
+            )
+            .unwrap();
+        let saved = workflow.save(request, false, captured_at()).unwrap();
+        if language == "en" {
+            english_id = Some(saved.word_id);
+            let mut word = WordRepository::get(store.as_ref(), saved.word_id)
+                .unwrap()
+                .unwrap();
+            word.enter_mastered(Utc::now());
+            WordRepository::save(store.as_ref(), &word).unwrap();
+            app.achieve_word(word.id, Utc::now()).unwrap();
+        }
+    }
+    let mut settings = app.get_settings().unwrap();
+    settings.source_language = "auto".into();
+    app.update_settings(settings).unwrap();
+    let request = workflow.start_request();
+    workflow
+        .set_candidate(request, candidate("Notion"))
+        .unwrap();
+    let translated = block_on(workflow.translate(request, "Notion", "auto", "de")).unwrap();
+    assert_eq!(
+        workflow
+            .find_achieved_capture(request, Utc::now())
+            .unwrap()
+            .map(|m| m.word_id),
+        english_id
+    );
+    // The floating window applies the editable draft immediately after translation.
+    workflow
+        .correct(
+            request,
+            "Notion".into(),
+            "context".into(),
+            Some(translated.translated_text),
+        )
+        .unwrap();
+    assert_eq!(
+        workflow
+            .find_achieved_capture(request, Utc::now())
+            .unwrap()
+            .map(|m| m.word_id),
+        english_id,
+        "Applying the draft must not lose the detected source language and hide Achieved"
+    );
+    let saved = workflow
+        .restore_achieved_and_save(request, english_id.unwrap(), false, Utc::now())
+        .unwrap();
+    assert_eq!(saved.word_id, english_id.unwrap());
+    workflow.undo(request, saved.encounter_id).unwrap();
+    assert_eq!(app.list_achieved_words().unwrap().len(), 1);
 }

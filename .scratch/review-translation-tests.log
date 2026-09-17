@@ -1,0 +1,28 @@
+$ vitest run "src/components/TranslationText.test.ts" "src/lib/backend.test.ts" "src/windows/WindowsApp.test.ts"
+1:42:04 AM [vite-plugin-svelte] no Svelte config found at C:/Users/yifan/project/vocab-collector/ui - using default configuration.
+
+ RUN  v3.2.7 C:/Users/yifan/project/vocab-collector/ui
+
+ ✓ src/lib/backend.test.ts (5 tests) 10ms
+ ✓ src/components/TranslationText.test.ts (2 tests) 30ms
+stderr | src/windows/WindowsApp.test.ts
+[svelte] derived_inert
+Reading a derived belonging to a now-destroyed effect may result in stale values
+https://svelte.dev/e/derived_inert
+
+stderr | src/windows/WindowsApp.test.ts
+[svelte] derived_inert
+Reading a derived belonging to a now-destroyed effect may result in stale values
+https://svelte.dev/e/derived_inert
+
+ ✓ src/windows/WindowsApp.test.ts (42 tests) 9337ms
+   ✓ sorts all vocabulary before pagination and toggles header directions  500ms
+   ✓ Windows main presentation > persists and reads back Windows settings before applying visual preferences  329ms
+   ✓ Windows main presentation > shows archived-aware lifetime Insight on Insights  2277ms
+   ✓ Paper Today and Review > keeps Today available when optional Insight fails  2504ms
+
+ Test Files  3 passed (3)
+      Tests  49 passed (49)
+   Start at  01:42:04
+   Duration  20.52s (transform 6.19s, setup 4.17s, collect 8.80s, tests 9.38s, environment 2.50s, prepare 637ms)
+

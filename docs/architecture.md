@@ -15,7 +15,9 @@ vocab-desktop (composition and presentation boundary)
             ▲
             ├── vocab-platform-macos → Swift native package
             ├── vocab-platform-linux (Plan B skeleton)
-            └── vocab-platform-windows (Plan B skeleton)
+            ├── vocab-platform-windows (incremental Plan B adapter)
+            ├── vocab-translation-azure (replaceable network provider)
+            └── vocab-translation-deepl (replaceable network provider)
 ```
 
 Dependencies point inward: shared crates never import Tauri, Swift FFI,
@@ -40,6 +42,10 @@ dependency tables.
   `PermissionProvider`, and `WindowProvider` traits.
 - `vocab-platform-contract-tests` provides reusable adapter contract checks;
   application tests use fake providers without native permissions.
+- `vocab-translation-azure` and `vocab-translation-deepl` each implement only
+  the portable `TranslationProvider` contract. Provider HTTP, credentials,
+  retry policy, language adaptation, and protocol DTOs stay private to those
+  crates; the Windows adapter depends on neither provider.
 - `vocab-desktop` selects one platform service bundle, constructs the shared
   workflow, normalizes Tauri presentation data, and exposes stable commands and
   events. It does not call the Swift ABI directly.
@@ -72,16 +78,23 @@ screenshots.
 
 ## Capabilities and platform status
 
-The UI branches on `PlatformCapabilities`, never on an OS name. Window setup is
-invoked only when `nonActivatingWindow` is reported; unavailable providers
-return explicit typed errors.
+The UI branches on `PlatformCapabilities`, never on an OS name. A target may
+install inert native styles on its hidden capture window so physical validation
+can occur before the capability is advertised. Product presentation that relies
+on those styles is enabled only when `nonActivatingWindow` is reported;
+unavailable providers return explicit typed errors.
 
 The macOS adapter and Swift package are the Plan A runtime implementation.
-Linux and Windows crates are contract-compatible skeletons only. Their source
-may be statically formatted on macOS, but their compilation, automated tests,
-and runtime behavior are verified on their target-specific CI lanes and
-physical Plan B hosts as documented in `linux-development.md` and
-`windows-development.md`.
+Linux remains a contract-compatible skeleton. Windows is an incremental Plan B
+adapter: UIA selection and bounds are advertised after target-machine evidence.
+For development, the desktop composition root may inject explicitly selected
+Azure or DeepL translation and then advertise the capability; credentials stay in Rust below the
+WebView boundary. Debug builds may load `.env.local`; release builds read only
+explicit process environment variables, with release credential delivery still
+out of scope. OCR, Azure-backed translation behavior, and non-activating
+window behavior remain physically unverified until their own evidence gates pass. Target-specific compilation, automated
+tests, and physical runtime evidence are documented in `linux-development.md`
+and `windows-development.md`.
 
 ## Account and enrichment seams
 

@@ -72,6 +72,29 @@ fn uses_pointer_monitor_when_selection_bounds_are_unavailable() {
 }
 
 #[test]
+fn keeps_the_complete_card_inside_negative_origin_mixed_dpi_work_areas() {
+    let card = ScreenSize::new(380.0, 280.0);
+    for monitor in [
+        MonitorWorkArea::new(-1920.0, -180.0, 1920.0, 1040.0, 1.0),
+        MonitorWorkArea::new(-1536.0, -144.0, 1536.0, 832.0, 1.25),
+        MonitorWorkArea::new(-1280.0, -120.0, 1280.0, 693.3333333333, 1.5),
+        MonitorWorkArea::new(-960.0, -90.0, 960.0, 520.0, 2.0),
+    ] {
+        let position = place_floating_window(
+            rect(monitor.x + 2.0, monitor.y + 2.0, 8.0, 20.0),
+            point(monitor.x + 4.0, monitor.y + 4.0),
+            &[monitor],
+            card,
+        );
+
+        assert!(position.x >= monitor.x);
+        assert!(position.y >= monitor.y);
+        assert!(position.x + card.width <= monitor.x + monitor.width);
+        assert!(position.y + card.height <= monitor.y + monitor.height);
+    }
+}
+
+#[test]
 fn capture_origin_round_trips_through_json() {
     let value = serde_json::to_string(&CaptureOrigin::Ocr).unwrap();
     assert_eq!(value, "\"ocr\"");
