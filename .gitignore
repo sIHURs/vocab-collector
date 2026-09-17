@@ -5,6 +5,7 @@ platform/macos/.build/
 platform/macos/native/.build/
 /.pnpm-store/
 /ui/dist/
+/ui/dist-landing/
 /ui/coverage/
 /apps/desktop/src-tauri/gen/
 /docs/develop-doc/
