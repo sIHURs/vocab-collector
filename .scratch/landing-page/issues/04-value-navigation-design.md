@@ -33,3 +33,7 @@ Still to provide: actual Windows release/installer destination and package requi
 
 Visual QA completed in Paper for desktop/phone dark/light, navigation and handoff states: readable type, aligned cards, consistent controls, no unintended overflow. Delivery consists of static UX/UI states and annotations; no code or deployment was produced.
 
+
+## App UI synchronization — 2026-09-17
+
+Updated the existing Paper deliverables against App source at a696b5e. See ../handoff.md, "Verified UI revision", for the authoritative changes and current behavior. This revision supersedes conflicting older timing, progress and completion descriptions above. Status remains ready-for-review; application code is unchanged.

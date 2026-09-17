@@ -31,3 +31,7 @@ Visual QA covered all four compositions and selected native Capture/detail/Revie
 
 Current implementation-facing design summary: `../handoff.md`. The historical interview material in `../spec.md` is explicitly marked as superseded where it conflicts. Interaction behavior is annotated, not functional; no app code, recordings or deployment were produced.
 
+
+## App UI synchronization — 2026-09-17
+
+Updated the existing Paper deliverables against App source at a696b5e. See ../handoff.md, "Verified UI revision", for the authoritative changes and current behavior. This revision supersedes conflicting older timing, progress and completion descriptions above. Status remains ready-for-review; application code is unchanged.

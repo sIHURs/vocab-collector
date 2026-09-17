@@ -33,3 +33,7 @@ Paper: https://app.paper.design/file/01M2AMNRXMP0TZ753GPD28ZSJV/1-0
 
 **Scope:** UX/UI design in Paper only. Deliver artboards and interaction annotations; no app code, backend, automated tests, builds, hosting, or deployment. Use existing app visuals as references. If Paper is unavailable, report the blocker rather than substituting tools. Mark unselected content/assets as placeholders. Prototype connections are optional where supported; do not represent annotated behavior as functional software.
 
+
+## App UI synchronization — 2026-09-17
+
+Updated the existing Paper deliverables against App source at a696b5e. See ../handoff.md, "Verified UI revision", for the authoritative changes and current behavior. This revision supersedes conflicting older timing, progress and completion descriptions above. Status remains ready-for-review; application code is unchanged.

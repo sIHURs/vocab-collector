@@ -51,3 +51,7 @@ Applied the user's three requested corrections through Paper MCP only. This revi
 - Reviewed all themes and affected states for spacing, typography, contrast, alignment, clipping, and consistency. Fixed mobile context wrapping and light Replay icon contrast.
 
 Paper contains design states and interaction annotations, not executable playback. Tickets 02–05 and application code remain untouched. Status remains ready-for-review.
+
+## App UI synchronization — 2026-09-17
+
+Updated the existing Paper deliverables against App source at a696b5e. See ../handoff.md, "Verified UI revision", for the authoritative changes and current behavior. This revision supersedes conflicting older timing, progress and completion descriptions above. Status remains ready-for-review; application code is unchanged.

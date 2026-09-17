@@ -1,8 +1,10 @@
 # Landing page design
 
-Status: confirmed-paper-design-in-review
+Status: design-baseline-established-development-planning
 
-## Current handoff — 2026-09-13
+## Current handoff — 2026-09-17
+
+Next phase: [development-plan.md](development-plan.md). The user selected a real App UI browser demo with sample data on 2026-09-17. The development plan records code integration findings, the implementation sequence, acceptance gates and release synchronization. Implementation has not started. Current capture timing and Review behavior are in handoff.md; historical four-second timing below is superseded.
 
 The current design is documented in [handoff.md](handoff.md) and Paper Page 1 artboard 48. Full pages are 44–47. Use these and the delivered ticket notes as the implementation-facing source of truth.
 
